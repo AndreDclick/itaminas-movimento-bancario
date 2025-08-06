@@ -40,7 +40,8 @@ class ProtheusScraper:
     def start_scraper(self):
         try:
             self.page.goto(self.settings.BASE_URL)
-            self.page.locator("button:text('Start')").click()
+            botao_start = self.page.locator("span:text('Ok')")
+            botao_start.click()
             logger.info("scraper started")
         except Exception as e:
             logger.error(f"Failed to start scraper: {e}")
@@ -48,7 +49,7 @@ class ProtheusScraper:
 
     def _check_completion(self):
         try:
-            return self.page.locator("div.congratulations").is_visible(timeout=1000)
+            return self.page.locator("").is_visible(timeout=1000)
         except:
             return False
 
@@ -56,4 +57,4 @@ class ProtheusScraper:
 
     def run(self):
         self.start_scraper()
-        return self.fill_form(self._load_data())
+        return 
