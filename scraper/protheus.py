@@ -39,22 +39,40 @@ class ProtheusScraper:
 
     def start_scraper(self):
         try:
+            logger.info(f"Navigating to URL: {self.settings.BASE_URL}")
             self.page.goto(self.settings.BASE_URL)
-            botao_start = self.page.locator("span:text('Ok')")
-            botao_start.click()
-            logger.info("scraper started")
+            butao_ok = self.page.locator('button:has-text("Ok")')
+            logger.info("Clicking OK button...")
+            butao_ok.click()
         except Exception as e:
             logger.error(f"Failed to start scraper: {e}")
             raise FormSubmitFailed(f"Failed to start scraper: {e}")
-
-    def _check_completion(self):
+        
+    def login(self):
         try:
-            return self.page.locator("").is_visible(timeout=1000)
-        except:
-            return False
-
-    
-
+            time.sleep(15)
+            usuario_input = self.page.locator('xpath=//*[@id="po-login[d932dfe5-40c2-f4b1-448b-a48bf77285dd]"]').click()
+            usuario_input.fill(self.settings.USUARIO)
+            senha_input = self.page.locator('xpath=//*[@id="po-password[830cc1d2-8645-9ae9-7efc-f54003d447c6]"]')
+            senha_input.fill(self.settings.SENHA)
+            butao_entrar = self.page.locator('button:has-text("Entrar")')
+            logger.info("Clicking OK button...")
+            butao_entrar.click()
+        except Exception as e:
+            logger.error(f"Failed to login: {e}")
+            raise FormSubmitFailed(f"Failed to login: {e}")
     def run(self):
-        self.start_scraper()
-        return 
+        results = []
+        try:
+            self.start_scraper()
+            self.login()
+            results.append({
+                'status': 'success',
+                'message': 'Scraper executed successfully'
+            })
+        except Exception as e:
+            results.append({
+                'status': 'error',
+                'message': str(e)
+            })
+        return results

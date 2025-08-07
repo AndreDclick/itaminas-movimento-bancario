@@ -10,7 +10,7 @@ class Settings:
     load_dotenv(BASE_DIR / ".env")
 
     # Dados sensíveis
-    EMAIL = os.getenv("EMAIL")
+    USUARIO = os.getenv("USUARIO")
     SENHA = os.getenv("SENHA")
     BASE_URL = os.getenv("BASE_URL")
 
@@ -27,7 +27,7 @@ class Settings:
     DATA_BASE = datetime.now().strftime("%d/%m/%Y")
 
     # Timeouts
-    TIMEOUT = 10000  
+    TIMEOUT = 30000  
     DELAY = 0.5  
     SHUTDOWN_DELAY = 3 
     
