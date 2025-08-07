@@ -3,6 +3,7 @@ import openpyxl
 from openpyxl import Workbook
 import time
 from pathlib import Path
+from .modelo_1 import Modelo_1
 from config.settings import Settings
 from config.logger import configure_logger
 from .exceptions import (BrowserClosedError, DownloadFailed,
@@ -48,24 +49,50 @@ class ProtheusScraper:
             logger.error(f"Failed to start scraper: {e}")
             raise FormSubmitFailed(f"Failed to start scraper: {e}")
         
+
     def login(self):
         try:
-            time.sleep(15)
-            usuario_input = self.page.locator('xpath=//*[@id="po-login[d932dfe5-40c2-f4b1-448b-a48bf77285dd]"]').click()
-            usuario_input.fill(self.settings.USUARIO)
-            senha_input = self.page.locator('xpath=//*[@id="po-password[830cc1d2-8645-9ae9-7efc-f54003d447c6]"]')
-            senha_input.fill(self.settings.SENHA)
-            butao_entrar = self.page.locator('button:has-text("Entrar")')
-            logger.info("Clicking OK button...")
-            butao_entrar.click()
+            # Definição dos locators (variáveis)
+            iframe_locator = "iframe"
+            campo_usuario_locator = self.page.frame_locator(iframe_locator).get_by_placeholder("Ex. sp01\\nome.sobrenome")
+            campo_senha_locator = self.page.frame_locator(iframe_locator).get_by_label("Insira sua senha")
+            botao_entrar_locator = self.page.frame_locator(iframe_locator).get_by_role("button", name="Entrar")
+            # botao_fechar_locator = self.page.frame_locator(iframe_locator).get_by_role("button", name="Fechar")
+            logger.info("Aguardando página de login...")
+            self.page.wait_for_selector(iframe_locator, state="visible")
+            
+            logger.info("Preenchendo usuário...")
+            campo_usuario_locator.fill(self.settings.USUARIO)
+            
+            logger.info("Preenchendo senha...")
+            campo_senha_locator.fill(self.settings.SENHA)
+            
+            logger.info("Clicando em 'Entrar'...")
+            botao_entrar_locator.click()
+
+            time.sleep(5)
+            self.page.wait_for_selector(iframe_locator, state="visible")
+            logger.info("Clicando em 'Entrar'...")
+            botao_entrar_locator.click()
+            logger.info("Login concluído com sucesso.")
+
+            time.sleep(5)
+            self.page.get_by_role("button", name="Fechar").click()
+            logger.info("popup fechado.")
+            
         except Exception as e:
-            logger.error(f"Failed to login: {e}")
-            raise FormSubmitFailed(f"Failed to login: {e}")
+            logger.error(f"Falha no login: {e}")
+            raise FormSubmitFailed(f"Falha no login: {e}")
+        
     def run(self):
         results = []
         try:
             self.start_scraper()
             self.login()
+
+            modelo_1 = Modelo_1(self, page)
+            modelo_1 = execucao()
+
             results.append({
                 'status': 'success',
                 'message': 'Scraper executed successfully'

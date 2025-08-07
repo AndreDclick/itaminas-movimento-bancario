@@ -15,5 +15,5 @@ def main():
     return 0
 
 if __name__ == "__main__":
-    print("Methods in ProtheusScraper:", dir(ProtheusScraper))
+    # print("Methods in ProtheusScraper:", dir(ProtheusScraper))
     main()

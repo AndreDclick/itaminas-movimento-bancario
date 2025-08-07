@@ -27,7 +27,7 @@ class Settings:
     DATA_BASE = datetime.now().strftime("%d/%m/%Y")
 
     # Timeouts
-    TIMEOUT = 30000  
+    TIMEOUT = 500000  
     DELAY = 0.5  
     SHUTDOWN_DELAY = 3 
     
