@@ -46,13 +46,7 @@ class ProtheusScraper:
             'campo_usuario': self.page.frame_locator("iframe").get_by_placeholder("Ex. sp01\\nome.sobrenome"),
             'campo_senha': self.page.frame_locator("iframe").get_by_label("Insira sua senha"),
             'botao_entrar': self.page.frame_locator("iframe").get_by_role("button", name="Entrar"),
-            'popup_fechar': self.page.get_by_role("button", name="Fechar"),
-            'menu_relatorios': self.page.get_by_text("Relatorios (9)"),
-
-            # submenu
-            'submenu_balancetes': self.page.get_by_text("Balancetes (34)"),
-            'opcao_modelo1': self.page.get_by_text("Modelo 1", exact=True),
-            'botao_confirmar': self.page.get_by_role("button", name="Confirmar"),
+            'popup_fechar': self.page.get_by_role("button", name="Fechar")
 
         }
 
@@ -114,45 +108,7 @@ class ProtheusScraper:
             logger.error(f"Falha no login: {str(e)}")
             raise FormSubmitFailed(f"Erro de login: {e}")
 
-    def _navegar_menu(self):
-        """navegação no menu"""
-        try:
-            logger.info("Iniciando navegação no menu...")
-            
-            # Espera o menu principal estar disponível
-            self.locators['menu_relatorios'].wait_for(state="visible", timeout=5000)
-            self.locators['menu_relatorios'].click()
-            logger.info("Menu Relatórios clicado")
-            
-            time.sleep(2)  
-            
-            self.locators['submenu_balancetes'].wait_for(state="visible")
-            self.locators['submenu_balancetes'].click()
-            logger.info("Submenu Balancetes clicado")
-            
-            time.sleep(2)
-            
-            self.locators['opcao_modelo1'].wait_for(state="visible")
-            self.locators['opcao_modelo1'].click()
-            logger.info("Modelo 1 selecionada")
-            
-        except Exception as e:
-            logger.error(f"Falha na navegação do menu: {e}")
-            
-            raise
-    
-    def _confirmar_operacao(self):
-        """confirmação da operação"""
-        try:
-            time.sleep(2)
-            self.locators['botao_confirmar'].click()
-            logger.info("operação confirmada")
-            time.sleep(5)
-            self._fechar_popup_se_existir()
-            
-        except Exception as e:
-            logger.error(f"Falha na confirmação: {e}")
-            raise
+
     def run(self):
         """Fluxo principal de execução"""
         results = []
@@ -160,9 +116,6 @@ class ProtheusScraper:
             # 1. Inicialização e login
             self.start_scraper()
             self.login()
-        
-            self._navegar_menu()
-            self._confirmar_operacao()
             results.append({
                 'status': 'success',
                 'message': 'Login realizado com sucesso',

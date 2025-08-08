@@ -1,18 +1,12 @@
-from playwright.sync_api import sync_playwright, TimeoutError as PlaywrightTimeoutError
-from config.settings import Settings
+from playwright.sync_api import sync_playwright, TimeoutError 
 from config.logger import configure_logger
-from .exceptions import FormSubmitFailed
 import time
 
 logger = configure_logger()
 
 class Modelo_1:
-    def __init__(self, page):  # Agora recebe apenas a página
-        """Inicializa o Modelo 1 com a página do navegador
-        
-        Args:
-            page: Página do Playwright já autenticada
-        """
+    def __init__(self, page):  
+        """Inicializa o Modelo 1 com a página do navegador"""
         self.page = page
         self._definir_locators()
         logger.info("Modelo_1 inicializado")
@@ -20,6 +14,13 @@ class Modelo_1:
     def _definir_locators(self):
         """Centraliza apenas os locators específicos do Modelo 1"""
         self.locators = {
+            # submenu
+            'menu_relatorios': self.page.get_by_text("Relatorios (9)"),
+            'submenu_balancetes': self.page.get_by_text("Balancetes (34)"),
+            'opcao_modelo1': self.page.get_by_text("Modelo 1", exact=True),
+            'botao_confirmar': self.page.get_by_role("button", name="Confirmar"),
+            'popup_fechar': self.page.get_by_role("button", name="Fechar"),
+
             # parametros
             'data_inicial': self.page.locator("#COMP4512").get_by_role("textbox"),
             'data_final': self.page.locator("#COMP4514").get_by_role("textbox"),
@@ -45,6 +46,55 @@ class Modelo_1:
             'botao_sim': self.page.get_by_role("button", name="Sim")
         }
         logger.info("Seledores definidos")
+
+
+    def _navegar_menu(self):
+        """navegação no menu"""
+        try:
+            logger.info("Iniciando navegação no menu...")
+            
+            # Espera o menu principal estar disponível
+            self.locators['menu_relatorios'].wait_for(state="visible", timeout=5000)
+            self.locators['menu_relatorios'].click()
+            logger.info("Menu Relatórios clicado")
+            
+            time.sleep(1)  
+            
+            self.locators['submenu_balancetes'].wait_for(state="visible")
+            self.locators['submenu_balancetes'].click()
+            logger.info("Submenu Balancetes clicado")
+            
+            time.sleep(1)
+            
+            self.locators['opcao_modelo1'].wait_for(state="visible")
+            self.locators['opcao_modelo1'].click()
+            logger.info("Modelo 1 selecionada")
+            
+        except Exception as e:
+            logger.error(f"Falha na navegação do menu: {e}")
+            
+            raise
+
+    def _fechar_popup_se_existir(self):
+        """Método reutilizável para fechar popups"""
+        try:
+            time.sleep(3)
+            if self.locators['popup_fechar'].is_visible():
+                self.locators['popup_fechar'].click()
+        except Exception as e:
+            logger.warning(f" Erro ao verificar popup: {e}")
+    
+    def _confirmar_operacao(self):
+        """confirmação da operação"""
+        try:
+            time.sleep(2)
+            self.locators['botao_confirmar'].click()
+            logger.info("operação confirmada")
+            time.sleep(5)
+            self. _fechar_popup_se_existir() 
+        except Exception as e:
+            logger.error(f"Falha na confirmação: {e}")
+            raise
 
     def _preencher_parametros(self):
         input_data_inicial = '01/04/2025'
@@ -116,6 +166,7 @@ class Modelo_1:
             time.sleep(5)
             if self.locators['botao_sim'].is_visible():
                 self.locators['botao_sim'].click()
+            self.locators['menu_relatorios'].wait_for(state="visible", timeout=100000)
         except Exception as e:
             logger.error(f"Falha na escolha impressão de planilha {e}")
             raise
@@ -124,6 +175,8 @@ class Modelo_1:
         """Fluxo principal de execução"""
         try:
             logger.info('Iniciando execução do Modelo 1')
+            self._navegar_menu()
+            self._confirmar_operacao()
             self._preencher_parametros()
             self._selecionar_filiais()
             self._gerar_planilha()
