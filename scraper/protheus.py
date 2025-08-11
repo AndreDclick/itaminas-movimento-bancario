@@ -45,7 +45,10 @@ class ProtheusScraper:
             'botao_ok': self.page.locator('button:has-text("Ok")'),
             'campo_usuario': self.page.frame_locator("iframe").get_by_placeholder("Ex. sp01\\nome.sobrenome"),
             'campo_senha': self.page.frame_locator("iframe").get_by_label("Insira sua senha"),
-            'botao_entrar': self.page.frame_locator("iframe").get_by_role("button", name="Entrar"),
+            'botao_entrar': self.page.frame_locator("iframe").get_by_role("button", name="Entrar"),            
+            'campo_grupo': self.page.frame_locator("iframe").get_by_label("Grupo"),
+            'campo_filial': self.page.frame_locator("iframe").get_by_label("Filial"),
+            'campo_ambiente': self.page.frame_locator("iframe").get_by_label("Ambiente"),
             'popup_fechar': self.page.get_by_role("button", name="Fechar")
 
         }
@@ -78,8 +81,10 @@ class ProtheusScraper:
         try:
             logger.info(f"Navegando para: {self.settings.BASE_URL}")
             self.page.goto(self.settings.BASE_URL)
-            self.locators['botao_ok'].click()
-            logger.info("Botão 'Ok' clicado")
+            if self.locators['botao_ok'].is_visible():
+                self.locators['botao_ok'].click()
+                logger.info("Botão 'Ok' clicado")
+            
         except Exception as e:
             logger.error(f"Falha ao iniciar scraper: {e}")
             raise FormSubmitFailed(f"Erro inicial: {e}")
@@ -95,7 +100,16 @@ class ProtheusScraper:
             self.locators['campo_senha'].fill(self.settings.SENHA)
             self.locators['botao_entrar'].click()
             
-            time.sleep(3)
+            input_campo_grupo = '01'
+            input_campo_filial = '0101'
+            input_campo_ambiente = '34'
+            self.locators['campo_grupo'].wait_for(state="visible")
+            self.locators['campo_grupo'].click()
+            self.locators['campo_grupo'].fill(input_campo_grupo)
+            self.locators['campo_filial'].click()
+            self.locators['campo_filial'].fill(input_campo_filial)
+            self.locators['campo_ambiente'].click()
+            self.locators['campo_ambiente'].fill(input_campo_ambiente)
             self.locators['botao_entrar'].click()
             self._fechar_popup_se_existir()
             time.sleep(3)
@@ -123,11 +137,16 @@ class ProtheusScraper:
                 })
 
             # 2. Execução do Modelo 1
-            modelo_1 = Modelo_1(self.page)
-            resultado_modelo = modelo_1.execucao()
-            results.append(resultado_modelo)
+            # modelo_1 = Modelo_1(self.page)
+            # resultado_modelo = modelo_1.execucao()
+            # results.append(resultado_modelo)
 
-            # 3. Verificação final
+            # 3. Execução do Contas x Itens
+            contasxitens = Contas_x_itens(self.page)
+            resultado_contas = contasxitens.execucao()
+            results.append(resultado_contas)
+
+            # 4. Verificação final
             if any(r['status'] == 'error' for r in results):
                 logger.warning("Processo concluído com erros parciais")
             else:
