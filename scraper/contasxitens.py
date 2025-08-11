@@ -27,16 +27,23 @@ class Contas_x_itens:
             'data_final': self.page.locator("#COMP4514").get_by_role("textbox"),
             'conta_inicial': self.page.locator("#COMP4516").get_by_role("textbox"),
             'conta_final': self.page.locator("#COMP4518").get_by_role("textbox"),
-            'imprime_item': self.page.locator("#COMP4530").get_by_role("textbox"),
-            'saldos_zerados': self.page.locator("#COMP4532").get_by_role("textbox"),
-            # parei aqui
-            'data_sid_art': self.page.locator("#COMP4564").get_by_role("textbox"),
-            'num_linha_balancete': self.page.locator("#COMP4566").get_by_role("textbox"),
-            'desc_moeda': self.page.locator("#COMP4568").get_by_role("textbox"),
-            'filiais': self.page.locator("#COMP4568").get_by_role("textbox"),
-            # 'filiais_select': self.page.get_by_role("option", name="sim"),
-            'botao_ok': self.page.locator('button:has-text("Ok")'),
-
+            'imprime_item': self.page.locator("#COMP4524").get_by_role("textbox"),
+            'saldos_zerados': self.page.locator("#COMP4528").get_by_role("textbox"),
+            'moeda': self.page.locator("#COMP4530").get_by_role("textbox"),
+            'folha_inicial': self.page.locator("#COMP4532").get_by_role("textbox"),
+            'imprime_saldos': self.page.locator("#COMP4534").get_by_role("textbox"),
+            'imprime_coluna': self.page.locator("#COMP4546").get_by_role("combobox"),
+            'imp_tot_cta': self.page.locator("#COMP4548").get_by_role("combobox"),
+            'pula_pagina': self.page.locator("#COMP4550").get_by_role("combobox"),
+            'salta_linha': self.page.locator("#COMP4552").get_by_role("combobox"),
+            'imprime_valor':self.page.locator("#COMP4554").get_by_role("combobox"),
+            'impri_cod_item': self.page.locator("#COMP4556").get_by_role("combobox"),
+            'divide_por': self.page.locator("#COMP4558").get_by_role("combobox"),
+            'impri_cod_conta': self.page.locator("#COMP4560").get_by_role("combobox"),
+            'posicao_ant_lp': self.page.locator("#COMP4562").get_by_role("combobox"),
+            'data_lucros': self.page.locator("#COMP4564").get_by_role("combobox"),
+            'selec_filiais': self.page.locator("#COMP4566").get_by_role("combobox"),
+            
             # Seleção Filiais 
             'botao_marcar_filiais': self.page.get_by_role("button", name="Marca Todos - <F4>"), 
             'botao_confirmar': self.page.get_by_role("button", name="Confirmar"),     
@@ -68,9 +75,9 @@ class Contas_x_itens:
             
             time.sleep(1)
             
-            self.locators['opcao_modelo1'].wait_for(state="visible")
-            self.locators['opcao_modelo1'].click()
-            logger.info("Modelo 1 selecionada")
+            self.locators['opcao_contas_x_itens'].wait_for(state="visible")
+            self.locators['opcao_contas_x_itens'].click()
+            logger.info("Contas x Itens selecionada")
             
         except Exception as e:
             logger.error(f"Falha na navegação do menu: {e}")
@@ -101,9 +108,8 @@ class Contas_x_itens:
     def _preencher_parametros(self):
         input_data_inicial = '01/04/2025'
         input_data_final = '30/04/2025'
-        input_conta_inicial = ''
-        input_conta_final = 'ZZZZZZZZZZZZZZZZZZZZ'
-        input_data_lucros_perdas = ''
+        input_conta_inicial = '20102010001'
+        input_conta_final = '20102010001'
         input_grupos_receitas_despesas = '3456'
         input_data_sid_art = '31/12/2024'
         input_num_linha_balancete = '99'
@@ -123,8 +129,7 @@ class Contas_x_itens:
             self.locators['conta_final'].click()
             self.locators['conta_final'].fill(input_conta_final)
             time.sleep(1) 
-            self.locators['data_lucros_perdas'].click()
-            self.locators['data_lucros_perdas'].fill(input_data_lucros_perdas)
+            self.locators['imprime_item'].select_option("1")
             time.sleep(1) 
             self.locators['grupos_receitas_despesas'].click()
             self.locators['grupos_receitas_despesas'].fill(input_grupos_receitas_despesas)

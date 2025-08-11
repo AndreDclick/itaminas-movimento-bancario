@@ -3,6 +3,7 @@ from config.settings import Settings
 from config.logger import configure_logger
 from .exceptions import FormSubmitFailed
 from .modelo_1 import Modelo_1
+from .financeiro import ExtracaoFinanceiro
 import time
 
 logger = configure_logger()
@@ -127,7 +128,7 @@ class ProtheusScraper:
         """Fluxo principal de execução"""
         results = []
         try:
-            # 1. Inicialização e login
+            # 0. Inicialização e login
             self.start_scraper()
             self.login()
             results.append({
@@ -136,15 +137,20 @@ class ProtheusScraper:
                 'etapa': 'autenticação'
                 })
 
+            # 1. Financeiro            
+            financeiro = ExtracaoFinanceiro(self.page)
+            resultado_financeiro = financeiro.execucao()
+            results.append(resultado_financeiro)
+
             # 2. Execução do Modelo 1
             # modelo_1 = Modelo_1(self.page)
             # resultado_modelo = modelo_1.execucao()
             # results.append(resultado_modelo)
 
             # 3. Execução do Contas x Itens
-            contasxitens = Contas_x_itens(self.page)
-            resultado_contas = contasxitens.execucao()
-            results.append(resultado_contas)
+            # contasxitens = Contas_x_itens(self.page)
+            # resultado_contas = contasxitens.execucao()
+            # results.append(resultado_contas)
 
             # 4. Verificação final
             if any(r['status'] == 'error' for r in results):
