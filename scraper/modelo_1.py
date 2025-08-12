@@ -31,8 +31,7 @@ class Modelo_1:
             'data_sid_art': self.page.locator("#COMP4564").get_by_role("textbox"),
             'num_linha_balancete': self.page.locator("#COMP4566").get_by_role("textbox"),
             'desc_moeda': self.page.locator("#COMP4568").get_by_role("textbox"),
-            'filiais': self.page.locator("#COMP4568").get_by_role("textbox"),
-            # 'filiais_select': self.page.get_by_role("option", name="sim"),
+            'selec_filiais': self.page.locator("#COMP4570").get_by_role("combobox"),
             'botao_ok': self.page.locator('button:has-text("Ok")'),
 
             # Seleção Filiais 
@@ -135,9 +134,11 @@ class Modelo_1:
             time.sleep(1) 
             self.locators['desc_moeda'].click()
             self.locators['desc_moeda'].fill(input_desc_moeda)
-            time.sleep(1) 
-            # self.locators['filiais'].click()
-            # self.locators['filiais'].select_option("0")
+            time.sleep(1)
+            self.locators['selec_filiais'].click()
+            time.sleep(1)
+            self.locators['selec_filiais'].select_option("0")
+            time.sleep(1)
             self.locators['botao_ok'].click()
         except Exception as e:
             logger.error(f"Falha no preenchimento de parâmetros {e}")
