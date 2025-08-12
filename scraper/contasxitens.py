@@ -1,27 +1,28 @@
 from playwright.sync_api import sync_playwright, TimeoutError 
 from config.logger import configure_logger
+from .utils import UtilsScraper
+
 import time
 
 logger = configure_logger()
 
-class Contas_x_itens:
+class Contas_x_itens(UtilsScraper):
     def __init__(self, page):  
-        """Inicializa o Modelo 1 com a página do navegador"""
+        """Inicializa o Contas X Itens com a página do navegador"""
         self.page = page
         self._definir_locators()
         logger.info("Contas_x_itens inicializado")
 
-
     def _definir_locators(self):
-        """Centraliza apenas os locators específicos do Modelo 1"""
+        """Centraliza apenas os locators específicos do Contas X Itens"""
         self.locators = {
             # submenu
             'menu_relatorios': self.page.get_by_text("Relatorios (9)"),
             'submenu_balancetes': self.page.get_by_text("Balancetes (34)"),
             'opcao_contas_x_itens': self.page.get_by_text("Contas X Itens", exact=True),
-            'botao_confirmar': self.page.get_by_role("button", name="Confirmar"),
             'popup_fechar': self.page.get_by_role("button", name="Fechar"),
-
+            'botao_confirmar': self.page.get_by_role("button", name="Confirmar"),
+            'botao_marcar_filiais': self.page.get_by_role("button", name="Marca Todos - <F4>"),
             # parametros
             'data_inicial': self.page.locator("#COMP4512").get_by_role("textbox"),
             'data_final': self.page.locator("#COMP4514").get_by_role("textbox"),
@@ -45,10 +46,6 @@ class Contas_x_itens:
             'selec_filiais': self.page.locator("#COMP4566").get_by_role("combobox"),
             'botao_ok': self.page.get_by_role("button", name="OK"),
             
-            # Seleção Filiais 
-            'botao_marcar_filiais': self.page.get_by_role("button", name="Marca Todos - <F4>"), 
-            'botao_confirmar': self.page.get_by_role("button", name="Confirmar"),     
-
             # Gerar planilha
             'aba_planilha': self.page.get_by_role("button", name="Planilha"),
             'formato': self.page.locator("#COMP4547").get_by_role("combobox"),
@@ -64,19 +61,16 @@ class Contas_x_itens:
             logger.info("Iniciando navegação no menu...")
             
             # Espera o menu principal estar disponível
-            time.sleep(2)
             self.locators['menu_relatorios'].wait_for(state="visible", timeout=10000)
             self.locators['menu_relatorios'].click()
-            logger.info("Menu Relatórios clicado")
             
             time.sleep(2)  
             if not self.locators['submenu_balancetes'].is_visible():
                 self.locators['menu_relatorios'].click()
                 time.sleep(1)
-
+            
             self.locators['submenu_balancetes'].click()
             logger.info("Submenu Balancetes clicado")
-            
             time.sleep(1)
             
             self.locators['opcao_contas_x_itens'].wait_for(state="visible")
@@ -86,27 +80,6 @@ class Contas_x_itens:
         except Exception as e:
             logger.error(f"Falha na navegação do menu: {e}")
             
-            raise
-
-    def _fechar_popup_se_existir(self):
-        """Método reutilizável para fechar popups"""
-        try:
-            time.sleep(3)
-            if self.locators['popup_fechar'].is_visible():
-                self.locators['popup_fechar'].click()
-        except Exception as e:
-            logger.warning(f" Erro ao verificar popup: {e}")
-    
-    def _confirmar_operacao(self):
-        """confirmação da operação"""
-        try:
-            time.sleep(3)
-            self.locators['botao_confirmar'].click()
-            logger.info("operação confirmada")
-            time.sleep(5)
-            self. _fechar_popup_se_existir() 
-        except Exception as e:
-            logger.error(f"Falha na confirmação: {e}")
             raise
 
     def _preencher_parametros(self):
@@ -123,87 +96,64 @@ class Contas_x_itens:
             self.locators['data_inicial'].wait_for(state="visible")
             self.locators['data_inicial'].click()
             self.locators['data_inicial'].fill(input_data_inicial)
-            time.sleep(1) 
+            time.sleep(0.5) 
             self.locators['data_final'].click()
             self.locators['data_final'].fill(input_data_final)
-            time.sleep(1) 
+            time.sleep(0.5) 
             self.locators['conta_inicial'].click()
             self.locators['conta_inicial'].fill(input_conta_inicial)
-            time.sleep(1) 
+            time.sleep(0.5) 
             self.locators['conta_final'].click()
             self.locators['conta_final'].fill(input_conta_final)  
-            time.sleep(1) 
-            self.locators['imprime_item'].click()          
-            time.sleep(1) 
+            time.sleep(0.5) 
+            self.locators['imprime_item'].click()     
             self.locators['imprime_item'].select_option("1")
-            time.sleep(1) 
+            time.sleep(0.5) 
             self.locators['saldos_zerados'].click()  
-            time.sleep(1) 
             self.locators['saldos_zerados'].select_option("1")
-            time.sleep(1)
+            time.sleep(0.5)
             self.locators['moeda'].click()
             self.locators['moeda'].fill(input_desc_moeda)
-            time.sleep(1) 
+            time.sleep(0.5) 
             self.locators['folha_inicial'].click()
             self.locators['folha_inicial'].fill(input_folha_inicial)
-            time.sleep(1) 
+            time.sleep(0.5) 
             self.locators['imprime_saldos'].click()
             self.locators['imprime_saldos'].fill(input_imprime_saldo)
-            time.sleep(1) 
+            time.sleep(0.5) 
             self.locators['imprime_coluna'].click()
-            time.sleep(1) 
             self.locators['imprime_coluna'].select_option("0")
-            time.sleep(1)
+            time.sleep(0.5)
             self.locators['imp_tot_cta'].click()
-            time.sleep(1)
             self.locators['imp_tot_cta'].select_option("0")
-            time.sleep(1)
+            time.sleep(0.5)
             self.locators['salta_linha'].click()
-            time.sleep(1)
             self.locators['salta_linha'].select_option("1")
-            time.sleep(1)
+            time.sleep(0.5)
             self.locators['imprime_valor'].click()
-            time.sleep(1)
             self.locators['imprime_valor'].select_option("1")
-            time.sleep(1)
+            time.sleep(0.5)
             self.locators['impri_cod_item'].click()
-            time.sleep(1)
             self.locators['impri_cod_item'].select_option("0")
-            time.sleep(1)
+            time.sleep(0.5)
             self.locators['divide_por'].click()
-            time.sleep(1)
             self.locators['divide_por'].select_option("0")
-            time.sleep(1)
+            time.sleep(0.5)
             self.locators['impri_cod_conta'].click()
-            time.sleep(1)
             self.locators['impri_cod_conta'].select_option("0")
-            time.sleep(1)
+            time.sleep(0.5)
             self.locators['posicao_ant_lp'].click()
-            time.sleep(1)
             self.locators['posicao_ant_lp'].select_option("1")
-            time.sleep(1)
+            time.sleep(0.5)
             self.locators['data_lucros'].click()
             self.locators['data_lucros'].fill(input_data_lucros)
-            time.sleep(1)
+            time.sleep(0.5)
             self.locators['selec_filiais'].click()
-            time.sleep(1)
             self.locators['selec_filiais'].select_option("0")
-            time.sleep(1)
+            time.sleep(0.5)
             self.locators['botao_ok'].click()
         except Exception as e:
             logger.error(f"Falha no preenchimento de parâmetros {e}")
-            raise
-
-    def _selecionar_filiais(self):
-        # Seleção Filiais 
-        try: 
-            self.locators['botao_marcar_filiais'].wait_for(state="visible")
-            time.sleep(1)
-            self.locators['botao_marcar_filiais'].click()
-            time.sleep(1)
-            self.locators['botao_confirmar'].click()
-        except Exception as e:
-            logger.error(f"Falha na escolha de filiais {e}")
             raise
 
     def _gerar_planilha (self):
@@ -225,16 +175,18 @@ class Contas_x_itens:
     def execucao(self):
         """Fluxo principal de execução"""
         try:
-            logger.info('Iniciando execução do Modelo 1')
+            logger.info('Iniciando execução do Contas X Itens')
             self._navegar_menu()
             self._confirmar_operacao()
+            self._fechar_popup_se_existir()
             self._preencher_parametros()
             self._selecionar_filiais()
+            self._confirmar_operacao
             self._gerar_planilha()
-            logger.info("✅ Modelo 1 executado com sucesso")
+            logger.info("✅ Contas X Itens executado com sucesso")
             return {
                 'status': 'success',
-                'message': 'Modelo 1 completo'
+                'message': 'Contas X Itens completo'
             }
             
         except Exception as e:

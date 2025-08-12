@@ -2,6 +2,7 @@ from playwright.sync_api import sync_playwright, TimeoutError as PlaywrightTimeo
 from config.settings import Settings
 from config.logger import configure_logger
 from .exceptions import FormSubmitFailed
+from .utils import UtilsScraper
 from .modelo_1 import Modelo_1
 from .financeiro import ExtracaoFinanceiro
 from .contasxitens import Contas_x_itens
@@ -9,7 +10,7 @@ import time
 
 logger = configure_logger()
 
-class ProtheusScraper:
+class ProtheusScraper(UtilsScraper):
     def __init__(self, settings=Settings()):
         self.settings = settings
         self.playwright = None
@@ -52,7 +53,6 @@ class ProtheusScraper:
             'campo_filial': self.page.frame_locator("iframe").get_by_label("Filial"),
             'campo_ambiente': self.page.frame_locator("iframe").get_by_label("Ambiente"),
             'popup_fechar': self.page.get_by_role("button", name="Fechar")
-
         }
 
     def __enter__(self):
@@ -68,15 +68,6 @@ class ProtheusScraper:
         self.context.close()
         self.browser.close()
         self.playwright.stop()
-
-    def _fechar_popup_se_existir(self):
-        """Método reutilizável para fechar popups"""
-        try:
-            time.sleep(3)
-            if self.locators['popup_fechar'].is_visible():
-                self.locators['popup_fechar'].click()
-        except Exception as e:
-            logger.warning(f" Erro ao verificar popup: {e}")
 
     def start_scraper(self):
         """Inicia o navegador e página inicial"""
@@ -95,7 +86,6 @@ class ProtheusScraper:
         """Realiza o login no sistema"""
         try:
             logger.info("Iniciando login...")
-            
             # Interação com elementos
             self.locators['iframe'].wait_for(state="visible")
             self.locators['campo_usuario'].fill(self.settings.USUARIO)

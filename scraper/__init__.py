@@ -1,4 +1,4 @@
 from .protheus import ProtheusScraper
-from .exceptions import RPAChallengeException
+from .exceptions import Exceptions
 
-__all__ = ['ProtheusScraper', 'RPAChallengeException']
+__all__ = ['ProtheusScraper', 'Exceptions']
