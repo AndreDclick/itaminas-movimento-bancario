@@ -1,7 +1,7 @@
 from playwright.sync_api import sync_playwright, TimeoutError as PlaywrightTimeoutError
 from config.logger import configure_logger
 import time
-#teste
+
 logger = configure_logger()
 
 class ExtracaoFinanceiro:
@@ -17,17 +17,21 @@ class ExtracaoFinanceiro:
             # Navegação
             'menu_relatorios': self.page.get_by_text("Relatorios (9)"),
             'menu_financeiro': self.page.get_by_text("Financeiro (2)"),
-            'menu_titulos_a_pagar': self.page.get_by_text('Títulos a Pagar'),
+            'menu_titulos_a_pagar': self.page.get_by_text("Títulos a Pagar", exact=True),
+            'botao_confirmar': self.page.get_by_role("button", name="Confirmar"),
+            'popup_fechar': self.page.get_by_role("button", name="Fechar"),
+            
             
             # Janela "Posição dos Títulos a Pagar"
-            'opcao_planilha': self.page.get_by_role('option', name='Planilha'),
-            'tipo_planilha_combobox': self.page.locator('#COMP4547').get_by_role('combobox'),
-            'outras_acoes_btn': self.page.get_by_role('button', name='Outras Ações'),
+            
+            'planilha': self.page.get_by_role("button", name="Planilha"),
+            'tipo_de_planilha': self.page.locator('#COMP4547').get_by_role('combobox'),
+            'outras_acoes': self.page.get_by_role('button', name='Outras Ações'),
             'parametros_menu': self.page.get_by_text('Parâmetros'),
             'imprimir_btn': self.page.get_by_role('button', name='Imprimir'),
 
             # Janela de Parâmetros
-            'do_vencimento_campo': self.page.get_by_label('Do Vencimento ?'),
+            'do_vencimento_campo': self.page.get_by_label('Do Vencimento?'),
             'ate_o_vencimento_campo': self.page.get_by_label('Até o Vencimento?'),
             'da_emissao_campo': self.page.get_by_label('Da Emissao?'),
             'ate_emissao_campo': self.page.get_by_label('Ate a Emissão?'),
@@ -60,50 +64,107 @@ class ExtracaoFinanceiro:
                 self.locators['menu_relatorios'].click()
                 time.sleep(1)
             self.locators['menu_financeiro'].click()
-            self.locators['menu_titulos_a_pagar'].click()
             
-            # Clicar para selecionar a opção "Planilha" 
-            self.locators['opcao_planilha'].click()
-            
-            # Na opção "Tipo de planilha", selecionar "Formato de planilha" 
-            self.locators['tipo_planilha_combobox'].select_option('Formato de Tabela Xlsx') # Usando o texto, pois é mais robusto
-            
-            logger.info("Configuração de planilha realizada")
+            time.sleep(1)
 
+            self.locators['menu_titulos_a_pagar'].wait_for(state="visible")
+            self.locators['menu_titulos_a_pagar'].click()    
+            
         except PlaywrightTimeoutError:
             logger.error("Falha na navegação ou configuração da planilha")
             raise
 
-    def _preencher_parametros(self):
-        """Preenche os parâmetros conforme o detalhamento do processo."""
+    def _fechar_popup_se_existir(self):
+        """Método reutilizável para fechar popups"""
         try:
-            logger.info("Acessando e preenchendo parâmetros")
-            # Na opção "Outras Ações", selecionar "Parâmetros" 
-            self.locators['outras_acoes_btn'].click()
-            self.locators['parametros_menu'].click()
+            time.sleep(3)
+            if self.locators['popup_fechar'].is_visible():
+                self.locators['popup_fechar'].click()
+        except Exception as e:
+            logger.warning(f" Erro ao verificar popup: {e}")
+    
+    def _confirmar_operacao(self):
+        """confirmação da operação"""
+        try:
+            time.sleep(2)
+            self.locators['botao_confirmar'].click()
+            logger.info("operação confirmada")
+            time.sleep(5)
+            self. _fechar_popup_se_existir() 
+        except Exception as e:
+            logger.error(f"Falha na confirmação: {e}")
+            raise  
 
-            # Preencher campos de data de vencimento
-            # Do Vencimento: 01/01/2000 
-            # Até o Vencimento: 31/12/2050 
-            self.locators['do_vencimento_campo'].fill('01/01/2000')
-            self.locators['ate_o_vencimento_campo'].fill('31/12/2050')
-
-            # Preencher campos de data de emissão
-            self.locators['da_emissao_campo'].fill('01/01/2000')
-            self.locators['ate_emissao_campo'].fill('31/12/2050')
+    def _criar_planilha(self):
+        """Cria a planilha com os dados necessários."""
+        try:
+            # Clicar para selecionar a opção "Planilha" 
+            self.locators['planilha'].click()
             
-            # Preencher campos de data contábil
-            self.locators['da_data_contabil_campo'].fill('01/01/2000') 
-            # A data contábil final deverá ser a do mês que está sendo conciliado.
-            self.locators['ate_data_contabil_campo'].fill('20/05/2025') # Exemplo com a data do documento
+            # Na opção "Tipo de planilha", selecionar "Formato de planilha" 
+            self.locators['tipo_de_planilha'].select_option('Formato de Tabela Xlsx').click() # Usando o texto, pois é mais robusto
+            
+            logger.info("Configuração de planilha realizada")
+        except Exception as e:
+            logger.error(f"Falha ao criar planilha: {e}")
+            raise
 
-            # Clicar em OK para fechar a janela de parâmetros
+    def _outras_acoes(self):
+        """Método para lidar com outras ações."""
+        try:
+            logger.info("Acessando outras ações")
+            # Na opção "Outras Ações", selecionar "Parâmetros" 
+            self.locators['outras_acoes'].click()
+            self.locators['parametros_menu'].click()
+        except Exception as e:
+            logger.error(f"Falha ao acessar outras ações: {e}")
+            raise
+
+    def _preencher_parametros(self):
+        input_do_vencimento = '01/01/2000'
+        input_ate_o_vencimento = '31/12/2050'
+        input_da_emissao = '01/01/2000'
+        input_ate_a_emissao = '31/12/2050'
+        input_da_data_contabil = '01/01/2020'
+        input_ate_a_data_contabil = '31/07/2025'
+        input_data_base = '30/04/2025'
+        
+        try:
+            # parâmetros
+            self.locators['do_vencimento'].wait_for(state="visible")
+            self.locators['do_vencimento'].click()
+            self.locators['do_vencimento'].fill(input_do_vencimento)
+            time.sleep(1) 
+
+            self.locators['ate_o_vencimento'].click()
+            self.locators['ate_o_vencimento'].fill(input_ate_o_vencimento)
+            time.sleep(1) 
+
+            self.locators['da_emissao'].click()
+            self.locators['da_emissao'].fill(input_da_emissao)
+            time.sleep(1) 
+
+            self.locators['ate_a_emissao'].click()
+            self.locators['ate_a_emissao'].fill(input_ate_a_emissao)
+            time.sleep(1) 
+
+            self.locators['da_data_contabil'].click()
+            self.locators['da_data_contabil'].fill(input_da_data_contabil)
+            time.sleep(1) 
+
+            self.locators['ate_a_data_contabil'].click()
+            self.locators['ate_a_dcata_contabil'].fill(input_ate_a_data_contabil)
+            time.sleep(1) 
+
+            self.locators['data_base'].click()
+            self.locators['data_base'].fill(input_data_base)
+            time.sleep(1)
+
             self.locators['ok_btn'].click()
 
-            logger.info("Parâmetros preenchidos com sucesso")
-
-        except PlaywrightTimeoutError:
-            logger.error("Falha ao preencher os parâmetros")
+            
+        except Exception as e:
+            logger.error(f"Falha no preenchimento de parâmetros {e}")
             raise
 
     def _selecionar_filiais_e_imprimir(self):
@@ -114,9 +175,6 @@ class ExtracaoFinanceiro:
             # A janela de seleção de filiais deve aparecer aqui, então esperamos por ela.
             self.locators['marcar_todos_btn'].wait_for(state='visible')
             
-            # Marcar todos
-            # "Selecionar as opções de 'Matriz e Filial' " 
-            # Assumindo que "Marca Todos" faz isso.
             self.locators['marcar_todos_btn'].click() 
             
             # Confirmar seleção
@@ -129,8 +187,6 @@ class ExtracaoFinanceiro:
             # Gerenciar download da planilha
             with self.page.expect_download() as download_info:
                 # Se for necessário um clique adicional de confirmação,
-                # ele pode ser colocado aqui.
-                # Exemplo: self.locators['confirmar_btn'].click()
                 pass
 
             download = download_info.value
@@ -146,7 +202,11 @@ class ExtracaoFinanceiro:
         """Fluxo principal de extração de planilha financeira."""
         try:
             logger.info('Iniciando extração da planilha financeira - Títulos a Pagar')
+            
             self._navegar_e_configurar_planilha()
+            self._confirmar_operacao()
+            self._criar_planilha()
+            self._outras_acoes()
             self._preencher_parametros()
             self._selecionar_filiais_e_imprimir()
             logger.info("Extração da planilha financeira executada com sucesso")
