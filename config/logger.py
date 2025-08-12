@@ -10,7 +10,10 @@ def configure_logger():
     logger.setLevel(logging.INFO)
 
     if not logger.handlers:
-        formatter = logging.Formatter('%(asctime)s - %(name)s - %(levelname)s - %(message)s')
+        # Adiciona filename e lineno no formato do log
+        formatter = logging.Formatter(
+            '%(asctime)s - %(name)s - %(levelname)s - %(filename)s:%(lineno)d - %(message)s'
+        )
         timestamp = datetime.now().strftime('%Y-%m-%d_%H-%M-%S')
         log_file = settings.LOGS_DIR / f"{timestamp}.log"
 
