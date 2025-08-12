@@ -144,9 +144,9 @@ class ProtheusScraper:
             # results.append(resultado_financeiro)
 
             # 2. Execução do Modelo 1
-            # modelo_1 = Modelo_1(self.page)
-            # resultado_modelo = modelo_1.execucao()
-            # results.append(resultado_modelo)
+            modelo_1 = Modelo_1(self.page)
+            resultado_modelo = modelo_1.execucao()
+            results.append(resultado_modelo)
 
             # 3. Execução do Contas x Itens
             contasxitens = Contas_x_itens(self.page)
