@@ -69,9 +69,11 @@ class Contas_x_itens:
             self.locators['menu_relatorios'].click()
             logger.info("Menu Relatórios clicado")
             
-            time.sleep(1)  
-            
-            self.locators['submenu_balancetes'].wait_for(state="visible")
+            time.sleep(2)  
+            if not self.locators['submenu_balancetes'].is_visible():
+                self.locators['menu_relatorios'].click()
+                time.sleep(1)
+
             self.locators['submenu_balancetes'].click()
             logger.info("Submenu Balancetes clicado")
             

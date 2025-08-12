@@ -50,11 +50,15 @@ class ExtracaoFinanceiro:
             logger.info("Iniciando navegação no menu...")
             
             # Espera o menu principal estar disponível
-            self.locators['menu_relatorios'].wait_for(state="visible", timeout=5000)
-            self.locators['menu_relatorios'].dblclick()
+            time.sleep(2)
+            self.locators['menu_relatorios'].wait_for(state="visible", timeout=10000)
+            self.locators['menu_relatorios'].click()
             logger.info("Menu Relatórios clicado")
             
-            time.sleep(1)
+            time.sleep(2)  
+            if not self.locators['menu_financeiro'].is_visible():
+                self.locators['menu_relatorios'].click()
+                time.sleep(1)
             self.locators['menu_financeiro'].click()
             self.locators['menu_titulos_a_pagar'].click()
             
