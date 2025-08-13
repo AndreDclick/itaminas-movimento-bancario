@@ -1,6 +1,6 @@
 import os
 from pathlib import Path
-from datetime import datetime
+from datetime import datetime, timedelta  
 from dotenv import load_dotenv
 
 class Settings:
@@ -36,6 +36,40 @@ class Settings:
     
     # Browser
     HEADLESS = False
+    
+    # Planilhas
+    FORNECEDORES_EXCLUIR = ['NDF', 'PA']  # Siglas de fornecedores a excluir
+    DATA_REFERENCIA = (datetime.now().replace(day=1) - timedelta(days=1)).strftime("%d/%m/%Y")  # Último dia do mês anterior
+    COLUNAS_FINANCEIRO = {
+            'fornecedor': 'B',
+            'titulo': 'C',
+            'parcela': 'D',
+            'tipo_titulo': 'E',
+            'data_emissao': 'F',
+            'data_vencimento': 'G',
+            'valor_original': 'K',
+            'saldo_devedor': 'L',
+            'situacao': 'M',
+            'conta_contabil': 'N',
+            'centro_custo': 'O'
+        }
+    COLUNAS_MODELO1 = {
+            'conta_contabil': 'B',
+            'descricao_conta': 'C',
+            'saldo_anterior': 'D',
+            'debito': 'E',
+            'credito': 'F',
+            'saldo_atual': 'G'
+        }
+    COLUNAS_CONTAS_ITENS = {
+            'conta_contabil': 'B',
+            'item': 'C',
+            'descricao_item': 'D',
+            'quantidade': 'E',
+            'valor_unitario': 'F',
+            'valor_total': 'G',
+            'saldo': 'I'
+        }
 
     def __init__(self):
         os.makedirs(self.DATA_DIR, exist_ok=True)

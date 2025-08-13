@@ -1,7 +1,9 @@
 from playwright.sync_api import sync_playwright, TimeoutError as PlaywrightTimeoutError
 from config.logger import configure_logger
 from .utils import UtilsScraper
+from datetime import datetime, timedelta
 
+import calendar
 import time
 
 logger = configure_logger()
@@ -97,13 +99,24 @@ class ExtracaoFinanceiro(UtilsScraper):
             logger.error(f"Falha ao acessar outras ações: {e}")
             raise
 
+    def fechamento_mes(self):
+        hoje = date.today()
+        mes_passado = hoje.month - 1 if hoje.month > 1 else 12
+        ano_mes_passado = hoje.year if hoje.month > 1 else hoje.year - 1
+        ultimo_dia = calendar.monthrange(ano_mes_passado, mes_passado)[1]
+        data_formatada = date(ano_mes_passado, mes_passado, ultimo_dia).strftime("%d/%m/%Y")
+        return data_formatada
+
     def _preencher_parametros(self):
         input_do_vencimento = '01/01/2000'
         input_ate_o_vencimento = '31/12/2050'
         input_da_emissao = '01/01/2000'
         input_ate_a_emissao = '31/12/2050'
         input_da_data_contabil = '01/01/2020'
+        # input_ate_a_data_contabil = datetime.now().strftime("%d/%m/%Y")
+        # input_ate_a_data_contabil = self.fechamento_mes()
         input_ate_a_data_contabil = '31/07/2025'
+        # input_data_base = datetime.now().strftime("%d/%m/%Y")
         input_data_base = '30/04/2025'
         
         try:

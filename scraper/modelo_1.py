@@ -1,7 +1,9 @@
 from playwright.sync_api import sync_playwright, TimeoutError 
 from config.logger import configure_logger
 from .utils import UtilsScraper
+from datetime import date
 
+import calendar
 import time
 
 logger = configure_logger()
@@ -70,13 +72,35 @@ class Modelo_1(UtilsScraper):
             
             raise
 
+    def primeiro_e_ultimo_dia(self):
+        hoje = date.today()
+        mes_passado = hoje.month - 1 if hoje.month > 1 else 12
+        ano_mes_passado = hoje.year if hoje.month > 1 else hoje.year - 1
+        
+        primeiro_dia = date(ano_mes_passado, mes_passado, 1).strftime("%d/%m/%Y")
+        ultimo_dia_num = calendar.monthrange(ano_mes_passado, mes_passado)[1]
+        ultimo_dia = date(ano_mes_passado, mes_passado, ultimo_dia_num).strftime("%d/%m/%Y")
+        
+        return primeiro_dia, ultimo_dia
+
+
+    def obter_ultimo_dia_ano_passado(self):
+        ano_passado = date.today().year - 1
+        ultimo_dia = date(ano_passado, 12, 31).strftime("%d/%m/%Y")
+        return ultimo_dia
+
+
     def _preencher_parametros(self):
+        # primeiro, ultimo = self.primeiro_e_ultimo_dia()
+        # input_data_inicial = primeiro
+        # input_data_final = ultimo
         input_data_inicial = '01/04/2025'
         input_data_final = '30/04/2025'
         input_conta_inicial = ''
         input_conta_final = 'ZZZZZZZZZZZZZZZZZZZZ'
         input_data_lucros_perdas = ''
         input_grupos_receitas_despesas = '3456'
+        # input_data_sid_art = self.obter_ultimo_dia_ano_passado()
         input_data_sid_art = '31/12/2024'
         input_num_linha_balancete = '99'
         input_desc_moeda = '01'

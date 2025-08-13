@@ -6,6 +6,7 @@ from .utils import UtilsScraper
 from .modelo_1 import Modelo_1
 from .financeiro import ExtracaoFinanceiro
 from .contasxitens import Contas_x_itens
+from .database import DatabaseManager
 import time
 
 logger = configure_logger()
@@ -126,7 +127,7 @@ class ProtheusScraper(UtilsScraper):
                 'status': 'success',
                 'message': 'Login realizado com sucesso',
                 'etapa': 'autenticação'
-                })
+            })
 
             # 1. Financeiro            
             financeiro = ExtracaoFinanceiro(self.page)
@@ -138,12 +139,34 @@ class ProtheusScraper(UtilsScraper):
             resultado_modelo = modelo_1.execucao()
             results.append(resultado_modelo)
 
-            # # 3. Execução do Contas x Itens
+            # 3. Execução do Contas x Itens
             contasxitens = Contas_x_itens(self.page)
             resultado_contas = contasxitens.execucao()
             results.append(resultado_contas)
 
-            # 4. Verificação final
+            # 4. Processamento dos dados
+            with DatabaseManager() as db:
+                # Importa as planilhas baixadas
+                db.import_from_excel(self.settings.DATA_DIR / self.settings.PLS_FINANCEIRO, 
+                                self.settings.TABLE_FINANCEIRO)
+                db.import_from_excel(self.settings.DATA_DIR / self.settings.PLS_MODELO, 
+                                self.settings.TABLE_MODELO1)
+                db.import_from_excel(self.settings.DATA_DIR / self.settings.PLS_CONTAS, 
+                                self.settings.TABLE_CONTAS_ITENS)
+                
+                # Processa os dados
+                db.process_data()
+                
+                # Exporta os resultados
+                output_path = db.export_to_excel()
+                if output_path:
+                    results.append({
+                        'status': 'success',
+                        'message': f'Conciliação gerada em {output_path}',
+                        'etapa': 'processamento'
+                    })
+
+            # 5. Verificação final
             if any(r['status'] == 'error' for r in results):
                 logger.warning("Processo concluído com erros parciais")
             else:

@@ -23,6 +23,7 @@ class Contas_x_itens(UtilsScraper):
             'popup_fechar': self.page.get_by_role("button", name="Fechar"),
             'botao_confirmar': self.page.get_by_role("button", name="Confirmar"),
             'botao_marcar_filiais': self.page.get_by_role("button", name="Marca Todos - <F4>"),
+
             # parametros
             'data_inicial': self.page.locator("#COMP4512").get_by_role("textbox"),
             'data_final': self.page.locator("#COMP4514").get_by_role("textbox"),
@@ -82,7 +83,21 @@ class Contas_x_itens(UtilsScraper):
             
             raise
 
+    def primeiro_e_ultimo_dia(self):
+        hoje = date.today()
+        mes_passado = hoje.month - 1 if hoje.month > 1 else 12
+        ano_mes_passado = hoje.year if hoje.month > 1 else hoje.year - 1
+        
+        primeiro_dia = date(ano_mes_passado, mes_passado, 1).strftime("%d/%m/%Y")
+        ultimo_dia_num = calendar.monthrange(ano_mes_passado, mes_passado)[1]
+        ultimo_dia = date(ano_mes_passado, mes_passado, ultimo_dia_num).strftime("%d/%m/%Y")
+        
+        return primeiro_dia, ultimo_dia
+
     def _preencher_parametros(self):
+        # primeiro, ultimo = self.primeiro_e_ultimo_dia()
+        # input_data_inicial = primeiro
+        # input_data_final = ultimo
         input_data_inicial = '01/04/2025'
         input_data_final = '30/04/2025'
         input_conta_inicial = '20102010001'
