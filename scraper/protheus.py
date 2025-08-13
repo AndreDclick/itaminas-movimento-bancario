@@ -117,10 +117,17 @@ class ProtheusScraper(UtilsScraper):
 
 
     def run(self):
-        """Fluxo principal de execução"""
         results = []
+
+        # Definir todas as etapas web que podem ser reiniciadas
+        etapas_web = [
+            ("financeiro", ExtracaoFinanceiro),
+            ("modelo_1", Modelo_1),
+            ("contas_x_itens", Contas_x_itens)
+        ]
+
+        # 0. Inicialização e login
         try:
-            # 0. Inicialização e login
             self.start_scraper()
             self.login()
             results.append({
@@ -128,57 +135,85 @@ class ProtheusScraper(UtilsScraper):
                 'message': 'Login realizado com sucesso',
                 'etapa': 'autenticação'
             })
-
-            # 1. Financeiro            
-            financeiro = ExtracaoFinanceiro(self.page)
-            resultado_financeiro = financeiro.execucao()
-            results.append(resultado_financeiro)
-
-            # 2. Execução do Modelo 1
-            modelo_1 = Modelo_1(self.page)
-            resultado_modelo = modelo_1.execucao()
-            results.append(resultado_modelo)
-
-            # 3. Execução do Contas x Itens
-            contasxitens = Contas_x_itens(self.page)
-            resultado_contas = contasxitens.execucao()
-            results.append(resultado_contas)
-
-            # 4. Processamento dos dados
-            # with DatabaseManager() as db:
-            #     # Importa as planilhas baixadas
-            #     db.import_from_excel(self.settings.DATA_DIR / self.settings.PLS_FINANCEIRO, 
-            #                     self.settings.TABLE_FINANCEIRO)
-            #     db.import_from_excel(self.settings.DATA_DIR / self.settings.PLS_MODELO, 
-            #                     self.settings.TABLE_MODELO1)
-            #     db.import_from_excel(self.settings.DATA_DIR / self.settings.PLS_CONTAS, 
-            #                     self.settings.TABLE_CONTAS_ITENS)
-                
-            #     # Processa os dados
-            #     db.process_data()
-                
-            #     # Exporta os resultados
-            #     output_path = db.export_to_excel()
-            #     if output_path:
-            #         results.append({
-            #             'status': 'success',
-            #             'message': f'Conciliação gerada em {output_path}',
-            #             'etapa': 'processamento'
-            #         })
-
-            # 5. Verificação final
-            if any(r['status'] == 'error' for r in results):
-                logger.warning("Processo concluído com erros parciais")
-            else:
-                logger.info("Processo concluído com sucesso total")
-
         except Exception as e:
-            error_msg = f"Falha: {str(e)}"
+            error_msg = f"Falha no login: {str(e)}"
             logger.error(error_msg)
             results.append({
                 'status': 'error',
                 'message': error_msg,
-                'etapa': 'execução geral'
+                'etapa': 'autenticação'
             })
-        
+            return results  
+
+        # Executa as etapas web com reinício em caso de falha
+        for i, (nome_etapa, classe_etapa) in enumerate(etapas_web):
+            tentativas = 0
+            max_tentativas = 2  # Tentar no máximo 2 vezes cada etapa
+            
+            while tentativas < max_tentativas:
+                try:
+                    # Criar nova instância da classe para cada tentativa
+                    etapa = classe_etapa(self.page)
+                    resultado = etapa.execucao()
+                    results.append(resultado)
+                    break  # Sai do while se bem sucedido
+                except Exception as e:
+                    tentativas += 1
+                    error_msg = f"Tentativa {tentativas} na etapa {nome_etapa} falhou: {str(e)}"
+                    logger.error(error_msg)
+                    
+                    if tentativas >= max_tentativas:
+                        results.append({
+                            'status': 'error',
+                            'message': error_msg,
+                            'etapa': nome_etapa
+                        })
+                        
+                        # Se não for a última etapa, recarrega a página e faz login novamente
+                        if i < len(etapas_web) - 1:
+                            logger.info("Recarregando página e fazendo login novamente para próxima etapa...")
+                            try:
+                                self.page.reload()
+                                time.sleep(3)  # Espera a página recarregar
+                                self.login()
+                            except Exception as e:
+                                logger.error(f"Falha ao recarregar página: {e}")
+                                break  # Se não conseguir recarregar, para o loop
+                    else:
+                        logger.info(f"Tentando novamente a etapa {nome_etapa}...")
+
+        # 4. Processamento dos dados (se falhar, interrompe tudo)
+        # try:
+        #     with DatabaseManager() as db:
+        #         db.import_from_excel(self.settings.DATA_DIR / self.settings.PLS_FINANCEIRO, 
+        #                             self.settings.TABLE_FINANCEIRO)
+        #         db.import_from_excel(self.settings.DATA_DIR / self.settings.PLS_MODELO, 
+        #                             self.settings.TABLE_MODELO1)
+        #         db.import_from_excel(self.settings.DATA_DIR / self.settings.PLS_CONTAS, 
+        #                             self.settings.TABLE_CONTAS_ITENS)
+                
+        #         db.process_data()
+        #         output_path = db.export_to_excel()
+        #         if output_path:
+        #             results.append({
+        #                 'status': 'success',
+        #                 'message': f'Conciliação gerada em {output_path}',
+        #                 'etapa': 'processamento'
+        #             })
+        # except Exception as e:
+        #     error_msg = f"Falha no processamento de dados: {str(e)}"
+        #     logger.error(error_msg)
+        #     results.append({
+        #         'status': 'error',
+        #         'message': error_msg,
+        #         'etapa': 'processamento'
+        #     })
+        #     return results  # Interrompe execução
+
+        # 5. Verificação final
+        if any(r['status'] == 'error' for r in results):
+            logger.warning("Processo concluído com erros parciais")
+        else:
+            logger.info("Processo concluído com sucesso total")
+
         return results

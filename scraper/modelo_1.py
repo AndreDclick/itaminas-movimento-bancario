@@ -146,6 +146,7 @@ class Modelo_1(UtilsScraper):
     def _gerar_planilha (self):
         try: 
             self.locators['aba_planilha'].wait_for(state="visible")
+            time.sleep(1)
             self.locators['aba_planilha'].click()
             time.sleep(1) 
             self.locators['formato'].select_option("3")
@@ -164,7 +165,9 @@ class Modelo_1(UtilsScraper):
         try:
             logger.info('Iniciando execução do Modelo 1')
             self._navegar_menu()
+            time.sleep(1)
             self._confirmar_operacao()
+            time.sleep(1)
             self._fechar_popup_se_existir()
             self._preencher_parametros()
             self._selecionar_filiais()

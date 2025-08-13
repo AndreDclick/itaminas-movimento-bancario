@@ -176,6 +176,7 @@ class Contas_x_itens(UtilsScraper):
     def _gerar_planilha (self):
         try: 
             self.locators['aba_planilha'].wait_for(state="visible")
+            time.sleep(1)
             self.locators['aba_planilha'].click()
             time.sleep(1) 
             self.locators['formato'].select_option("3")
