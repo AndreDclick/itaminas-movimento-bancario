@@ -13,7 +13,10 @@ class Settings:
     USUARIO = os.getenv("USUARIO")
     SENHA = os.getenv("SENHA")
     BASE_URL = os.getenv("BASE_URL")
-
+    CAMINHO_PLS = os.getenv("CAMINHO_PLANILHAS")
+    PLS_FINANCEIRO = os.getenv("PLANILHA_FINANCEIRO")
+    PLS_MODELO = os.getenv("PLANILHA_MODELO_1")
+    PLS_CONTAS = os.getenv("PLANILHA_CONTAS")
     
     # Paths
     DATA_DIR = BASE_DIR / "data"
