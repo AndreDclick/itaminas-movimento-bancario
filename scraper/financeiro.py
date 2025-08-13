@@ -78,6 +78,7 @@ class ExtracaoFinanceiro(UtilsScraper):
     def _criar_planilha (self):
         try: 
             self.locators['planilha'].wait_for(state="visible")
+            time.sleep(1)
             self.locators['planilha'].click()
             time.sleep(1)
             self.locators['tipo_de_planilha'].select_option("3")
@@ -166,9 +167,9 @@ class ExtracaoFinanceiro(UtilsScraper):
 
     def _confirmar_filiais(self):
         try:
-            self.locators['nao'].wait_for(state='visible')
-            self.locators['nao'].click()
-            logger.info("Botão 'Não' clicado")
+            if self.locators['nao'].is_visible():            
+                self.locators['nao'].click()
+                logger.info("Botão 'Não' clicado")
             self.locators['menu_relatorios'].wait_for(state="visible", timeout=100000)
         except Exception as e:
             logger.error(f"Falha ao clicar no botão 'Não': {e}")

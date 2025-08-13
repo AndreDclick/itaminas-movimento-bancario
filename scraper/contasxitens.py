@@ -192,7 +192,9 @@ class Contas_x_itens(UtilsScraper):
         try:
             logger.info('Iniciando execução do Contas X Itens')
             self._navegar_menu()
+            time.sleep(1)
             self._confirmar_operacao()
+            time.sleep(1)
             self._fechar_popup_se_existir()
             self._preencher_parametros()
             self._selecionar_filiais()
