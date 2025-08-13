@@ -1,7 +1,9 @@
 from playwright.sync_api import sync_playwright, TimeoutError 
 from config.logger import configure_logger
 from .utils import UtilsScraper
+from datetime import date
 
+import calendar
 import time
 
 logger = configure_logger()
@@ -95,11 +97,11 @@ class Contas_x_itens(UtilsScraper):
         return primeiro_dia, ultimo_dia
 
     def _preencher_parametros(self):
-        # primeiro, ultimo = self.primeiro_e_ultimo_dia()
-        # input_data_inicial = primeiro
-        # input_data_final = ultimo
-        input_data_inicial = '01/04/2025'
-        input_data_final = '30/04/2025'
+        primeiro, ultimo = self.primeiro_e_ultimo_dia()
+        input_data_inicial = primeiro
+        input_data_final = ultimo
+        # input_data_inicial = '01/04/2025'
+        # input_data_final = '30/04/2025'
         input_conta_inicial = '20102010001'
         input_conta_final = '20102010001'
         input_folha_inicial = '2'

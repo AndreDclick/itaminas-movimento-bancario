@@ -91,17 +91,17 @@ class Modelo_1(UtilsScraper):
 
 
     def _preencher_parametros(self):
-        # primeiro, ultimo = self.primeiro_e_ultimo_dia()
-        # input_data_inicial = primeiro
-        # input_data_final = ultimo
-        input_data_inicial = '01/04/2025'
-        input_data_final = '30/04/2025'
+        primeiro, ultimo = self.primeiro_e_ultimo_dia()
+        input_data_inicial = primeiro
+        input_data_final = ultimo
+        # input_data_inicial = '01/04/2025'
+        # input_data_final = '30/04/2025'
         input_conta_inicial = ''
         input_conta_final = 'ZZZZZZZZZZZZZZZZZZZZ'
         input_data_lucros_perdas = ''
         input_grupos_receitas_despesas = '3456'
-        # input_data_sid_art = self.obter_ultimo_dia_ano_passado()
-        input_data_sid_art = '31/12/2024'
+        input_data_sid_art = self.obter_ultimo_dia_ano_passado()
+        # input_data_sid_art = '31/12/2024'
         input_num_linha_balancete = '99'
         input_desc_moeda = '01'
         try:
