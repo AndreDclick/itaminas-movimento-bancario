@@ -119,8 +119,16 @@ class ProtheusScraper(UtilsScraper):
 
 
     def run(self):
-        """Fluxo principal de execução"""
         results = []
+
+        # Definir todas as etapas web que podem ser reiniciadas
+        etapas_web = [
+            ("financeiro", ExtracaoFinanceiro),
+            ("modelo_1", Modelo_1),
+            ("contas_x_itens", Contas_x_itens)
+        ]
+
+        # 0. Inicialização e login
         try:
             # 0. Inicialização e login
             # self.start_scraper()
@@ -173,12 +181,11 @@ class ProtheusScraper(UtilsScraper):
                 logger.info("Processo concluído com sucesso total")
 
         except Exception as e:
-            error_msg = f"Falha: {str(e)}"
+            error_msg = f"Falha no login: {str(e)}"
             logger.error(error_msg)
             results.append({
                 'status': 'error',
                 'message': error_msg,
-                'etapa': 'execução geral'
+                'etapa': 'autenticação'
             })
-        
-        return results
+            return results  

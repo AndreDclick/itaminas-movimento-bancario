@@ -173,9 +173,15 @@ class ExtracaoFinanceiro(UtilsScraper):
 
     def _confirmar_filiais(self):
         try:
+<<<<<<< HEAD
             time.sleep(2) 
             if self.locators['nao'].is_visible():
                 time.sleep(1)             
+=======
+            time.sleep(3)
+            if self.locators['nao'].is_visible():     
+                time.sleep(1)       
+>>>>>>> 194ddcca4efd9b433e730c86a3f1d7133e790d76
                 self.locators['nao'].click()
                 logger.info("Botão 'Não' clicado")
             self.locators['menu_relatorios'].wait_for(state="visible", timeout=100000)

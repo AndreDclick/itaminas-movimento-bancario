@@ -176,7 +176,11 @@ class Contas_x_itens(UtilsScraper):
     def _gerar_planilha (self):
         try: 
             self.locators['aba_planilha'].wait_for(state="visible")
+<<<<<<< HEAD
             time.sleep(1) 
+=======
+            time.sleep(1)
+>>>>>>> 194ddcca4efd9b433e730c86a3f1d7133e790d76
             self.locators['aba_planilha'].click()
             time.sleep(1) 
             
