@@ -16,7 +16,7 @@ class Settings:
     CAMINHO_PLS = os.getenv("CAMINHO_PLANILHAS")
     PLS_FINANCEIRO = os.getenv("PLANILHA_FINANCEIRO")
     PLS_MODELO_1 = os.getenv("PLANILHA_MODELO_1")
-    PLS_CONTAS_X_ITENS = os.getenv("PLANILHA_CONTAS_X_ITENS ")
+    PLS_CONTAS_X_ITENS = os.getenv("PLANILHA_CONTAS_X_ITENS")
     
     # Paths
     DATA_DIR = BASE_DIR / "data"
@@ -59,34 +59,35 @@ class Settings:
     FORNECEDORES_EXCLUIR = ['NDF', 'PA']  # Siglas de fornecedores a excluir
     DATA_REFERENCIA = (datetime.now().replace(day=1) - timedelta(days=1)).strftime("%d/%m/%Y")  # Último dia do mês anterior
     COLUNAS_FINANCEIRO = {
-        'fornecedor': 'Prf-NumeroParcela',  # Contém código do fornecedor + número da parcela
-        'titulo': 'Tp',  # Tipo do título (de acordo com o fluxo do processo)
-        'parcela': 'Parcela',  # Número da parcela (extraído do Prf-NumeroParcela)
-        'tipo_titulo': 'Natureza',  # Natureza do título
-        'data_emissao': 'Data deEmissao',
-        'data_vencimento': 'Data deVencto',
+        'fornecedor': 'Codigo-Nome do Fornecedor',
+        'titulo': 'Prf-Numero_x000D_<br>Parcela',
+        'tipo_titulo': 'Tp',
+        'data_emissao': 'Data de_x000D_<br>Emissao',
+        'data_vencimento': 'Data de_x000D_<br>Vencto',
         'valor_original': 'Valor Original',
-        'saldo_devedor': 'Titulos a vencerValor nominal',  # Valor em aberto
-        'situacao': 'Porta-do',  # Situação do título
+        'saldo_devedor': 'Tit Vencidos_x000D_<br>Valor corrigido',
+        'situacao': 'Porta-_x000D_<br>dor',
         'conta_contabil': 'Historico(Vencidos+Vencer)',
-        'centro_custo': 'Natureza'  # Ajustar conforme necessidade
+        'centro_custo': 'Natureza'
     }
     COLUNAS_MODELO1 = {
-        'conta_contabil': 'Codigo',         # Coluna B (segundo seu relatório)
-        'descricao_conta': 'Descricao',     # Coluna C
-        'saldo_anterior': 'Saldo anterior', # Coluna D
-        'debito': 'Debito',                 # Coluna E
-        'credito': 'Credito',               # Coluna F
-        'saldo_atual': 'Saldo Atual'        # Coluna G (ajustado para o nome real)
+        'descricao_conta': 'Descricao',           # Coluna B (descrição do item)
+        'codigo_fornecedor': 'Codigo',            # Coluna C (código do fornecedor)
+        'descricao_fornecedor': 'Descricao',      # Coluna D (descrição do fornecedor)
+        'saldo_anterior': 'Saldo anterior',       # Coluna E
+        'debito': 'Debito',                       # Coluna F
+        'credito': 'Credito',                     # Coluna G
+        'movimento_periodo': 'Movimento do periodo', # Coluna H
+        'saldo_atual': 'Saldo atual'              # Coluna I
     }
     COLUNAS_CONTAS_ITENS = {
-        'conta_contabil': 'Descricao',       # Coluna B
-        'item': 'Saldo anterior',            # Coluna C (ajustar conforme necessidade)
-        'descricao_item': 'Debito',          # Coluna D (ajustar conforme necessidade)
-        'quantidade': 'Credito',             # Coluna E (ajustar conforme necessidade)
-        'valor_unitario': 'Mov periodo',     # Coluna F
-        'valor_total': 'Saldo atual',        # Coluna G
-        'saldo': 'Saldo atual'               # Coluna I (confirmar se é a mesma que G)
+        'conta_contabil': 'Conta',               # Coluna A
+        'descricao_item': 'Descricao',           # Coluna B
+        'saldo_anterior': 'Saldo anterior',      # Coluna C
+        'debito': 'Debito',                      # Coluna D
+        'credito': 'Credito',                    # Coluna E
+        'movimento_periodo': 'Mov  periodo',     # Coluna F
+        'saldo_atual': 'Saldo atual'             # Coluna G
     }
 
     def __init__(self):

@@ -97,6 +97,9 @@ class DatabaseManager:
     def _clean_dataframe(self, df, sheet_type):
         """Realiza a limpeza dos dados conforme o tipo de planilha"""
         try:
+            # Remover quebras de linha dos nomes das colunas
+            df.columns = df.columns.str.replace(r'_x000D_<br>', ' ', regex=True)
+            
             # Converter todas as colunas para string primeiro para evitar problemas
             df = df.astype(str)
             
@@ -106,37 +109,21 @@ class DatabaseManager:
             
             # Processamento específico para cada tipo de planilha
             if sheet_type == 'financeiro':
-                # Separar Prf-NumeroParcela em fornecedor e parcela
-                df[['fornecedor', 'parcela']] = df['Prf-NumeroParcela'].str.split('-', n=1, expand=True)
+                # Converter datas
+                date_cols = ['data_emissao', 'data_vencimento']
+                for col in date_cols:
+                    if col in df.columns:
+                        df[col] = pd.to_datetime(df[col], errors='coerce')
+                
+                # Converter valores numéricos
+                num_cols = ['valor_original', 'saldo_devedor']
+                for col in num_cols:
+                    if col in df.columns:
+                        df[col] = pd.to_numeric(df[col], errors='coerce').fillna(0)
                 
                 # Filtrar registros indesejados
-                df = df[~df['Tp'].isin(['NDF', 'PA'])]
-                
-                # Converter valores vazios para 0
-                num_cols = ['Valor Original', 'Titulos a vencerValor nominal']
-                for col in num_cols:
-                    df[col] = pd.to_numeric(df[col], errors='coerce').fillna(0)
-            
-            elif sheet_type == 'modelo1':
-                # Filtrar apenas contas de fornecedores
-                df = df[df['descricao_conta'].str.contains('FORNEC', case=False, na=False)]
-                
-                # Classificar tipo de fornecedor
-                df['tipo_fornecedor'] = np.where(
-                    df['descricao_conta'].str.contains('NACIONAL', case=False, na=False),
-                    'Fornecedores Nacionais',
-                    'Fornecedores - Outros'
-                )
-            
-            elif sheet_type == 'contas_itens':
-                # Filtrar contas específicas de fornecedores
-                contas_fornecedores = ['10106020001', '20102010001']
-                df = df[df['conta_contabil'].isin(contas_fornecedores)]
-                
-                # Garantir que valores numéricos estejam corretos
-                num_cols = ['quantidade', 'valor_unitario', 'valor_total', 'saldo']
-                for col in num_cols:
-                    df[col] = pd.to_numeric(df[col], errors='coerce').fillna(0)
+                if 'tipo_titulo' in df.columns:
+                    df = df[~df['tipo_titulo'].isin(self.settings.FORNECEDORES_EXCLUIR)]
             
             return df
         except Exception as e:

@@ -3,9 +3,9 @@ from config.settings import Settings
 from config.logger import configure_logger
 from .exceptions import FormSubmitFailed
 from .utils import UtilsScraper
-from .modelo_1 import Modelo_1
-from .financeiro import ExtracaoFinanceiro
-from .contasxitens import Contas_x_itens
+# from .modelo_1 import Modelo_1
+# from .financeiro import ExtracaoFinanceiro
+# from .contasxitens import Contas_x_itens
 from .database import DatabaseManager
 from pathlib import Path
 
@@ -120,24 +120,16 @@ class ProtheusScraper(UtilsScraper):
 
     def run(self):
         results = []
-
-        # Definir todas as etapas web que podem ser reiniciadas
-        etapas_web = [
-            ("financeiro", ExtracaoFinanceiro),
-            ("modelo_1", Modelo_1),
-            ("contas_x_itens", Contas_x_itens)
-        ]
-
-        # 0. Inicialização e login
+        
         try:
             # 0. Inicialização e login
-            # self.start_scraper()
-            # self.login()
-            # results.append({
-            #     'status': 'success',
-            #     'message': 'Login realizado com sucesso',
-            #     'etapa': 'autenticação'
-            # })
+            self.start_scraper()
+            self.login()
+            results.append({
+                'status': 'success',
+                'message': 'Login realizado com sucesso',
+                'etapa': 'autenticação'
+            })
 
             # 1. Financeiro            
             # financeiro = ExtracaoFinanceiro(self.page)
@@ -160,7 +152,7 @@ class ProtheusScraper(UtilsScraper):
                 caminho_planilhas = Path(self.settings.CAMINHO_PLS)
                 db.import_from_excel(caminho_planilhas / self.settings.PLS_FINANCEIRO, self.settings.TABLE_FINANCEIRO)
                 db.import_from_excel(caminho_planilhas / self.settings.PLS_MODELO_1, self.settings.TABLE_MODELO1)
-                db.import_from_excel(caminho_planilhas / self.settingsPLS_CONTAS_X_ITENS, self.settings.TABLE_CONTAS_ITENS)
+                db.import_from_excel(caminho_planilhas / self.settings.PLS_CONTAS_X_ITENS, self.settings.TABLE_CONTAS_ITENS)
                 
                 # Processa os dados
                 db.process_data()
