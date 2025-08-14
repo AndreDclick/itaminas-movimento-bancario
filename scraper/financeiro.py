@@ -76,11 +76,16 @@ class ExtracaoFinanceiro(UtilsScraper):
             raise
 
     def _criar_planilha (self):
-        try: 
+        try:
+            self._confirmar_operacao()
             self.locators['planilha'].wait_for(state="visible")
             time.sleep(1)
             self.locators['planilha'].click()
             time.sleep(1)
+            if not self.locators['tipo_de_planilha'].is_visible():
+                self.locators['planilha'].click()
+                time.sleep(1)
+            
             self.locators['tipo_de_planilha'].select_option("3")
             time.sleep(1)    
         except Exception as e:
@@ -115,10 +120,10 @@ class ExtracaoFinanceiro(UtilsScraper):
         input_ate_a_emissao = '31/12/2050'
         input_da_data_contabil = '01/01/2020'
         # input_ate_a_data_contabil = datetime.now().strftime("%d/%m/%Y")
-        input_ate_a_data_contabil = self.fechamento_mes()
-        # input_ate_a_data_contabil = '31/07/2025'
-        input_data_base = datetime.now().strftime("%d/%m/%Y")
-        # input_data_base = '30/04/2025'
+        # input_ate_a_data_contabil = self.fechamento_mes()
+        input_ate_a_data_contabil = '31/07/2025'
+        # input_data_base = datetime.now().strftime("%d/%m/%Y")
+        input_data_base = '30/04/2025'
         
         try:
             # parâmetros
@@ -155,6 +160,7 @@ class ExtracaoFinanceiro(UtilsScraper):
         try:
             logger.info("Aguardando botão de impressão.")
             self.locators['imprimir_btn'].wait_for(state='visible')
+            time.sleep(1) 
             self.locators['imprimir_btn'].click()
             self._fechar_popup_se_existir()
 
@@ -167,7 +173,9 @@ class ExtracaoFinanceiro(UtilsScraper):
 
     def _confirmar_filiais(self):
         try:
-            if self.locators['nao'].is_visible():            
+            time.sleep(2) 
+            if self.locators['nao'].is_visible():
+                time.sleep(1)             
                 self.locators['nao'].click()
                 logger.info("Botão 'Não' clicado")
             self.locators['menu_relatorios'].wait_for(state="visible", timeout=100000)
