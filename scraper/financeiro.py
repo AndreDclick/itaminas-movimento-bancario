@@ -70,6 +70,7 @@ class ExtracaoFinanceiro(UtilsScraper):
             self.locators['menu_titulos_a_pagar'].wait_for(state="visible")
             self.locators['menu_titulos_a_pagar'].click()    
             self._confirmar_operacao()
+            time.sleep(1)
             self._fechar_popup_se_existir()
         except PlaywrightTimeoutError:
             logger.error("Falha na navegação ou configuração da planilha")
@@ -77,7 +78,7 @@ class ExtracaoFinanceiro(UtilsScraper):
 
     def _criar_planilha (self):
         try:
-            self._confirmar_operacao()
+            
             self.locators['planilha'].wait_for(state="visible")
             time.sleep(1)
             self.locators['planilha'].click()
@@ -173,15 +174,9 @@ class ExtracaoFinanceiro(UtilsScraper):
 
     def _confirmar_filiais(self):
         try:
-<<<<<<< HEAD
             time.sleep(2) 
             if self.locators['nao'].is_visible():
                 time.sleep(1)             
-=======
-            time.sleep(3)
-            if self.locators['nao'].is_visible():     
-                time.sleep(1)       
->>>>>>> 194ddcca4efd9b433e730c86a3f1d7133e790d76
                 self.locators['nao'].click()
                 logger.info("Botão 'Não' clicado")
             self.locators['menu_relatorios'].wait_for(state="visible", timeout=100000)

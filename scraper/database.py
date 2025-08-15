@@ -9,8 +9,6 @@ from openpyxl.styles import Font, Alignment, Border, Side, PatternFill
 from openpyxl.utils import get_column_letter
 import re
 from difflib import get_close_matches
-import logging
-
 
 logger = configure_logger()
 
@@ -33,7 +31,7 @@ class DatabaseManager:
         self._initialized = True
 
     def _initialize_database(self):
-        """Cria o banco de dados e as tabelas se não existirem"""
+        
         try:
             
             self.conn = sqlite3.connect(self.settings.DB_PATH, timeout=10)
@@ -138,9 +136,8 @@ class DatabaseManager:
                 logger.warning(f"Mapeamento manual aplicado: '{src}' → '{dest}'")
                 missing_mappings.remove(dest)
 
-        # Restante da lógica original para colunas não mapeadas manualmente
         for db_col in missing_mappings:
-            # correspondência exata (case-insensitive)
+            # correspondência exata 
             if db_col.lower() in lower_map:
                 match = lower_map[db_col.lower()]
                 logger.warning(f"Sugestão aplicada: '{match}' → '{db_col}' (case-insensitive match)")
@@ -194,14 +191,14 @@ class DatabaseManager:
                 if remaining_missing:
                     # Tratamento especial para colunas ausentes
                     if 'parcela' in remaining_missing and 'titulo' in df.columns:
-                        # Extrai parcela do número do título (ex: "12345-1" → "1")
+                        # Extrai parcela do número do título
                         df['parcela'] = df['titulo'].str.extract(r'(\d+)$').fillna('1')
                         logger.warning("Coluna 'parcela' criada a partir do título")
                         remaining_missing.remove('parcela')
                     
                     if 'conta_contabil' in remaining_missing:
                         # Define um valor padrão para conta contábil
-                        df['conta_contabil'] = 'CONTA_PADRAO'  # Substitua pelo valor adequado
+                        df['conta_contabil'] = 'CONTA_PADRAO' 
                         logger.warning("Coluna 'conta_contabil' preenchida com valor padrão")
                         remaining_missing.remove('conta_contabil')
                     
@@ -217,11 +214,11 @@ class DatabaseManager:
             df.to_sql(table_name, self.conn, if_exists='append', index=False)
             logger.info(f"Dados importados para '{table_name}' com sucesso.")
             
-            return True  # Adicionar este retorno
+            return True  
             
         except Exception as e:
             logger.error(f"Falha ao importar {file_path}: {e}", exc_info=True)
-            return False  # Adicionar este retorno
+            return False  
     
     def get_expected_columns(self, table_name):
         """Retorna as colunas esperadas para cada tabela"""
@@ -234,7 +231,7 @@ class DatabaseManager:
         elif table_name == self.settings.TABLE_MODELO1:
             return [
                 'conta_contabil', 'descricao_conta', 'saldo_anterior',
-                'debito', 'credito', 'saldo_atual'  # Removido 'tipo_fornecedor' como obrigatório
+                'debito', 'credito', 'saldo_atual'  
             ]
         elif table_name == self.settings.TABLE_CONTAS_ITENS:
             return  [
@@ -282,7 +279,7 @@ class DatabaseManager:
                     if col in df.columns:
                         df[col] = (
                             df[col].astype(str)
-                            .str.replace(r'[^\d,-]', '', regex=True)  # Remove caracteres não numéricos
+                            .str.replace(r'[^\d,-]', '', regex=True) 
                             .str.replace(',', '.')  # Padroniza decimal
                             .replace('', np.nan)    # Strings vazias para NaN
                             .astype(float)          # Converte para float
@@ -296,8 +293,8 @@ class DatabaseManager:
                         df[col] = (
                             df[col].astype(str)
                             .str.strip()
-                            .str.replace(r'\s+', ' ', regex=True)  # Multiplos espaços para um
-                            .replace('nan', '')  # Strings 'nan' para vazio
+                            .str.replace(r'\s+', ' ', regex=True)  
+                            .replace('nan', '')  
                         )
                 
                 # 4. Filtrar registros indesejados
@@ -340,7 +337,7 @@ class DatabaseManager:
                 
                 # Criar colunas ausentes com valores padrão
                 if 'item' not in df.columns:
-                    df['item'] = df.get('descricao_item', '').str[:50]  # Limita a 50 caracteres
+                    df['item'] = df.get('descricao_item', '').str[:50] 
                     
                 if 'quantidade' not in df.columns:
                     df['quantidade'] = 1
@@ -350,7 +347,7 @@ class DatabaseManager:
                     
                 if 'valor_total' not in df.columns and 'saldo_atual' in df.columns:
                     df['valor_total'] = df['saldo_atual']
-            # Remover linhas duplicadas
+            
             df = df.drop_duplicates()
 
             # Log final
@@ -391,7 +388,7 @@ class DatabaseManager:
                 'credito': 'Credito',
                 'movimento_periodo': 'Movimento do periodo',
                 'saldo_atual': 'Saldo atual',
-                'tipo_fornecedor': 'Descricao.1'  # Usando Descricao.1 como tipo_fornecedor temporariamente
+                'tipo_fornecedor': 'Descricao.1'  
             }
         elif 'ctbr040' in filename:
             return {
@@ -400,12 +397,11 @@ class DatabaseManager:
                 'saldo_anterior': 'Saldo anterior',
                 'debito': 'Debito',
                 'credito': 'Credito',
-                'saldo_atual': 'Saldo atual',
-                # Colunas adicionais com valores padrão
-                'item': 'Descricao',  # Usa a descrição como item
+                'saldo_atual': 'Saldo atual',                
+                'item': 'Descricao',  
                 'quantidade': '1',     # Valor padrão
-                'valor_unitario': 'Saldo atual',  # Usa saldo como valor unitário
-                'valor_total': 'Saldo atual'      # Usa saldo como valor total
+                'valor_unitario': 'Saldo atual',  
+                'valor_total': 'Saldo atual'      
         }
         else:
             raise ValueError(f"Tipo de planilha não reconhecido: {file_path.name}")
@@ -617,7 +613,7 @@ class DatabaseManager:
             df_contabil = pd.read_sql(query_contabil, self.conn)
             df_contabil.to_excel(writer, sheet_name='Balancete', index=False)
             
-            # 4. Planilha de Contas x Itens (apenas para divergências)
+            # 4. Planilha de Contas x Itens 
             query_contas_itens = f"""
                 SELECT 
                     r.codigo_fornecedor as "Código Fornecedor",

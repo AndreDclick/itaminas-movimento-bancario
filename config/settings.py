@@ -22,7 +22,7 @@ class Settings:
     DATA_DIR = BASE_DIR / "data"
     LOGS_DIR = BASE_DIR / "logs"
     RESULTS_DIR = BASE_DIR / "results"
-    DB_PATH = BASE_DIR / "database.db"
+    DB_PATH = DATA_DIR / "database.db"
     
     # Files
     DOWNLOAD_PATH = DATA_DIR 
@@ -39,7 +39,7 @@ class Settings:
     TABLE_CONTAS_ITENS = "contas_itens"
     TABLE_RESULTADO = "resultado"
     
-    # Mapeamento de colunas (exemplo)
+    # Mapeamento de colunas 
     COLUNAS_FINANCEIRO = {
         "fornecedor": "Fornecedor",
         "titulo": "Título",
@@ -56,7 +56,7 @@ class Settings:
     HEADLESS = False
     
     # Planilhas
-    FORNECEDORES_EXCLUIR = ['NDF', 'PA']  # Siglas de fornecedores a excluir
+    FORNECEDORES_EXCLUIR = ['NDF', 'PA']  
     DATA_REFERENCIA = (datetime.now().replace(day=1) - timedelta(days=1)).strftime("%d/%m/%Y") 
 
     # Planilha Financeira (finr150.xlsx)
