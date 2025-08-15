@@ -57,37 +57,45 @@ class Settings:
     
     # Planilhas
     FORNECEDORES_EXCLUIR = ['NDF', 'PA']  # Siglas de fornecedores a excluir
-    DATA_REFERENCIA = (datetime.now().replace(day=1) - timedelta(days=1)).strftime("%d/%m/%Y")  # Último dia do mês anterior
+    DATA_REFERENCIA = (datetime.now().replace(day=1) - timedelta(days=1)).strftime("%d/%m/%Y") 
+
+    # Planilha Financeira (finr150.xlsx)
     COLUNAS_FINANCEIRO = {
         'fornecedor': 'Codigo-Nome do Fornecedor',
-        'titulo': 'Prf-Numero_x000D_<br>Parcela',
+        'titulo': 'Prf-Numero Parcela',  
         'tipo_titulo': 'Tp',
-        'data_emissao': 'Data de_x000D_<br>Emissao',
-        'data_vencimento': 'Data de_x000D_<br>Vencto',
+        'data_emissao': 'Data de Emissao',
+        'data_vencimento': 'Data de Vencto',
+        "vencto_real": "VenctoReal",
         'valor_original': 'Valor Original',
-        'saldo_devedor': 'Tit Vencidos_x000D_<br>Valor corrigido',
-        'situacao': 'Porta-_x000D_<br>dor',
-        'conta_contabil': 'Historico(Vencidos+Vencer)',
-        'centro_custo': 'Natureza'
+        'saldo_devedor': 'Tit Vencidos Valor nominal',
+        'situacao': 'Natureza',
+        'conta_contabil': 'Natureza',
+        'centro_custo': 'Porta- dor'
     }
+
+
+    # Planilha Modelo 1 (ctbr140.xlsx)
     COLUNAS_MODELO1 = {
-        'descricao_conta': 'Descricao',           # Coluna B (descrição do item)
-        'codigo_fornecedor': 'Codigo',            # Coluna C (código do fornecedor)
-        'descricao_fornecedor': 'Descricao',      # Coluna D (descrição do fornecedor)
-        'saldo_anterior': 'Saldo anterior',       # Coluna E
-        'debito': 'Debito',                       # Coluna F
-        'credito': 'Credito',                     # Coluna G
-        'movimento_periodo': 'Movimento do periodo', # Coluna H
-        'saldo_atual': 'Saldo atual'              # Coluna I
+        'descricao_conta': 'Descrição Conta',
+        'codigo_fornecedor': 'Código Fornecedor',
+        'descricao_fornecedor': 'Descrição Fornecedor',
+        'saldo_anterior': 'Saldo Anterior',
+        'debito': 'Débito',
+        'credito': 'Crédito',
+        'movimento_periodo': 'Movimento Período',
+        'saldo_atual': 'Saldo Atual'
     }
+
+    # Planilha Contas x Itens (ctbr040.xlsx)
     COLUNAS_CONTAS_ITENS = {
-        'conta_contabil': 'Conta',               # Coluna A
-        'descricao_item': 'Descricao',           # Coluna B
-        'saldo_anterior': 'Saldo anterior',      # Coluna C
-        'debito': 'Debito',                      # Coluna D
-        'credito': 'Credito',                    # Coluna E
-        'movimento_periodo': 'Mov  periodo',     # Coluna F
-        'saldo_atual': 'Saldo atual'             # Coluna G
+        'conta_contabil': 'Conta Contábil',
+        'descricao_item': 'Descrição Item',
+        'saldo_anterior': 'Saldo Anterior',
+        'debito': 'Débito',
+        'credito': 'Crédito',
+        'movimento_periodo': 'Movimento Período',
+        'saldo_atual': 'Saldo Atual'
     }
 
     def __init__(self):

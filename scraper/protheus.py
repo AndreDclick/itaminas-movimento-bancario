@@ -123,8 +123,8 @@ class ProtheusScraper(UtilsScraper):
         
         try:
             # 0. Inicialização e login
-            self.start_scraper()
-            self.login()
+            # self.start_scraper()
+            # self.login()
             results.append({
                 'status': 'success',
                 'message': 'Login realizado com sucesso',
@@ -150,14 +150,29 @@ class ProtheusScraper(UtilsScraper):
             with DatabaseManager() as db:
                 # Importa as planilhas baixadas
                 caminho_planilhas = Path(self.settings.CAMINHO_PLS)
-                db.import_from_excel(caminho_planilhas / self.settings.PLS_FINANCEIRO, self.settings.TABLE_FINANCEIRO)
-                db.import_from_excel(caminho_planilhas / self.settings.PLS_MODELO_1, self.settings.TABLE_MODELO1)
-                db.import_from_excel(caminho_planilhas / self.settings.PLS_CONTAS_X_ITENS, self.settings.TABLE_CONTAS_ITENS)
+                
+                # Importar cada planilha e verificar sucesso
+                importacoes = [
+                    ('financeiro', self.settings.PLS_FINANCEIRO, self.settings.TABLE_FINANCEIRO),
+                    ('modelo1', self.settings.PLS_MODELO_1, self.settings.TABLE_MODELO1),
+                    ('contas_itens', self.settings.PLS_CONTAS_X_ITENS, self.settings.TABLE_CONTAS_ITENS)
+                ]
+                
+                for nome, arquivo, tabela in importacoes:
+                    success = db.import_from_excel(caminho_planilhas / arquivo, tabela)
+                    if not success:
+                        raise Exception(f"Falha ao importar planilha {nome}")
+                    results.append({
+                        'status': 'success',
+                        'message': f'Planilha {nome} importada com sucesso',
+                        'etapa': 'importação'
+                    })
                 
                 # Processa os dados
-                db.process_data()
+                if not db.process_data():
+                    raise Exception("Falha ao processar dados")
                 
-                # Exporta os resultados
+                # Exporta os resultados (conexão ainda aberta)
                 output_path = db.export_to_excel()
                 if output_path:
                     results.append({
@@ -173,11 +188,12 @@ class ProtheusScraper(UtilsScraper):
                 logger.info("Processo concluído com sucesso total")
 
         except Exception as e:
-            error_msg = f"Falha no login: {str(e)}"
+            error_msg = f"Erro durante a execução: {str(e)}"
             logger.error(error_msg)
             results.append({
                 'status': 'error',
                 'message': error_msg,
-                'etapa': 'autenticação'
+                'etapa': 'execução'
             })
-            return results  
+        finally:
+            return results

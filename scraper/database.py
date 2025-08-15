@@ -7,19 +7,36 @@ import numpy as np
 import openpyxl
 from openpyxl.styles import Font, Alignment, Border, Side, PatternFill
 from openpyxl.utils import get_column_letter
+import re
+from difflib import get_close_matches
+import logging
+
 
 logger = configure_logger()
 
 class DatabaseManager:
+    _instance = None
+    
+    def __new__(cls):
+        if cls._instance is None:
+            cls._instance = super(DatabaseManager, cls).__new__(cls)
+            cls._instance._initialized = False
+        return cls._instance
+    
     def __init__(self):
+        if self._initialized:
+            return
         self.settings = Settings()
         self.conn = None
+        self.logger = configure_logger()
         self._initialize_database()
+        self._initialized = True
 
     def _initialize_database(self):
         """Cria o banco de dados e as tabelas se não existirem"""
         try:
-            self.conn = sqlite3.connect(self.settings.DB_PATH)
+            
+            self.conn = sqlite3.connect(self.settings.DB_PATH, timeout=10)
             cursor = self.conn.cursor()
             
             # Tabela para Títulos a Pagar (Financeiro)
@@ -59,15 +76,18 @@ class DatabaseManager:
             
             # Tabela para Contas x Itens
             cursor.execute(f"""
-                CREATE TABLE IF NOT EXISTS {self.settings.TABLE_CONTAS_ITENS} (
+                CREATE TABLE IF NOT EXISTS contas_itens (
                     id INTEGER PRIMARY KEY AUTOINCREMENT,
                     conta_contabil TEXT,
-                    item TEXT,
                     descricao_item TEXT,
-                    quantidade REAL DEFAULT 0,
+                    saldo_anterior REAL DEFAULT 0,
+                    debito REAL DEFAULT 0,
+                    credito REAL DEFAULT 0,
+                    saldo_atual REAL DEFAULT 0,
+                    item TEXT DEFAULT '',
+                    quantidade REAL DEFAULT 1,
                     valor_unitario REAL DEFAULT 0,
                     valor_total REAL DEFAULT 0,
-                    saldo REAL DEFAULT 0,
                     data_processamento TEXT DEFAULT CURRENT_TIMESTAMP
                 )
             """)
@@ -94,84 +114,306 @@ class DatabaseManager:
             logger.error(f"Erro ao inicializar banco de dados: {e}")
             raise
 
+    def aplicar_sugestoes_colunas(self, df, missing_mappings):
+        candidates = df.columns.tolist()
+        lower_map = {c.lower(): c for c in candidates}
+
+        # Mapeamento manual específico para a planilha financeira
+        manual_mapping = {
+            'Codigo-Nome do Fornecedor': 'fornecedor',
+            'Prf-Numero Parcela': 'titulo',
+            'Tp': 'tipo_titulo',
+            'Data de Emissao': 'data_emissao',
+            'Data de Vencto': 'data_vencimento',
+            'Valor Original': 'valor_original',
+            'Tit Vencidos Valor nominal': 'saldo_devedor',
+            'Natureza': 'situacao',
+            'Porta- dor': 'centro_custo'
+        }
+
+        # Aplicar mapeamento manual primeiro
+        for src, dest in manual_mapping.items():
+            if src in df.columns and dest in missing_mappings:
+                df.rename(columns={src: dest}, inplace=True)
+                logger.warning(f"Mapeamento manual aplicado: '{src}' → '{dest}'")
+                missing_mappings.remove(dest)
+
+        # Restante da lógica original para colunas não mapeadas manualmente
+        for db_col in missing_mappings:
+            # correspondência exata (case-insensitive)
+            if db_col.lower() in lower_map:
+                match = lower_map[db_col.lower()]
+                logger.warning(f"Sugestão aplicada: '{match}' → '{db_col}' (case-insensitive match)")
+                df.rename(columns={match: db_col}, inplace=True)
+                continue
+
+            # tentativa com difflib usando as opções originais
+            similar = get_close_matches(db_col, candidates, n=1, cutoff=0.6)
+            if similar:
+                match = similar[0]
+                logger.warning(f"Sugestão aplicada: '{match}' → '{db_col}'")
+                df.rename(columns={match: db_col}, inplace=True)
+                continue
+
+            # fuzzy case-insensitive
+            similar_lower = get_close_matches(db_col.lower(), list(lower_map.keys()), n=1, cutoff=0.6)
+            if similar_lower:
+                match = lower_map[similar_lower[0]]
+                logger.warning(f"Sugestão aplicada: '{match}' → '{db_col}' (fuzzy case-insensitive)")
+                df.rename(columns={match: db_col}, inplace=True)
+
+        return df
+
+    def import_from_excel(self, file_path, table_name):
+        try:
+            # Carrega Excel
+            df = pd.read_excel(file_path, header=1)  
+            
+            logger.info(f"Colunas originais em {file_path}: {df.columns.tolist()}")
+
+            # Limpeza de colunas
+            df.columns = df.columns.str.replace(r'_x000D_\n', ' ', regex=True).str.strip()
+            logger.info(f"Colunas após limpeza: {df.columns.tolist()}")
+
+            # Obter mapeamento de colunas
+            column_mapping = self._get_column_mapping(Path(file_path))
+            
+            # Renomear colunas conforme mapeamento
+            df.rename(columns=column_mapping, inplace=True)
+            
+            # Verifica colunas esperadas vs colunas presentes
+            expected_columns = self.get_expected_columns(table_name)
+            missing_mappings = [col for col in expected_columns if col not in df.columns]
+
+            if missing_mappings:
+                logger.warning(f"Colunas mapeadas não encontradas: {missing_mappings}")
+                df = self.aplicar_sugestoes_colunas(df, missing_mappings)
+                
+                # Verificar novamente após aplicar sugestões
+                remaining_missing = [col for col in expected_columns if col not in df.columns]
+                if remaining_missing:
+                    # Tratamento especial para colunas ausentes
+                    if 'parcela' in remaining_missing and 'titulo' in df.columns:
+                        # Extrai parcela do número do título (ex: "12345-1" → "1")
+                        df['parcela'] = df['titulo'].str.extract(r'(\d+)$').fillna('1')
+                        logger.warning("Coluna 'parcela' criada a partir do título")
+                        remaining_missing.remove('parcela')
+                    
+                    if 'conta_contabil' in remaining_missing:
+                        # Define um valor padrão para conta contábil
+                        df['conta_contabil'] = 'CONTA_PADRAO'  # Substitua pelo valor adequado
+                        logger.warning("Coluna 'conta_contabil' preenchida com valor padrão")
+                        remaining_missing.remove('conta_contabil')
+                    
+                    if remaining_missing:
+                        logger.error(f"Colunas obrigatórias ausentes após tratamento: {remaining_missing}")
+                        raise ValueError(f"Colunas obrigatórias ausentes: {remaining_missing}")
+
+            # Limpa dados e seleciona apenas as colunas esperadas
+            df = df[expected_columns]
+            df = df.map(lambda x: str(x).strip() if pd.notna(x) else x)
+            logger.info(f"DataFrame limpo - shape final: {df.shape}")
+
+            df.to_sql(table_name, self.conn, if_exists='append', index=False)
+            logger.info(f"Dados importados para '{table_name}' com sucesso.")
+            
+            return True  # Adicionar este retorno
+            
+        except Exception as e:
+            logger.error(f"Falha ao importar {file_path}: {e}", exc_info=True)
+            return False  # Adicionar este retorno
+    
+    def get_expected_columns(self, table_name):
+        """Retorna as colunas esperadas para cada tabela"""
+        if table_name == self.settings.TABLE_FINANCEIRO:
+            return [
+                'fornecedor', 'titulo', 'parcela', 'tipo_titulo',
+                'data_emissao', 'data_vencimento', 'valor_original',
+                'saldo_devedor', 'situacao', 'conta_contabil', 'centro_custo'
+            ]
+        elif table_name == self.settings.TABLE_MODELO1:
+            return [
+                'conta_contabil', 'descricao_conta', 'saldo_anterior',
+                'debito', 'credito', 'saldo_atual'  # Removido 'tipo_fornecedor' como obrigatório
+            ]
+        elif table_name == self.settings.TABLE_CONTAS_ITENS:
+            return  [
+                'conta_contabil',
+                'descricao_item',
+                'saldo_anterior',
+                'debito',
+                'credito',
+                'saldo_atual'
+        ]
+        else:
+            raise ValueError(f"Tabela desconhecida: {table_name}")
+        
     def _clean_dataframe(self, df, sheet_type):
         """Realiza a limpeza dos dados conforme o tipo de planilha"""
         try:
-            # Remover quebras de linha dos nomes das colunas
-            df.columns = df.columns.str.replace(r'_x000D_<br>', ' ', regex=True)
-            
-            # Converter todas as colunas para string primeiro para evitar problemas
-            df = df.astype(str)
+            # Converter todas as colunas para string (evita problemas com tipos mistos)
+            df = df.applymap(lambda x: str(x).strip() if pd.notna(x) else x)
             
             # Remover linhas totalmente vazias
-            df = df.replace('nan', np.nan)
+            df = df.replace(['nan', 'None', ''], np.nan)
             df = df.dropna(how='all')
             
             # Processamento específico para cada tipo de planilha
             if sheet_type == 'financeiro':
-                # Converter datas
+                # 1. Tratamento de datas
                 date_cols = ['data_emissao', 'data_vencimento']
                 for col in date_cols:
                     if col in df.columns:
-                        df[col] = pd.to_datetime(df[col], errors='coerce')
-                
-                # Converter valores numéricos
+                        try:
+                            # Tenta converter de vários formatos
+                            df[col] = pd.to_datetime(
+                                df[col], 
+                                errors='coerce',
+                                format='mixed',
+                                dayfirst=True
+                            )
+                        except Exception as e:
+                            logger.warning(f"Erro ao converter datas na coluna {col}: {str(e)}")
+                            df[col] = pd.NaT
+
+                # 2. Tratamento de valores numéricos
                 num_cols = ['valor_original', 'saldo_devedor']
                 for col in num_cols:
                     if col in df.columns:
-                        df[col] = pd.to_numeric(df[col], errors='coerce').fillna(0)
+                        df[col] = (
+                            df[col].astype(str)
+                            .str.replace(r'[^\d,-]', '', regex=True)  # Remove caracteres não numéricos
+                            .str.replace(',', '.')  # Padroniza decimal
+                            .replace('', np.nan)    # Strings vazias para NaN
+                            .astype(float)          # Converte para float
+                            .fillna(0)              # Preenche NaN com 0
+                        )
                 
-                # Filtrar registros indesejados
+                # 3. Tratamento de texto
+                text_cols = ['fornecedor', 'titulo', 'tipo_titulo']
+                for col in text_cols:
+                    if col in df.columns:
+                        df[col] = (
+                            df[col].astype(str)
+                            .str.strip()
+                            .str.replace(r'\s+', ' ', regex=True)  # Multiplos espaços para um
+                            .replace('nan', '')  # Strings 'nan' para vazio
+                        )
+                
+                # 4. Filtrar registros indesejados
                 if 'tipo_titulo' in df.columns:
                     df = df[~df['tipo_titulo'].isin(self.settings.FORNECEDORES_EXCLUIR)]
+                
+                # 5. Criar coluna de parcela se necessário
+                if 'titulo' in df.columns and 'parcela' not in df.columns:
+                    df['parcela'] = df['titulo'].str.extract(r'(\d+)$').fillna('1')
+
+            elif sheet_type == 'modelo1':
+                # Tratamento específico para o modelo 1
+                num_cols = ['saldo_anterior', 'debito', 'credito', 'saldo_atual']
+                for col in num_cols:
+                    if col in df.columns:
+                        df[col] = pd.to_numeric(
+                            df[col].astype(str)
+                            .str.replace(r'[^\d,-]', '', regex=True)
+                            .str.replace(',', '.'),
+                            errors='coerce'
+                        ).fillna(0)
+                
+                # Criar coluna tipo_fornecedor se não existir
+                if 'tipo_fornecedor' not in df.columns and 'descricao_conta' in df.columns:
+                    df['tipo_fornecedor'] = df['descricao_conta'].apply(
+                        lambda x: 'FORNECEDOR' if 'FORNEC' in str(x).upper() else 'OUTROS'
+                    )
+
+            elif sheet_type == 'contas_itens':
+            # Tratamento específico para contas x itens
+                num_cols = ['saldo_anterior', 'debito', 'credito', 'saldo_atual']
+                for col in num_cols:
+                    if col in df.columns:
+                        df[col] = pd.to_numeric(
+                            df[col].astype(str)
+                            .str.replace(r'[^\d,-]', '', regex=True)
+                            .str.replace(',', '.'),
+                            errors='coerce'
+                        ).fillna(0)
+                
+                # Criar colunas ausentes com valores padrão
+                if 'item' not in df.columns:
+                    df['item'] = df.get('descricao_item', '').str[:50]  # Limita a 50 caracteres
+                    
+                if 'quantidade' not in df.columns:
+                    df['quantidade'] = 1
+                    
+                if 'valor_unitario' not in df.columns and 'saldo_atual' in df.columns:
+                    df['valor_unitario'] = df['saldo_atual']
+                    
+                if 'valor_total' not in df.columns and 'saldo_atual' in df.columns:
+                    df['valor_total'] = df['saldo_atual']
+            # Remover linhas duplicadas
+            df = df.drop_duplicates()
+
+            # Log final
+            logger.info(f"DataFrame limpo - shape final: {df.shape}")
             
             return df
+            
         except Exception as e:
-            logger.error(f"Erro na limpeza dos dados ({sheet_type}): {e}")
+            logger.error(f"Erro na limpeza dos dados ({sheet_type}): {str(e)}", exc_info=True)
             raise
-
-    def import_from_excel(self, file_path: Path, table_name: str):
-        """Importa dados de uma planilha Excel para a tabela especificada"""
-        try:
-            # Determinar o tipo de planilha
-            sheet_type = None
-            if 'finr' in file_path.stem.lower():
-                sheet_type = 'financeiro'
-                col_map = self.settings.COLUNAS_FINANCEIRO
-            elif 'ctbr140' in file_path.stem.lower():
-                sheet_type = 'modelo1'
-                col_map = self.settings.COLUNAS_MODELO1
-            elif 'ctbr040' in file_path.stem.lower():
-                sheet_type = 'contas_itens'
-                col_map = self.settings.COLUNAS_CONTAS_ITENS
-            
-            if not sheet_type:
-                raise ValueError(f"Tipo de planilha não reconhecido: {file_path.name}")
-            
-            # Ler o arquivo Excel
-            df = pd.read_excel(file_path, header=0)
-                
-            # Renomear colunas conforme mapeamento
-            df = df.rename(columns={v: k for k, v in col_map.items()})
-            
-            # Manter apenas as colunas necessárias
-            df = df[list(col_map.keys())]
-            
-            # Limpar os dados
-            df = self._clean_dataframe(df, sheet_type)
-            
-            # Salvar no banco de dados
-            df.to_sql(table_name, self.conn, if_exists='append', index=False)
-            logger.info(f"Dados importados de {file_path.name} para tabela {table_name}")
-            
-            return True
-        except Exception as e:
-            logger.error(f"Erro ao importar dados de {file_path.name}: {e}")
-            return False
-
+    
+    def _get_column_mapping(self, file_path: Path):
+        """Retorna o mapeamento de colunas apropriado com base no nome do arquivo"""
+        filename = file_path.stem.lower()
+        
+        if 'finr' in filename:
+            return {
+                'fornecedor': 'Codigo-Nome do Fornecedor',
+                'titulo': 'Prf-Numero Parcela',
+                'tipo_titulo': 'Tp',
+                'data_emissao': 'Data de Emissao',
+                'data_vencimento': 'Data de Vencto',
+                'vencto_real': 'Vencto Real',
+                'valor_original': 'Valor Original',
+                'saldo_devedor': 'Tit Vencidos Valor nominal',
+                'situacao': 'Natureza',
+                'conta_contabil': 'Natureza',
+                'centro_custo': 'Porta- dor'
+            }
+        elif 'ctbr140' in filename:
+            return {
+                'conta_contabil': 'Codigo',
+                'descricao_conta': 'Descricao',
+                'codigo_fornecedor': 'Codigo.1',
+                'descricao_fornecedor': 'Descricao.1',
+                'saldo_anterior': 'Saldo anterior',
+                'debito': 'Debito',
+                'credito': 'Credito',
+                'movimento_periodo': 'Movimento do periodo',
+                'saldo_atual': 'Saldo atual',
+                'tipo_fornecedor': 'Descricao.1'  # Usando Descricao.1 como tipo_fornecedor temporariamente
+            }
+        elif 'ctbr040' in filename:
+            return {
+                'conta_contabil': 'Conta',
+                'descricao_item': 'Descricao',
+                'saldo_anterior': 'Saldo anterior',
+                'debito': 'Debito',
+                'credito': 'Credito',
+                'saldo_atual': 'Saldo atual',
+                # Colunas adicionais com valores padrão
+                'item': 'Descricao',  # Usa a descrição como item
+                'quantidade': '1',     # Valor padrão
+                'valor_unitario': 'Saldo atual',  # Usa saldo como valor unitário
+                'valor_total': 'Saldo atual'      # Usa saldo como valor total
+        }
+        else:
+            raise ValueError(f"Tipo de planilha não reconhecido: {file_path.name}")
+    
     def process_data(self):
         """Processa os dados e gera a conciliação conforme especificado"""
         try:
+            self.conn.execute("BEGIN TRANSACTION")
             cursor = self.conn.cursor()
             
             # Limpar tabela de resultados antes de processar
@@ -181,7 +423,6 @@ class DatabaseManager:
             query_financeiro = f"""
                 INSERT INTO {self.settings.TABLE_RESULTADO}
                 (codigo_fornecedor, descricao_fornecedor, saldo_financeiro, status)
-                
                 SELECT 
                     fornecedor as codigo_fornecedor,
                     MAX(fornecedor) as descricao_fornecedor,  
@@ -230,11 +471,10 @@ class DatabaseManager:
             """
             cursor.execute(query_diferenca)
             
-            # 4. Inserir fornecedores contábeis que não estão no financeiro
+            # 4. Inserir fornecedores contábeis que não estão no financeiro (QUERY CORRIGIDA)
             query_fornecedores_contabeis = f"""
                 INSERT INTO {self.settings.TABLE_RESULTADO}
                 (codigo_fornecedor, descricao_fornecedor, saldo_contabil, status, detalhes)
-                
                 SELECT 
                     SUBSTR(descricao_conta, 1, INSTR(descricao_conta, ' ') - 1) as codigo_fornecedor,
                     descricao_conta as descricao_fornecedor,
@@ -248,19 +488,20 @@ class DatabaseManager:
                     AND NOT EXISTS (
                         SELECT 1
                         FROM {self.settings.TABLE_RESULTADO}
-                        WHERE descricao_fornecedor LIKE '%' || SUBSTR(descricao_conta, 1, INSTR(descricao_conta, ' ') - 1 || '%'
+                        WHERE descricao_fornecedor LIKE '%' || SUBSTR(descricao_conta, 1, INSTR(descricao_conta, ' ') - 1) || '%'
                     )
             """
             cursor.execute(query_fornecedores_contabeis)
             
             self.conn.commit()
             logger.info("Processamento de dados concluído com sucesso")
-            
             return True
+            
         except Exception as e:
-            logger.error(f"Erro ao processar dados: {e}")
+            logger.error(f"Erro ao processar dados: {e}", exc_info=True)
+            self.conn.rollback()
             return False
-
+    
     def _apply_styles(self, worksheet):
         """Aplica formatação à planilha Excel"""
         # Definir estilos
@@ -303,7 +544,12 @@ class DatabaseManager:
 
     def export_to_excel(self):
         """Exporta os resultados para uma planilha Excel formatada na pasta results"""
+        logger.info("Iniciando exportação para Excel...")
         try:
+            if not self.conn:
+                logger.error("Tentativa de exportação com conexão fechada")
+                raise RuntimeError("Conexão com o banco de dados não está aberta")
+            
             output_path = self.settings.RESULTS_DIR / f"CONCILIACAO_{self.settings.DATA_REFERENCIA.replace('/', '-')}.xlsx"
             
             # Criar um novo arquivo Excel
@@ -382,7 +628,7 @@ class DatabaseManager:
                     ci.quantidade as "Quantidade",
                     ci.valor_unitario as "Valor Unitário",
                     ci.valor_total as "Valor Total",
-                    ci.saldo as "Saldo"
+                    ci.saldo_atual as "Saldo Atual"
                 FROM 
                     {self.settings.TABLE_CONTAS_ITENS} ci
                 JOIN 
@@ -422,10 +668,14 @@ class DatabaseManager:
     def close(self):
         """Fecha a conexão com o banco de dados"""
         if self.conn:
-            self.conn.close()
-            logger.info("Conexão com o banco de dados fechada")
+            try:
+                self.conn.close()
+                logger.info("Conexão com o banco de dados fechada")
+            except Exception as e:
+                logger.error(f"Erro ao fechar conexão: {e}")
 
     def __enter__(self):
+        self._initialize_database()
         return self
 
     def __exit__(self, exc_type, exc_val, exc_tb):
