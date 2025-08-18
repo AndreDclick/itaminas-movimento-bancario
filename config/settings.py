@@ -46,9 +46,8 @@ class Settings:
         "saldo_devedor": "Saldo Devedor"
     }
     
-    DATA_REFERENCIA = "01/01/2023"
     # Timeouts
-    TIMEOUT = 15000  
+    TIMEOUT = 30000  
     DELAY = 0.5  
     SHUTDOWN_DELAY = 3 
     

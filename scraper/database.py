@@ -2,13 +2,16 @@ import sqlite3
 from pathlib import Path
 from config.settings import Settings
 from config.logger import configure_logger
+from openpyxl.styles import Font, Alignment, Border, Side, PatternFill
+from openpyxl.utils import get_column_letter
+from difflib import get_close_matches
+from workalendar.america import Brazil
+from datetime import datetime, timedelta
+
 import pandas as pd
 import numpy as np
 import openpyxl
-from openpyxl.styles import Font, Alignment, Border, Side, PatternFill
-from openpyxl.utils import get_column_letter
 import re
-from difflib import get_close_matches
 
 logger = configure_logger()
 
@@ -31,9 +34,7 @@ class DatabaseManager:
         self._initialized = True
 
     def _initialize_database(self):
-        
         try:
-            
             self.conn = sqlite3.connect(self.settings.DB_PATH, timeout=10)
             cursor = self.conn.cursor()
             
@@ -169,11 +170,12 @@ class DatabaseManager:
             logger.info(f"Colunas originais em {file_path}: {df.columns.tolist()}")
 
             # Limpeza de colunas
+            # Limpeza de colunas
             df.columns = df.columns.str.replace(r'_x000D_\n', ' ', regex=True).str.strip()
             logger.info(f"Colunas após limpeza: {df.columns.tolist()}")
 
-            # Obter mapeamento de colunas
-            column_mapping = self._get_column_mapping(Path(file_path))
+            # Obter mapeamento de colunas (invertido para o formato correto)
+            column_mapping = {v: k for k, v in self._get_column_mapping(Path(file_path)).items()}
             
             # Renomear colunas conforme mapeamento
             df.rename(columns=column_mapping, inplace=True)
@@ -191,13 +193,11 @@ class DatabaseManager:
                 if remaining_missing:
                     # Tratamento especial para colunas ausentes
                     if 'parcela' in remaining_missing and 'titulo' in df.columns:
-                        # Extrai parcela do número do título
                         df['parcela'] = df['titulo'].str.extract(r'(\d+)$').fillna('1')
                         logger.warning("Coluna 'parcela' criada a partir do título")
                         remaining_missing.remove('parcela')
                     
                     if 'conta_contabil' in remaining_missing:
-                        # Define um valor padrão para conta contábil
                         df['conta_contabil'] = 'CONTA_PADRAO' 
                         logger.warning("Coluna 'conta_contabil' preenchida com valor padrão")
                         remaining_missing.remove('conta_contabil')
@@ -206,10 +206,8 @@ class DatabaseManager:
                         logger.error(f"Colunas obrigatórias ausentes após tratamento: {remaining_missing}")
                         raise ValueError(f"Colunas obrigatórias ausentes: {remaining_missing}")
 
-            # Limpa dados e seleciona apenas as colunas esperadas
-            df = df[expected_columns]
-            df = df.map(lambda x: str(x).strip() if pd.notna(x) else x)
-            logger.info(f"DataFrame limpo - shape final: {df.shape}")
+            # Limpeza e tratamento específico para cada tipo de planilha
+            df = self._clean_dataframe(df, table_name.lower())
 
             df.to_sql(table_name, self.conn, if_exists='append', index=False)
             logger.info(f"Dados importados para '{table_name}' com sucesso.")
@@ -234,14 +232,14 @@ class DatabaseManager:
                 'debito', 'credito', 'saldo_atual'  
             ]
         elif table_name == self.settings.TABLE_CONTAS_ITENS:
-            return  [
+            return [
                 'conta_contabil',
                 'descricao_item',
                 'saldo_anterior',
                 'debito',
                 'credito',
                 'saldo_atual'
-        ]
+            ]
         else:
             raise ValueError(f"Tabela desconhecida: {table_name}")
         
@@ -257,107 +255,125 @@ class DatabaseManager:
             
             # Processamento específico para cada tipo de planilha
             if sheet_type == 'financeiro':
-                # 1. Tratamento de datas
-                date_cols = ['data_emissao', 'data_vencimento']
-                for col in date_cols:
-                    if col in df.columns:
-                        try:
-                            # Tenta converter de vários formatos
-                            df[col] = pd.to_datetime(
-                                df[col], 
-                                errors='coerce',
-                                format='mixed',
-                                dayfirst=True
-                            )
-                        except Exception as e:
-                            logger.warning(f"Erro ao converter datas na coluna {col}: {str(e)}")
-                            df[col] = pd.NaT
-
-                # 2. Tratamento de valores numéricos
-                num_cols = ['valor_original', 'saldo_devedor']
-                for col in num_cols:
-                    if col in df.columns:
-                        df[col] = (
-                            df[col].astype(str)
-                            .str.replace(r'[^\d,-]', '', regex=True) 
-                            .str.replace(',', '.')  # Padroniza decimal
-                            .replace('', np.nan)    # Strings vazias para NaN
-                            .astype(float)          # Converte para float
-                            .fillna(0)              # Preenche NaN com 0
-                        )
-                
-                # 3. Tratamento de texto
-                text_cols = ['fornecedor', 'titulo', 'tipo_titulo']
-                for col in text_cols:
-                    if col in df.columns:
-                        df[col] = (
-                            df[col].astype(str)
-                            .str.strip()
-                            .str.replace(r'\s+', ' ', regex=True)  
-                            .replace('nan', '')  
-                        )
-                
-                # 4. Filtrar registros indesejados
-                if 'tipo_titulo' in df.columns:
-                    df = df[~df['tipo_titulo'].isin(self.settings.FORNECEDORES_EXCLUIR)]
-                
-                # 5. Criar coluna de parcela se necessário
-                if 'titulo' in df.columns and 'parcela' not in df.columns:
-                    df['parcela'] = df['titulo'].str.extract(r'(\d+)$').fillna('1')
-
+                df = self._clean_financeiro_data(df)
             elif sheet_type == 'modelo1':
-                # Tratamento específico para o modelo 1
-                num_cols = ['saldo_anterior', 'debito', 'credito', 'saldo_atual']
-                for col in num_cols:
-                    if col in df.columns:
-                        df[col] = pd.to_numeric(
-                            df[col].astype(str)
-                            .str.replace(r'[^\d,-]', '', regex=True)
-                            .str.replace(',', '.'),
-                            errors='coerce'
-                        ).fillna(0)
-                
-                # Criar coluna tipo_fornecedor se não existir
-                if 'tipo_fornecedor' not in df.columns and 'descricao_conta' in df.columns:
-                    df['tipo_fornecedor'] = df['descricao_conta'].apply(
-                        lambda x: 'FORNECEDOR' if 'FORNEC' in str(x).upper() else 'OUTROS'
-                    )
-
+                df = self._clean_modelo1_data(df)
             elif sheet_type == 'contas_itens':
-            # Tratamento específico para contas x itens
-                num_cols = ['saldo_anterior', 'debito', 'credito', 'saldo_atual']
-                for col in num_cols:
-                    if col in df.columns:
-                        df[col] = pd.to_numeric(
-                            df[col].astype(str)
-                            .str.replace(r'[^\d,-]', '', regex=True)
-                            .str.replace(',', '.'),
-                            errors='coerce'
-                        ).fillna(0)
-                
-                # Criar colunas ausentes com valores padrão
-                if 'item' not in df.columns:
-                    df['item'] = df.get('descricao_item', '').str[:50] 
-                    
-                if 'quantidade' not in df.columns:
-                    df['quantidade'] = 1
-                    
-                if 'valor_unitario' not in df.columns and 'saldo_atual' in df.columns:
-                    df['valor_unitario'] = df['saldo_atual']
-                    
-                if 'valor_total' not in df.columns and 'saldo_atual' in df.columns:
-                    df['valor_total'] = df['saldo_atual']
+                df = self._clean_contas_itens_data(df)
             
             df = df.drop_duplicates()
-
-            # Log final
             logger.info(f"DataFrame limpo - shape final: {df.shape}")
-            
             return df
             
         except Exception as e:
             logger.error(f"Erro na limpeza dos dados ({sheet_type}): {str(e)}", exc_info=True)
             raise
+
+    def _clean_financeiro_data(self, df):
+        """Limpeza específica para dados financeiros"""
+        # 1. Aplicar filtros iniciais
+        if 'tipo_titulo' in df.columns:
+            df = df[~df['tipo_titulo'].isin(['NDF', 'PA'])]
+            logger.info(f"Registros após filtrar NDF/PA: {len(df)}")
+        
+        if 'conta_contabil' in df.columns:
+            df = df[df['conta_contabil'].str.startswith('2010201', na=False)]
+            logger.info(f"Registros após filtrar fornecedores nacionais: {len(df)}")
+
+        # 2. Tratamento de datas
+        date_cols = ['data_emissao', 'data_vencimento']
+        for col in date_cols:
+            if col in df.columns:
+                try:
+                    df[col] = pd.to_datetime(
+                        df[col], 
+                        errors='coerce',
+                        format='mixed',
+                        dayfirst=True
+                    )
+                    
+                    if df[col].isna().any():
+                        invalid_dates = df[df[col].isna()][col].count()
+                        logger.warning(f"{invalid_dates} registros com datas inválidas na coluna {col}")
+                        
+                except Exception as e:
+                    logger.error(f"Erro crítico ao converter datas na coluna {col}: {str(e)}")
+                    raise
+
+        # 3. Tratamento de valores numéricos
+        num_cols = ['valor_original', 'saldo_devedor']
+        for col in num_cols:
+            if col in df.columns:
+                df[col] = (
+                    df[col].astype(str)
+                    .str.replace(r'[^\d,-]', '', regex=True) 
+                    .str.replace(',', '.')
+                    .replace('', np.nan)
+                    .astype(float)
+                    .fillna(0)
+                )
+        
+        # 4. Tratamento de texto
+        text_cols = ['fornecedor', 'titulo', 'tipo_titulo']
+        for col in text_cols:
+            if col in df.columns:
+                df[col] = (
+                    df[col].astype(str)
+                    .str.strip()
+                    .str.replace(r'\s+', ' ', regex=True)
+                    .replace('nan', '')
+                )
+        
+        # 5. Criar coluna de parcela se necessário
+        if 'titulo' in df.columns and 'parcela' not in df.columns:
+            df['parcela'] = df['titulo'].str.extract(r'(\d+)$').fillna('1')
+
+        return df
+
+    def _clean_modelo1_data(self, df):
+        """Limpeza específica para dados do modelo 1"""
+        num_cols = ['saldo_anterior', 'debito', 'credito', 'saldo_atual']
+        for col in num_cols:
+            if col in df.columns:
+                df[col] = pd.to_numeric(
+                    df[col].astype(str)
+                    .str.replace(r'[^\d,-]', '', regex=True)
+                    .str.replace(',', '.'),
+                    errors='coerce'
+                ).fillna(0)
+        
+        if 'tipo_fornecedor' not in df.columns and 'descricao_conta' in df.columns:
+            df['tipo_fornecedor'] = df['descricao_conta'].apply(
+                lambda x: 'FORNECEDOR' if 'FORNEC' in str(x).upper() else 'OUTROS'
+            )
+
+        return df
+
+    def _clean_contas_itens_data(self, df):
+        """Limpeza específica para dados de contas x itens"""
+        num_cols = ['saldo_anterior', 'debito', 'credito', 'saldo_atual']
+        for col in num_cols:
+            if col in df.columns:
+                df[col] = pd.to_numeric(
+                    df[col].astype(str)
+                    .str.replace(r'[^\d,-]', '', regex=True)
+                    .str.replace(',', '.'),
+                    errors='coerce'
+                ).fillna(0)
+        
+        if 'item' not in df.columns:
+            df['item'] = df.get('descricao_item', '').str[:50] 
+            
+        if 'quantidade' not in df.columns:
+            df['quantidade'] = 1
+            
+        if 'valor_unitario' not in df.columns and 'saldo_atual' in df.columns:
+            df['valor_unitario'] = df['saldo_atual']
+            
+        if 'valor_total' not in df.columns and 'saldo_atual' in df.columns:
+            df['valor_total'] = df['saldo_atual']
+
+        return df
     
     def _get_column_mapping(self, file_path: Path):
         """Retorna o mapeamento de colunas apropriado com base no nome do arquivo"""
@@ -365,44 +381,45 @@ class DatabaseManager:
         
         if 'finr' in filename:
             return {
-                'fornecedor': 'Codigo-Nome do Fornecedor',
-                'titulo': 'Prf-Numero Parcela',
-                'tipo_titulo': 'Tp',
-                'data_emissao': 'Data de Emissao',
-                'data_vencimento': 'Data de Vencto',
-                'vencto_real': 'Vencto Real',
-                'valor_original': 'Valor Original',
-                'saldo_devedor': 'Tit Vencidos Valor nominal',
-                'situacao': 'Natureza',
-                'conta_contabil': 'Natureza',
-                'centro_custo': 'Porta- dor'
+                'Codigo-Nome do Fornecedor': 'fornecedor',
+                'Prf-Numero Parcela': 'titulo',
+                'Tp': 'tipo_titulo',
+                'Data de Emissao': 'data_emissao',
+                'Data de Vencto': 'data_vencimento',
+                'Vencto Real': 'vencto_real',
+                'Valor Original': 'valor_original',
+                'Tit Vencidos Valor nominal': 'saldo_devedor',
+                'Natureza': 'situacao',
+                'Natureza': 'conta_contabil',  # Note que Natureza está mapeado duas vezes
+                'Porta- dor': 'centro_custo'
             }
         elif 'ctbr140' in filename:
             return {
-                'conta_contabil': 'Codigo',
-                'descricao_conta': 'Descricao',
-                'codigo_fornecedor': 'Codigo.1',
-                'descricao_fornecedor': 'Descricao.1',
-                'saldo_anterior': 'Saldo anterior',
-                'debito': 'Debito',
-                'credito': 'Credito',
-                'movimento_periodo': 'Movimento do periodo',
-                'saldo_atual': 'Saldo atual',
-                'tipo_fornecedor': 'Descricao.1'  
+                'Codigo': 'conta_contabil',
+                'Descricao': 'descricao_conta',
+                'Codigo.1': 'codigo_fornecedor',
+                'Descricao.1': 'descricao_fornecedor',
+                'Saldo anterior': 'saldo_anterior',
+                'Debito': 'debito',
+                'Credito': 'credito',
+                'Movimento do periodo': 'movimento_periodo',
+                'Saldo atual': 'saldo_atual',
+                'Descricao.1': 'tipo_fornecedor'
             }
         elif 'ctbr040' in filename:
             return {
-                'conta_contabil': 'Conta',
-                'descricao_item': 'Descricao',
-                'saldo_anterior': 'Saldo anterior',
-                'debito': 'Debito',
-                'credito': 'Credito',
-                'saldo_atual': 'Saldo atual',                
-                'item': 'Descricao',  
-                'quantidade': '1',     # Valor padrão
-                'valor_unitario': 'Saldo atual',  
-                'valor_total': 'Saldo atual'      
-        }
+                'Conta': 'conta_contabil',
+                'Descricao': 'descricao_item',
+                'Saldo anterior': 'saldo_anterior',
+                'Debito': 'debito',
+                'Credito': 'credito',
+                'Mov  periodo': 'movimento_periodo',
+                'Saldo atual': 'saldo_atual',
+                'Descricao': 'item',
+                '1': 'quantidade',
+                'Saldo atual': 'valor_unitario',
+                'Saldo atual': 'valor_total'
+            }
         else:
             raise ValueError(f"Tipo de planilha não reconhecido: {file_path.name}")
     
@@ -412,9 +429,9 @@ class DatabaseManager:
             self.conn.execute("BEGIN TRANSACTION")
             cursor = self.conn.cursor()
             
-            # Limpar tabela de resultados antes de processar
+            data_inicial, data_final = self._get_datas_referencia()
             cursor.execute(f"DELETE FROM {self.settings.TABLE_RESULTADO}")
-            
+
             # 1. Processar dados financeiros (agrupar por fornecedor)
             query_financeiro = f"""
                 INSERT INTO {self.settings.TABLE_RESULTADO}
@@ -428,6 +445,7 @@ class DatabaseManager:
                     {self.settings.TABLE_FINANCEIRO}
                 WHERE 
                     excluido = 0
+                    AND data_vencimento BETWEEN '{data_inicial}' AND '{data_final}'
                 GROUP BY 
                     fornecedor
             """
@@ -462,12 +480,18 @@ class DatabaseManager:
                     diferenca = ROUND(saldo_contabil - saldo_financeiro, 2),
                     status = CASE 
                         WHEN ABS(saldo_contabil - saldo_financeiro) < 0.01 THEN 'OK'
+                        WHEN saldo_contabil = 0 AND saldo_financeiro > 0 THEN 'PENDENTE'
+                        WHEN saldo_financeiro = 0 AND saldo_contabil > 0 THEN 'PENDENTE'
                         ELSE 'DIVERGENTE'
+                    END,
+                    detalhes = CASE
+                        WHEN ABS(saldo_contabil - saldo_financeiro) < 0.01 THEN 'Conciliação OK'
+                        ELSE 'Verificar lançamentos para o fornecedor'
                     END
             """
             cursor.execute(query_diferenca)
             
-            # 4. Inserir fornecedores contábeis que não estão no financeiro (QUERY CORRIGIDA)
+            # 4. Inserir fornecedores contábeis que não estão no financeiro
             query_fornecedores_contabeis = f"""
                 INSERT INTO {self.settings.TABLE_RESULTADO}
                 (codigo_fornecedor, descricao_fornecedor, saldo_contabil, status, detalhes)
@@ -500,30 +524,28 @@ class DatabaseManager:
     
     def _apply_styles(self, worksheet):
         """Aplica formatação à planilha Excel"""
-        # Definir estilos
         header_fill = PatternFill(start_color="4F81BD", end_color="4F81BD", fill_type="solid")
         header_font = Font(color="FFFFFF", bold=True)
         align_center = Alignment(horizontal="center", vertical="center")
-        thin_border = Border(left=Side(style='thin'), 
-                            right=Side(style='thin'), 
-                            top=Side(style='thin'), 
-                            bottom=Side(style='thin'))
+        thin_border = Border(
+            left=Side(style='thin'), 
+            right=Side(style='thin'), 
+            top=Side(style='thin'), 
+            bottom=Side(style='thin')
+        )
         
-        # Aplicar aos cabeçalhos
         for cell in worksheet[1]:
             cell.fill = header_fill
             cell.font = header_font
             cell.alignment = align_center
             cell.border = thin_border
         
-        # Aplicar bordas a todas as células
         for row in worksheet.iter_rows():
             for cell in row:
                 cell.border = thin_border
-                if cell.column_letter in ['K', 'L', 'M', 'N']:  # Colunas numéricas
+                if cell.column_letter in ['K', 'L', 'M', 'N']:
                     cell.number_format = '#,##0.00'
         
-        # Ajustar largura das colunas
         for column in worksheet.columns:
             max_length = 0
             column_letter = get_column_letter(column[0].column)
@@ -538,17 +560,86 @@ class DatabaseManager:
             adjusted_width = (max_length + 2) * 1.2
             worksheet.column_dimensions[column_letter].width = adjusted_width
 
+    def _get_datas_referencia(self):
+        """Versão temporária para testes - ignora verificação de dia 20/último dia"""
+        cal = Brazil()
+        hoje = datetime.now().date()
+        
+        # Sempre usa o primeiro dia do mês como data inicial
+        data_inicial = hoje.replace(day=1)
+        
+        # Garante que as datas são dias úteis
+        data_inicial = cal.add_working_days(data_inicial - timedelta(days=1), 1)
+        data_final = hoje
+        
+        logger.warning("USANDO VERSÃO TEMPORÁRIA DE _get_datas_referencia() - IGNORANDO VERIFICAÇÃO DE DIA 20/ÚLTIMO DIA")
+        return data_inicial.strftime("%d/%m/%Y"), data_final.strftime("%d/%m/%Y")
+        # """Retorna datas de referência ajustando para feriados"""
+        # cal = Brazil()
+        # hoje = datetime.now().date()
+
+        # # Ajusta a data se não for dia útil
+        # if not cal.is_working_day(hoje):
+        #     hoje = cal.add_working_days(hoje, 1)
+        #     logger.warning(f"Data ajustada para o próximo dia útil: {hoje.strftime('%d/%m/%Y')}")
+
+        # # Verifica se é dia 20 ou último dia do mês
+        # if hoje.day == 20 or hoje.day == self._ultimo_dia_mes(hoje).day:
+        #     if hoje.day == 20:
+        #         data_inicial = hoje.replace(day=1)
+        #     else:
+        #         data_inicial = hoje.replace(day=1)
+            
+        #     # Garante que as datas são dias úteis
+        #     data_inicial = cal.add_working_days(data_inicial - timedelta(days=1), 1)
+        #     data_final = hoje
+            
+        #     return data_inicial.strftime("%d/%m/%Y"), data_final.strftime("%d/%m/%Y")
+        # else:
+        #     raise ValueError("Processamento só deve ocorrer no dia 20 ou último dia do mês")
+
+    def _ultimo_dia_mes(self, date):
+        """Retorna o último dia do mês para uma data dada"""
+        next_month = date.replace(day=28) + timedelta(days=4)
+        return next_month - timedelta(days=next_month.day)
+
+    def validate_output(self, output_path):
+        """Valida se o arquivo gerado atende aos requisitos"""
+        try:
+            wb = openpyxl.load_workbook(output_path)
+            
+            required_sheets = ['Resumo', 'Títulos a Pagar', 'Balancete', 'Contas x Itens']
+            for sheet in required_sheets:
+                if sheet not in wb.sheetnames:
+                    raise ValueError(f"Aba '{sheet}' não encontrada no arquivo gerado")
+            
+            resumo = wb['Resumo']
+            expected_columns = [
+                'Código Fornecedor', 'Descrição Fornecedor', 
+                'Saldo Contábil', 'Saldo Financeiro', 'Diferença'
+            ]
+            header = [cell.value for cell in resumo[1]]
+            
+            for col in expected_columns:
+                if col not in header:
+                    raise ValueError(f"Coluna '{col}' não encontrada na aba Resumo")
+            
+            return True
+        except Exception as e:
+            logger.error(f"Validação falhou: {e}")
+            return False
+
     def export_to_excel(self):
-        """Exporta os resultados para uma planilha Excel formatada na pasta results"""
+        """Exporta os resultados para uma planilha Excel formatada"""
         logger.info("Iniciando exportação para Excel...")
+        data_inicial, data_final = self._get_datas_referencia()
+        output_path = self.settings.RESULTS_DIR / f"CONCILIACAO_{data_inicial.replace('/', '-')}_a_{data_final.replace('/', '-')}.xlsx"
+        
         try:
             if not self.conn:
                 logger.error("Tentativa de exportação com conexão fechada")
                 raise RuntimeError("Conexão com o banco de dados não está aberta")
             
-            output_path = self.settings.RESULTS_DIR / f"CONCILIACAO_{self.settings.DATA_REFERENCIA.replace('/', '-')}.xlsx"
-            
-            # Criar um novo arquivo Excel
             writer = pd.ExcelWriter(output_path, engine='openpyxl')
             
             # 1. Planilha de Resumo
@@ -559,6 +650,11 @@ class DatabaseManager:
                     saldo_contabil as "Saldo Contábil",
                     saldo_financeiro as "Saldo Financeiro",
                     diferenca as "Diferença",
+                    CASE 
+                        WHEN diferenca > 0 THEN 'Contábil > Financeiro'
+                        WHEN diferenca < 0 THEN 'Financeiro > Contábil'
+                        ELSE 'OK'
+                    END as "Tipo Diferença",
                     status as "Status",
                     detalhes as "Detalhes"
                 FROM 
@@ -587,6 +683,7 @@ class DatabaseManager:
                     {self.settings.TABLE_FINANCEIRO}
                 WHERE 
                     excluido = 0
+                    AND data_vencimento BETWEEN '{data_inicial}' AND '{data_final}'
                 ORDER BY 
                     fornecedor, titulo
             """
@@ -637,24 +734,24 @@ class DatabaseManager:
             df_contas_itens = pd.read_sql(query_contas_itens, self.conn)
             df_contas_itens.to_excel(writer, sheet_name='Contas x Itens', index=False)
             
-            # Salvar o arquivo Excel
             writer.close()
             
-            # Aplicar formatação a todas as planilhas
             workbook = openpyxl.load_workbook(output_path)
             for sheetname in workbook.sheetnames:
                 sheet = workbook[sheetname]
                 self._apply_styles(sheet)
             
-            # Adicionar informações adicionais
             sheet = workbook['Resumo']
             sheet['I1'] = "Data de Referência:"
-            sheet['J1'] = self.settings.DATA_REFERENCIA
+            sheet['J1'] = f"{data_inicial} a {data_final}"
             sheet['I2'] = "Observações:"
             sheet['J2'] = "Conciliação automática gerada pelo sistema"
             
             workbook.save(output_path)
             logger.info(f"Planilha de resultados exportada para {output_path}")
+            
+            if not self.validate_output(output_path):
+                raise ValueError("A validação da planilha gerada falhou")
             
             return output_path
         except Exception as e:
