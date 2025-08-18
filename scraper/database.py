@@ -170,15 +170,15 @@ class DatabaseManager:
             logger.info(f"Colunas originais em {file_path}: {df.columns.tolist()}")
 
             # Limpeza de colunas
-            # Limpeza de colunas
             df.columns = df.columns.str.replace(r'_x000D_\n', ' ', regex=True).str.strip()
             logger.info(f"Colunas após limpeza: {df.columns.tolist()}")
 
             # Obter mapeamento de colunas (invertido para o formato correto)
-            column_mapping = {v: k for k, v in self._get_column_mapping(Path(file_path)).items()}
+            column_mapping = self._get_column_mapping(Path(file_path))
             
             # Renomear colunas conforme mapeamento
             df.rename(columns=column_mapping, inplace=True)
+            logger.info(f"Colunas após mapeamento: {df.columns.tolist()}")
             
             # Verifica colunas esperadas vs colunas presentes
             expected_columns = self.get_expected_columns(table_name)
@@ -209,6 +209,11 @@ class DatabaseManager:
             # Limpeza e tratamento específico para cada tipo de planilha
             df = self._clean_dataframe(df, table_name.lower())
 
+            # Garantir que as colunas do DataFrame correspondam exatamente às colunas da tabela
+            table_columns = [col[1] for col in self.conn.execute(f"PRAGMA table_info({table_name})").fetchall()]
+            df = df[[col for col in df.columns if col in table_columns]]
+            table_columns = [col[1] for col in self.conn.execute(f"PRAGMA table_info({table_name})").fetchall()]
+            df = df[[col for col in df.columns if col in table_columns]]
             df.to_sql(table_name, self.conn, if_exists='append', index=False)
             logger.info(f"Dados importados para '{table_name}' com sucesso.")
             
@@ -216,7 +221,7 @@ class DatabaseManager:
             
         except Exception as e:
             logger.error(f"Falha ao importar {file_path}: {e}", exc_info=True)
-            return False  
+            return False
     
     def get_expected_columns(self, table_name):
         """Retorna as colunas esperadas para cada tabela"""
@@ -381,18 +386,16 @@ class DatabaseManager:
         
         if 'finr' in filename:
             return {
-                'Codigo-Nome do Fornecedor': 'fornecedor',
-                'Prf-Numero Parcela': 'titulo',
-                'Tp': 'tipo_titulo',
-                'Data de Emissao': 'data_emissao',
-                'Data de Vencto': 'data_vencimento',
-                'Vencto Real': 'vencto_real',
-                'Valor Original': 'valor_original',
-                'Tit Vencidos Valor nominal': 'saldo_devedor',
-                'Natureza': 'situacao',
-                'Natureza': 'conta_contabil',  # Note que Natureza está mapeado duas vezes
-                'Porta- dor': 'centro_custo'
-            }
+            'Codigo-Nome do Fornecedor': 'fornecedor',
+            'Prf-Numero Parcela': 'titulo',
+            'Tp': 'tipo_titulo',
+            'Data de Emissao': 'data_emissao',
+            'Data de Vencto': 'data_vencimento',
+            'Valor Original': 'valor_original',
+            'Tit Vencidos Valor nominal': 'saldo_devedor',
+            'Natureza': 'situacao',
+            'Porta- dor': 'centro_custo'
+        }
         elif 'ctbr140' in filename:
             return {
                 'Codigo': 'conta_contabil',
@@ -409,17 +412,15 @@ class DatabaseManager:
         elif 'ctbr040' in filename:
             return {
                 'Conta': 'conta_contabil',
-                'Descricao': 'descricao_item',
+                'Descricao': 'descricao_item',   
                 'Saldo anterior': 'saldo_anterior',
                 'Debito': 'debito',
                 'Credito': 'credito',
                 'Mov  periodo': 'movimento_periodo',
-                'Saldo atual': 'saldo_atual',
-                'Descricao': 'item',
-                '1': 'quantidade',
-                'Saldo atual': 'valor_unitario',
-                'Saldo atual': 'valor_total'
-            }
+                'Saldo atual': 'saldo_atual'
+                
+        }
+
         else:
             raise ValueError(f"Tipo de planilha não reconhecido: {file_path.name}")
     
