@@ -218,6 +218,8 @@ class ExtracaoFinanceiro(UtilsScraper):
         try:
             logger.info('Iniciando extração da planilha financeira - Títulos a Pagar')
             self._navegar_e_configurar_planilha()
+            self._confirmar_operacao()
+            self._fechar_popup_se_existir()
             self._criar_planilha()
             self._outras_acoes()
             self._preencher_parametros()
