@@ -123,77 +123,121 @@ class ProtheusScraper(UtilsScraper):
         
         try:
             # 0. Inicialização e login
-            self.start_scraper()
-            self.login()
-            results.append({
-                'status': 'success',
-                'message': 'Login realizado com sucesso',
-                'etapa': 'autenticação'
-            })
+            # self.start_scraper()
+            # self.login()
+            # results.append({
+            #     'status': 'success',
+            #     'message': 'Login realizado com sucesso',
+            #     'etapa': 'autenticação'
+            # })
 
-            # 1. Financeiro            
-            financeiro = ExtracaoFinanceiro(self.page)
-            resultado_financeiro = financeiro.execucao()
-            results.append(resultado_financeiro)
+            # try:       
+            #     financeiro = ExtracaoFinanceiro(self.page)
+            #     resultado_financeiro = financeiro.execucao()
+            #     results.append(resultado_financeiro)
+                
+            #     # Se Financeiro rodou, executa Modelo_1 em seguida
+            #     modelo_1 = Modelo_1(self.page)
+            #     resultado_modelo = modelo_1.execucao()
+            #     results.append(resultado_modelo)
 
-            # # 2. Execução do Modelo 1
-            modelo_1 = Modelo_1(self.page)
-            resultado_modelo = modelo_1.execucao()
-            results.append(resultado_modelo)
+            # except Exception as e:
+            #     # Se Financeiro falhar, reinicia e roda APENAS Modelo_1
+            #     results.append({
+            #         'status': 'error',
+            #         'message': f'Falha no Financeiro, tentando Modelo_1: {str(e)}',
+            #         'etapa': 'financeiro_fallback'
+            #     })
+                
+            #     self.start_scraper()
+            #     self.login()
+                
+            #     modelo_1 = Modelo_1(self.page)
+            #     resultado_modelo = modelo_1.execucao()
+            #     results.append(resultado_modelo)
 
-            # # 3. Execução do Contas x Itens
-            contasxitens = Contas_x_itens(self.page)
-            resultado_contas = contasxitens.execucao()
-            results.append(resultado_contas)
+            # # 2. Executa Contas x Itens (independente de erros anteriores)
+            # try:
+            #     contasxitens = Contas_x_itens(self.page)
+            #     resultado_contas = contasxitens.execucao()
+            #     results.append(resultado_contas)
+            # except Exception as e:
+            #     results.append({
+            #         'status': 'error',
+            #         'message': f'Falha em Contas x Itens: {str(e)}',
+            #         'etapa': 'contas_x_itens'
+            #     })
 
-            # 4. Processamento dos dados
-            with DatabaseManager() as db:
-                
-                caminho_planilhas = Path(self.settings.CAMINHO_PLS)
-                
-                # Importar cada planilha e verificar sucesso
-                importacoes = [
-                    ('financeiro', self.settings.PLS_FINANCEIRO, self.settings.TABLE_FINANCEIRO),
-                    ('modelo1', self.settings.PLS_MODELO_1, self.settings.TABLE_MODELO1),
-                    ('contas_itens', self.settings.PLS_CONTAS_X_ITENS, self.settings.TABLE_CONTAS_ITENS)
-                ]
-                
-                for nome, arquivo, tabela in importacoes:
-                    success = db.import_from_excel(caminho_planilhas / arquivo, tabela)
-                    if not success:
-                        raise Exception(f"Falha ao importar planilha {nome}")
-                    results.append({
-                        'status': 'success',
-                        'message': f'Planilha {nome} importada com sucesso',
-                        'etapa': 'importação'
-                    })
-                
-                # Processa os dados
-                if not db.process_data():
-                    raise Exception("Falha ao processar dados")
-                
-                # Exporta os resultados (conexão ainda aberta)
-                output_path = db.export_to_excel()
-                if output_path:
-                    results.append({
-                        'status': 'success',
-                        'message': f'Conciliação gerada em {output_path}',
-                        'etapa': 'processamento'
-                    })
+            # 3. Processamento no banco de dados (tenta mesmo com erros anteriores)
+            try:
+                with DatabaseManager() as db:
+                    caminho_planilhas = Path(self.settings.CAMINHO_PLS)
+                    
+                    # Importar cada planilha e verificar sucesso
+                    importacoes = [
+                        ('financeiro', self.settings.PLS_FINANCEIRO, self.settings.TABLE_FINANCEIRO),
+                        ('modelo1', self.settings.PLS_MODELO_1, self.settings.TABLE_MODELO1),
+                        ('contas_itens', self.settings.PLS_CONTAS_X_ITENS, self.settings.TABLE_CONTAS_ITENS)
+                    ]
+                    
+                    for nome, arquivo, tabela in importacoes:
+                        try:
+                            success = db.import_from_excel(caminho_planilhas / arquivo, tabela)
+                            if not success:
+                                raise Exception(f"Arquivo {arquivo} não encontrado ou inválido")
+                            results.append({
+                                'status': 'success',
+                                'message': f'Planilha {nome} importada com sucesso',
+                                'etapa': 'importação'
+                            })
+                        except Exception as e:
+                            results.append({
+                                'status': 'error',
+                                'message': f'Falha ao importar {nome}: {str(e)}',
+                                'etapa': 'importação'
+                            })
+                            continue  # Continua para próxima importação
+                    
+                    # Processa os dados (se pelo menos uma importação teve sucesso)
+                    try:
+                        if not db.process_data():
+                            raise Exception("Nenhum dado válido para processamento")
+                        
+                        output_path = db.export_to_excel()
+                        if output_path:
+                            results.append({
+                                'status': 'success',
+                                'message': f'Conciliação gerada em {output_path}',
+                                'etapa': 'processamento'
+                            })
+                    except Exception as e:
+                        results.append({
+                            'status': 'error',
+                            'message': f'Falha no processamento: {str(e)}',
+                            'etapa': 'processamento'
+                        })
 
-            # 5. Verificação final
+            except Exception as e:
+                results.append({
+                    'status': 'critical_error',
+                    'message': f'Falha na conexão com o banco: {str(e)}',
+                    'etapa': 'database'
+                })
+
+            # 4. Verificação final
             if any(r['status'] == 'error' for r in results):
                 logger.warning("Processo concluído com erros parciais")
             else:
                 logger.info("Processo concluído com sucesso total")
 
         except Exception as e:
-            error_msg = f"Erro durante a execução: {str(e)}"
+            error_msg = f"Erro crítico não tratado: {str(e)}"
             logger.error(error_msg)
             results.append({
-                'status': 'error',
+                'status': 'critical_error',
                 'message': error_msg,
-                'etapa': 'execução'
+                'etapa': 'processo_principal'
             })
+
         finally:
             return results
