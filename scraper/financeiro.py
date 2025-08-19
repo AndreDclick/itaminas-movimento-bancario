@@ -1,10 +1,14 @@
 from playwright.sync_api import sync_playwright, TimeoutError as PlaywrightTimeoutError
 from config.logger import configure_logger
+from config.settings import Settings
 from .utils import UtilsScraper
 from datetime import datetime, timedelta
+from pathlib import Path
 
 import calendar
 import time
+import os
+from pathlib import Path
 
 logger = configure_logger()
 
@@ -114,6 +118,11 @@ class ExtracaoFinanceiro(UtilsScraper):
         data_formatada = datetime(ano_mes_passado, mes_passado, ultimo_dia).strftime("%d/%m/%Y")
         return data_formatada
 
+    def data_contabil(self):
+        hoje = datetime.today()
+        ano_futuro = hoje.year + 25
+        return f"31/12/{ano_futuro}"
+
     def _preencher_parametros(self):
         input_do_vencimento = '01/01/2000'
         input_ate_o_vencimento = '31/12/2050'
@@ -122,7 +131,7 @@ class ExtracaoFinanceiro(UtilsScraper):
         input_da_data_contabil = '01/01/2020'
         # input_ate_a_data_contabil = datetime.now().strftime("%d/%m/%Y")
         # input_ate_a_data_contabil = self.fechamento_mes()
-        input_ate_a_data_contabil = '31/07/2025'
+        input_ate_a_data_contabil = self.data_contabil()
         # input_data_base = datetime.now().strftime("%d/%m/%Y")
         input_data_base = '30/04/2025'
         
@@ -157,21 +166,43 @@ class ExtracaoFinanceiro(UtilsScraper):
             raise
 
     def _imprimir_e_baixar(self):
-        """Clica no botão de imprimir, fecha o popup e gerencia o download."""
+        """Clica no botão de imprimir e baixa o arquivo"""
         try:
             logger.info("Aguardando botão de impressão.")
-            self.locators['imprimir_btn'].wait_for(state='visible')
-            time.sleep(1) 
-            self.locators['imprimir_btn'].click()
-            self._fechar_popup_se_existir()
+            self.locators['imprimir_btn'].wait_for(state='visible', timeout=30000)
+            time.sleep(2)
+            
+            # Esperar pelo download
+            with self.page.expect_download(timeout=120000) as download_info:
+                self.locators['imprimir_btn'].click()
+                logger.info(f"botão download clicado")
+                time.sleep(2)
+                self._fechar_popup_se_existir()
+                self._selecionar_filiais()
+            self._confirmar_filiais()
+            
+            download = download_info.value
+            logger.info(f"Download iniciado: {download.suggested_filename}")
+            
+            # Aguardar conclusão do download
+            download_path = download.path()
+            if download_path:
+                settings = Settings()
+                destino = Path(settings.CAMINHO_PLS) / settings.PLS_FINANCEIRO
+                destino.parent.mkdir(parents=True, exist_ok=True)
+                
+                # Salvar o arquivo
+                download.save_as(destino)
+                logger.info(f"Arquivo Financeiro salvo em: {destino}")
+            else:
+                logger.error("Download falhou - caminho não disponível")
+            
+            
+            logger.info("Processo de download concluído")
 
-        except PlaywrightTimeoutError:
-            logger.error("Falha na impressão ou download: Tempo esgotado")
-            raise
         except Exception as e:
-            logger.error(f"Falha na impressão ou download: {e}")
+            logger.error(f"Falha na impressão/baixar da planilha: {e}")
             raise
-
     def _confirmar_filiais(self):
         try:
             time.sleep(2) 
@@ -179,7 +210,6 @@ class ExtracaoFinanceiro(UtilsScraper):
                 time.sleep(1)             
                 self.locators['nao'].click()
                 logger.info("Botão 'Não' clicado")
-            self.locators['menu_relatorios'].wait_for(state="visible", timeout=100000)
         except Exception as e:
             logger.error(f"Falha ao clicar no botão 'Não': {e}")
 
@@ -192,8 +222,6 @@ class ExtracaoFinanceiro(UtilsScraper):
             self._outras_acoes()
             self._preencher_parametros()
             self._imprimir_e_baixar()
-            self._selecionar_filiais()
-            self._confirmar_filiais()
             logger.info("Extração da planilha financeira executada com sucesso")
             return {
                 'status': 'success',

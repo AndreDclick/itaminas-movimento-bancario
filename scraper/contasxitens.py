@@ -1,7 +1,9 @@
 from playwright.sync_api import sync_playwright, TimeoutError 
 from config.logger import configure_logger
+from config.settings import Settings
 from .utils import UtilsScraper
 from datetime import date
+from pathlib import Path
 
 import calendar
 import time
@@ -173,7 +175,8 @@ class Contas_x_itens(UtilsScraper):
             logger.error(f"Falha no preenchimento de parâmetros {e}")
             raise
 
-    def _gerar_planilha (self):
+    def _gerar_planilha(self):
+        """Gera e baixa a planilha do Modelo 1"""
         try: 
             self.locators['aba_planilha'].wait_for(state="visible")
             time.sleep(1) 
@@ -186,32 +189,56 @@ class Contas_x_itens(UtilsScraper):
             
             self.locators['formato'].select_option("3")
             time.sleep(1) 
-            self.locators['botao_imprimir'].click()
-            time.sleep(5)
-            if self.locators['botao_sim'].is_visible():
+            
+            # Esperar pelo download com timeout aumentado
+            with self.page.expect_download(timeout=120000) as download_info:
+                self.locators['botao_imprimir'].click()
+                time.sleep(2)
+                self._fechar_popup_se_existir()
+                
+            
+            download = download_info.value
+            logger.info(f"Download iniciado: {download.suggested_filename}") 
+            
+            # Aguardar conclusão do download
+            download_path = download.path()
+            if download_path:
+                settings = Settings()
+                destino = Path(settings.CAMINHO_PLS) / settings.PLS_CONTAS_X_ITENS
+                destino.parent.mkdir(parents=True, exist_ok=True)
+                
+                
+                download.save_as(destino)
+                logger.info(f"Arquivo Modelo 1 salvo em: {destino}")
+            else:
+                logger.error("Download falhou - caminho não disponível")
+            
+            
+            # Verificar se há botão de confirmação (se necessário)
+            if 'botao_sim' in self.locators and self.locators['botao_sim'].is_visible():
                 self.locators['botao_sim'].click()
-            self.locators['menu_relatorios'].wait_for(state="visible", timeout=100000)
+                
+            
         except Exception as e:
-            logger.error(f"Falha na escolha impressão de planilha {e}")
+            logger.error(f"Falha na geração da planilha: {e}")
             raise
 
     def execucao(self):
         """Fluxo principal de execução"""
         try:
-            logger.info('Iniciando execução do Contas X Itens')
+            logger.info('Iniciando execução do Modelo 1')
             self._navegar_menu()
-            time.sleep(1)
+            time.sleep(1) 
             self._confirmar_operacao()
-            time.sleep(1)
+            time.sleep(1) 
             self._fechar_popup_se_existir()
             self._preencher_parametros()
             self._selecionar_filiais()
-            self._confirmar_operacao
             self._gerar_planilha()
-            logger.info("✅ Contas X Itens executado com sucesso")
+            logger.info("✅ Modelo 1 executado com sucesso")
             return {
                 'status': 'success',
-                'message': 'Contas X Itens completo'
+                'message': 'Modelo 1 completo'
             }
             
         except Exception as e:
