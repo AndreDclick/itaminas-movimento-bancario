@@ -252,8 +252,8 @@ class DatabaseManager:
         """Realiza a limpeza dos dados conforme o tipo de planilha"""
         try:
             # Converter todas as colunas para string (evita problemas com tipos mistos)
-            df = df.applymap(lambda x: str(x).strip() if pd.notna(x) else x)
-            
+            df = df.map(lambda x: str(x).strip() if pd.notna(x) else x)
+
             # Remover linhas totalmente vazias
             df = df.replace(['nan', 'None', ''], np.nan)
             df = df.dropna(how='all')
@@ -276,67 +276,51 @@ class DatabaseManager:
 
     def _clean_financeiro_data(self, df):
         """Limpeza específica para dados financeiros"""
-        # 1. Aplicar filtros iniciais
-        if 'tipo_titulo' in df.columns:
-            df = df[~df['tipo_titulo'].isin(['NDF', 'PA'])]
-            logger.info(f"Registros após filtrar NDF/PA: {len(df)}")
+        # 1. Filtros mais robustos para fornecedores
+        if 'fornecedor' in df.columns:
+            df = df[~df['fornecedor'].str.contains(r'NDF|PA', case=False, na=False)]
         
-        if 'conta_contabil' in df.columns:
-            df = df[df['conta_contabil'].str.startswith('2010201', na=False)]
-            logger.info(f"Registros após filtrar fornecedores nacionais: {len(df)}")
-
-        # 2. Tratamento de datas
-        date_cols = ['data_emissao', 'data_vencimento']
-        for col in date_cols:
-            if col in df.columns:
-                try:
-                    df[col] = pd.to_datetime(
-                        df[col], 
-                        errors='coerce',
-                        format='mixed',
-                        dayfirst=True
-                    )
-                    
-                    if df[col].isna().any():
-                        invalid_dates = df[df[col].isna()][col].count()
-                        logger.warning(f"{invalid_dates} registros com datas inválidas na coluna {col}")
-                        
-                except Exception as e:
-                    logger.error(f"Erro crítico ao converter datas na coluna {col}: {str(e)}")
-                    raise
-
-        # 3. Tratamento de valores numéricos
+        # 2. Garantir todas as colunas necessárias
+        required_cols = ['fornecedor', 'titulo', 'parcela', 'tipo_titulo', 
+                        'data_emissao', 'data_vencimento', 'valor_original',
+                        'saldo_devedor', 'situacao', 'conta_contabil', 'centro_custo']
+        
+        for col in required_cols:
+            if col not in df.columns:
+                df[col] = np.nan  # ou valor padrão apropriado
+        
+        # 3. Tratamento numérico mais robusto
         num_cols = ['valor_original', 'saldo_devedor']
         for col in num_cols:
             if col in df.columns:
-                df[col] = (
-                    df[col].astype(str)
-                    .str.replace(r'[^\d,-]', '', regex=True) 
-                    .str.replace(',', '.')
-                    .replace('', np.nan)
-                    .astype(float)
-                    .fillna(0)
-                )
+                df[col] = (df[col].astype(str)
+                            .str.replace(r'[^\d,-]', '', regex=True)
+                            .str.replace(',', '.')
+                            .replace('', '0')
+                            .astype(float))
         
-        # 4. Tratamento de texto
-        text_cols = ['fornecedor', 'titulo', 'tipo_titulo']
-        for col in text_cols:
-            if col in df.columns:
-                df[col] = (
-                    df[col].astype(str)
-                    .str.strip()
-                    .str.replace(r'\s+', ' ', regex=True)
-                    .replace('nan', '')
-                )
+        # 4. Adicionar coluna de comparação (M)
+        if 'valor_original' in df.columns and 'saldo_devedor' in df.columns:
+            df['comparacao'] = df['valor_original'] - df['saldo_devedor']
         
-        # 5. Criar coluna de parcela se necessário
-        if 'titulo' in df.columns and 'parcela' not in df.columns:
-            df['parcela'] = df['titulo'].str.extract(r'(\d+)$').fillna('1')
-
         return df
 
     def _clean_modelo1_data(self, df):
         """Limpeza específica para dados do modelo 1"""
+        # 1. Classificação mais precisa dos fornecedores
+        if 'descricao_conta' in df.columns:
+            df['tipo_fornecedor'] = df['descricao_conta'].apply(
+                lambda x: 'FORNECEDOR NACIONAL' if 'FORNEC' in str(x).upper() and 'NAC' in str(x).upper()
+                else 'FORNECEDOR' if 'FORNEC' in str(x).upper()
+                else 'OUTROS'
+            )
+        
+        # 2. Consolidação por fornecedor
+        if 'conta_contabil' in df.columns and 'descricao_conta' in df.columns:
+            # Extrai código do fornecedor da descrição
+            df['codigo_fornecedor'] = df['descricao_conta'].str.extract(r'(\d+)')
+        
+        # 3. Tratamento numérico
         num_cols = ['saldo_anterior', 'debito', 'credito', 'saldo_atual']
         for col in num_cols:
             if col in df.columns:
@@ -347,11 +331,6 @@ class DatabaseManager:
                     errors='coerce'
                 ).fillna(0)
         
-        if 'tipo_fornecedor' not in df.columns and 'descricao_conta' in df.columns:
-            df['tipo_fornecedor'] = df['descricao_conta'].apply(
-                lambda x: 'FORNECEDOR' if 'FORNEC' in str(x).upper() else 'OUTROS'
-            )
-
         return df
 
     def _clean_contas_itens_data(self, df):
@@ -433,7 +412,7 @@ class DatabaseManager:
             data_inicial, data_final = self._get_datas_referencia()
             cursor.execute(f"DELETE FROM {self.settings.TABLE_RESULTADO}")
 
-            # 1. Processar dados financeiros (agrupar por fornecedor)
+            # 1. Processar dados financeiros
             query_financeiro = f"""
                 INSERT INTO {self.settings.TABLE_RESULTADO}
                 (codigo_fornecedor, descricao_fornecedor, saldo_financeiro, status)
@@ -452,7 +431,7 @@ class DatabaseManager:
             """
             cursor.execute(query_financeiro)
             
-            # 2. Processar dados contábeis (Modelo 1)
+            # 2. Processar dados contábeis
             query_contabil = f"""
                 UPDATE {self.settings.TABLE_RESULTADO}
                 SET 
@@ -474,7 +453,7 @@ class DatabaseManager:
             """
             cursor.execute(query_contabil)
             
-            # 3. Calcular diferenças e atualizar status
+            # 3. Calcular diferenças
             query_diferenca = f"""
                 UPDATE {self.settings.TABLE_RESULTADO}
                 SET 
@@ -492,7 +471,7 @@ class DatabaseManager:
             """
             cursor.execute(query_diferenca)
             
-            # 4. Inserir fornecedores contábeis que não estão no financeiro
+            # 4. Inserir fornecedores contábeis sem correspondência
             query_fornecedores_contabeis = f"""
                 INSERT INTO {self.settings.TABLE_RESULTADO}
                 (codigo_fornecedor, descricao_fornecedor, saldo_contabil, status, detalhes)
@@ -513,6 +492,40 @@ class DatabaseManager:
                     )
             """
             cursor.execute(query_fornecedores_contabeis)
+
+            # 5. Ordenação alternativa para SQLite
+            try:
+                # Verifica se a coluna já existe
+                cursor.execute(f"PRAGMA table_info({self.settings.TABLE_RESULTADO})")
+                columns = [col[1] for col in cursor.fetchall()]
+                if 'ordem_importancia' not in columns:
+                    cursor.execute(f"ALTER TABLE {self.settings.TABLE_RESULTADO} ADD COLUMN ordem_importancia INTEGER")
+                
+                # Atualiza a ordem de importância
+                cursor.execute(f"""
+                    UPDATE {self.settings.TABLE_RESULTADO}
+                    SET ordem_importancia = (
+                        SELECT COUNT(*) 
+                        FROM {self.settings.TABLE_RESULTADO} r2 
+                        WHERE ABS(r2.diferenca) >= ABS({self.settings.TABLE_RESULTADO}.diferenca)
+                    )
+                """)
+            except Exception as rank_error:
+                logger.error(f"Erro ao classificar por importância: {rank_error}")
+                # Continua sem a ordenação se houver erro
+
+            # 6. Detalhes adicionais
+            cursor.execute(f"""
+                UPDATE {self.settings.TABLE_RESULTADO}
+                SET detalhes = 
+                    CASE 
+                        WHEN status = 'OK' THEN 'Conciliação perfeita'
+                        WHEN status = 'DIVERGENTE' THEN 
+                            'Financeiro: ' || saldo_financeiro || ' | Contábil: ' || saldo_contabil || 
+                            ' | Diferença: ' || diferenca
+                        ELSE 'Pendente de análise'
+                    END
+            """)
             
             self.conn.commit()
             logger.info("Processamento de dados concluído com sucesso")
@@ -630,6 +643,42 @@ class DatabaseManager:
             logger.error(f"Validação falhou: {e}")
             return False
 
+    def validate_data_consistency(self):
+        """Valida a consistência entre os dados financeiros e contábeis"""
+        try:
+            cursor = self.conn.cursor()
+            
+            # 1. Verificar fornecedores sem correspondência
+            query = f"""
+                SELECT COUNT(*) 
+                FROM {self.settings.TABLE_FINANCEIRO} f
+                WHERE NOT EXISTS (
+                    SELECT 1 FROM {self.settings.TABLE_MODELO1} m
+                    WHERE m.descricao_conta LIKE '%' || f.fornecedor || '%'
+                )
+                AND f.excluido = 0
+            """
+            cursor.execute(query)
+            missing_suppliers = cursor.fetchone()[0]
+            
+            if missing_suppliers > 0:
+                logger.warning(f"{missing_suppliers} fornecedores financeiros sem correspondência contábil")
+            
+            # 2. Verificar saldos totais
+            query = f"""
+                SELECT 
+                    (SELECT SUM(saldo_devedor) FROM {self.settings.TABLE_FINANCEIRO} WHERE excluido = 0) as total_financeiro,
+                    (SELECT SUM(saldo_atual) FROM {self.settings.TABLE_MODELO1} WHERE tipo_fornecedor LIKE 'FORNEC%') as total_contabil
+            """
+            cursor.execute(query)
+            totals = cursor.fetchone()
+            
+            logger.info(f"Total Financeiro: {totals[0]} | Total Contábil: {totals[1]}")
+            
+            return True
+        except Exception as e:
+            logger.error(f"Erro na validação de consistência: {e}")
+            return False
     def export_to_excel(self):
         """Exporta os resultados para uma planilha Excel formatada"""
         logger.info("Iniciando exportação para Excel...")
@@ -750,7 +799,23 @@ class DatabaseManager:
             
             workbook.save(output_path)
             logger.info(f"Planilha de resultados exportada para {output_path}")
+            workbook = openpyxl.load_workbook(output_path)
+            resumo_sheet = workbook['Resumo']
             
+            # Formatação condicional para diferenças
+            red_fill = PatternFill(start_color="FFC7CE", end_color="FFC7CE", fill_type="solid")
+            green_fill = PatternFill(start_color="C6EFCE", end_color="C6EFCE", fill_type="solid")
+            
+            # Aplicar às células de diferença
+            for row in resumo_sheet.iter_rows(min_row=2, max_col=5, max_row=resumo_sheet.max_row):
+                diff_cell = row[4]  # Coluna E (Diferença)
+                if diff_cell.value is not None:
+                    if abs(diff_cell.value) > 0.01:
+                        diff_cell.fill = red_fill
+                    else:
+                        diff_cell.fill = green_fill
+                    
+            workbook.save(output_path)
             if not self.validate_output(output_path):
                 raise ValueError("A validação da planilha gerada falhou")
             
