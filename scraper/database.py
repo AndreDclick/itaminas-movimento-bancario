@@ -254,22 +254,21 @@ class DatabaseManager:
                 'saldo_devedor', 'situacao', 'conta_contabil', 'centro_custo'
             ]
         elif table_name == self.settings.TABLE_MODELO1:
+            
             return [
-                'conta_contabil', 'descricao_conta', 'codigo_fornecedor', 'descricao_fornecedor',
+                'conta_contabil', 'descricao_conta',  
                 'saldo_anterior', 'debito', 'credito', 'saldo_atual'
             ]
         elif table_name == self.settings.TABLE_CONTAS_ITENS:
+            
             return [
-                'conta_contabil',
-                'descricao_item',
-                'saldo_anterior',
-                'debito',
-                'credito',
-                'saldo_atual'
+                'conta_contabil', 'descricao_item',
+                'codigo_fornecedor', 'descricao_fornecedor',
+                'saldo_anterior', 'debito', 'credito', 'saldo_atual'
             ]
         else:
             raise ValueError(f"Tabela desconhecida: {table_name}")
-        
+            
     def _clean_dataframe(self, df, sheet_type):
         """Executa limpeza geral do DataFrame baseado no tipo de planilha"""
         try:
@@ -325,8 +324,8 @@ class DatabaseManager:
         return df
 
     def _clean_modelo1_data(self, df):
-        """Limpeza específica para dados do modelo1 (contábil)"""
-        # Classifica tipo de fornecedor baseado na descrição
+        """Limpeza específica para dados do modelo1 (ctbr040) - AGORA SEM FORNECEDOR"""
+        # Classifica tipo de fornecedor baseado na descrição da conta
         if 'descricao_conta' in df.columns:
             df['tipo_fornecedor'] = df['descricao_conta'].apply(
                 lambda x: 'FORNECEDOR NACIONAL' if 'FORNEC' in str(x).upper() and 'NAC' in str(x).upper()
@@ -334,15 +333,15 @@ class DatabaseManager:
                 else 'OUTROS'
             )
         
-        # Garante colunas de fornecedor
         if 'codigo_fornecedor' not in df.columns:
             df['codigo_fornecedor'] = None
         if 'descricao_fornecedor' not in df.columns:
             df['descricao_fornecedor'] = None
         
-        # Tenta extrair código do fornecedor da descrição
         if df['codigo_fornecedor'].isna().all() and 'descricao_conta' in df.columns:
+            # Extrai possíveis códigos da descrição
             df['codigo_fornecedor'] = df['descricao_conta'].str.extract(r'(\d{3,})', expand=False)
+            df['descricao_fornecedor'] = df['descricao_conta']
         
         # Limpa e converte colunas numéricas
         num_cols = ['saldo_anterior', 'debito', 'credito', 'saldo_atual']
@@ -402,7 +401,19 @@ class DatabaseManager:
                 'Natureza': 'situacao',
                 'Porta- dor': 'centro_custo'
             }
-        # Mapeamento para arquivos contábeis CTBR140
+        # Mapeamento para arquivos contábeis
+        elif 'ctbr040' in filename:
+            return {
+                'Conta': 'conta_contabil',
+                'Descricao': 'descricao_item',   
+                'Saldo anterior': 'saldo_anterior',
+                'Debito': 'debito',
+                'Credito': 'credito',
+                'Mov  periodo': 'movimento_periodo',
+                'Saldo atual': 'saldo_atual'
+            }
+
+        # Mapeamento para arquivos contábeis 
         elif 'ctbr140' in filename:
             return {
                 'Codigo': 'conta_contabil',
@@ -415,33 +426,19 @@ class DatabaseManager:
                 'Movimento do periodo': 'movimento_periodo',
                 'Saldo atual': 'saldo_atual'
             }
-
-        # Mapeamento para arquivos contábeis CTBR040
-        elif 'ctbr040' in filename:
-            return {
-                'Conta': 'conta_contabil',
-                'Descricao': 'descricao_item',   
-                'Saldo anterior': 'saldo_anterior',
-                'Debito': 'debito',
-                'Credito': 'credito',
-                'Mov  periodo': 'movimento_periodo',
-                'Saldo atual': 'saldo_atual'
-            }
         else:
             raise ValueError(f"Tipo de planilha não reconhecido: {file_path.name}")
-    
+        
     def process_data(self):
         """Processa os dados importados e gera resultados da conciliação"""
         try:
-            self.conn.execute("BEGIN TRANSACTION")  # Inicia transação
+            self.conn.execute("BEGIN TRANSACTION")
             cursor = self.conn.cursor()
             
-            # Obtém período de referência
             data_inicial, data_final = self._get_datas_referencia()
-            # Limpa tabela de resultados anterior
             cursor.execute(f"DELETE FROM {self.settings.TABLE_RESULTADO}")
             
-            # Insere dados financeiros na tabela de resultados
+            # Query financeiro (mantém igual)
             query_financeiro = f"""
                 INSERT INTO {self.settings.TABLE_RESULTADO}
                 (codigo_fornecedor, descricao_fornecedor, saldo_financeiro, status)
@@ -460,30 +457,27 @@ class DatabaseManager:
             """
             cursor.execute(query_financeiro)
             
-            # Atualiza com dados contábeis correspondentes
+            # ATUALIZAÇÃO: Agora MODELO1 é ctbr040 (sem fornecedor explícito)
             query_contabil_update = f"""
                 UPDATE {self.settings.TABLE_RESULTADO}
                 SET 
                     saldo_contabil = (
                         SELECT COALESCE(SUM(saldo_atual),0)
                         FROM {self.settings.TABLE_MODELO1} m
-                        WHERE 
-                            (m.codigo_fornecedor IS NOT NULL AND m.codigo_fornecedor <> '' AND m.codigo_fornecedor = {self.settings.TABLE_RESULTADO}.codigo_fornecedor)
-                            OR m.descricao_conta LIKE '%' || {self.settings.TABLE_RESULTADO}.codigo_fornecedor || '%'
+                        WHERE m.descricao_conta LIKE '%' || {self.settings.TABLE_RESULTADO}.codigo_fornecedor || '%'
+                        OR m.codigo_fornecedor = {self.settings.TABLE_RESULTADO}.codigo_fornecedor
                     ),
                     detalhes = (
                         SELECT GROUP_CONCAT(COALESCE(m.tipo_fornecedor,'') || ': ' || m.saldo_atual, ' | ')
                         FROM {self.settings.TABLE_MODELO1} m
-                        WHERE 
-                            (m.codigo_fornecedor IS NOT NULL AND m.codigo_fornecedor <> '' AND m.codigo_fornecedor = {self.settings.TABLE_RESULTADO}.codigo_fornecedor)
-                            OR m.descricao_conta LIKE '%' || {self.settings.TABLE_RESULTADO}.codigo_fornecedor || '%'
+                        WHERE m.descricao_conta LIKE '%' || {self.settings.TABLE_RESULTADO}.codigo_fornecedor || '%'
+                        OR m.codigo_fornecedor = {self.settings.TABLE_RESULTADO}.codigo_fornecedor
                     )
                 WHERE EXISTS (
                     SELECT 1
                     FROM {self.settings.TABLE_MODELO1} m2
-                    WHERE 
-                        (m2.codigo_fornecedor IS NOT NULL AND m2.codigo_fornecedor <> '' AND m2.codigo_fornecedor = {self.settings.TABLE_RESULTADO}.codigo_fornecedor)
-                        OR m2.descricao_conta LIKE '%' || {self.settings.TABLE_RESULTADO}.codigo_fornecedor || '%'
+                    WHERE m2.descricao_conta LIKE '%' || {self.settings.TABLE_RESULTADO}.codigo_fornecedor || '%'
+                    OR m2.codigo_fornecedor = {self.settings.TABLE_RESULTADO}.codigo_fornecedor
                 )
             """
             cursor.execute(query_contabil_update)
@@ -968,7 +962,7 @@ class DatabaseManager:
                     saldo_atual as "Saldo Atual",
                     tipo_fornecedor as "Tipo Fornecedor"
                 FROM 
-                    {self.settings.TABLE_MODELO1}
+                    {self.settings.TABLE_MODELO1}  
                 WHERE 
                     descricao_conta LIKE 'FORNEC%'
                 ORDER BY 

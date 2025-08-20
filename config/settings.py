@@ -76,9 +76,8 @@ class Settings:
 
     # Planilha Modelo 1 (ctbr140.xlsx)
     COLUNAS_MODELO1 = {
-        'descricao_conta': 'Descrição Conta',
-        'codigo_fornecedor': 'Código Fornecedor',
-        'descricao_fornecedor': 'Descrição Fornecedor',
+        'conta_contabil': 'Conta Contábil',
+        'descricao_item': 'Descrição Item',
         'saldo_anterior': 'Saldo Anterior',
         'debito': 'Débito',
         'credito': 'Crédito',
@@ -88,8 +87,9 @@ class Settings:
 
     # Planilha Contas x Itens (ctbr040.xlsx)
     COLUNAS_CONTAS_ITENS = {
-        'conta_contabil': 'Conta Contábil',
-        'descricao_item': 'Descrição Item',
+        'descricao_conta': 'Descrição Conta',
+        'codigo_fornecedor': 'Código Fornecedor',
+        'descricao_fornecedor': 'Descrição Fornecedor',
         'saldo_anterior': 'Saldo Anterior',
         'debito': 'Débito',
         'credito': 'Crédito',

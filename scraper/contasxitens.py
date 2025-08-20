@@ -146,6 +146,8 @@ class Contas_x_itens(UtilsScraper):
             self.locators['imp_tot_cta'].click()
             self.locators['imp_tot_cta'].select_option("0")
             time.sleep(0.5)
+            self.locators['pula_pagina'].click()
+            self.locators['pula_pagina'].select_option("0")
             self.locators['salta_linha'].click()
             self.locators['salta_linha'].select_option("1")
             time.sleep(0.5)
@@ -176,7 +178,7 @@ class Contas_x_itens(UtilsScraper):
             raise
 
     def _gerar_planilha(self):
-        """Gera e baixa a planilha do Modelo 1"""
+        """Gera e baixa a planilha """
         try: 
             self.locators['aba_planilha'].wait_for(state="visible")
             time.sleep(1) 
@@ -193,6 +195,7 @@ class Contas_x_itens(UtilsScraper):
             # Esperar pelo download com timeout aumentado
             with self.page.expect_download(timeout=120000) as download_info:
                 self.locators['botao_imprimir'].click()
+                logger.info(f"Botão download clicado")
                 time.sleep(2)
                 self._fechar_popup_se_existir()
                 
@@ -209,10 +212,9 @@ class Contas_x_itens(UtilsScraper):
                 
                 
                 download.save_as(destino)
-                logger.info(f"Arquivo Modelo 1 salvo em: {destino}")
+                logger.info(f"Arquivo Contas x itens salvo em: {destino}")
             else:
                 logger.error("Download falhou - caminho não disponível")
-            
             
             # Verificar se há botão de confirmação (se necessário)
             if 'botao_sim' in self.locators and self.locators['botao_sim'].is_visible():
@@ -226,7 +228,7 @@ class Contas_x_itens(UtilsScraper):
     def execucao(self):
         """Fluxo principal de execução"""
         try:
-            logger.info('Iniciando execução do Modelo 1')
+            logger.info('Iniciando execução do Contas x itens')
             self._navegar_menu()
             time.sleep(1) 
             self._confirmar_operacao()
@@ -235,10 +237,10 @@ class Contas_x_itens(UtilsScraper):
             self._preencher_parametros()
             self._selecionar_filiais()
             self._gerar_planilha()
-            logger.info("✅ Modelo 1 executado com sucesso")
+            logger.info("✅ Contas x itens executado com sucesso")
             return {
                 'status': 'success',
-                'message': 'Modelo 1 completo'
+                'message': 'Contas x itens completo'
             }
             
         except Exception as e:

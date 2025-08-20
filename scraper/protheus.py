@@ -145,64 +145,64 @@ class ProtheusScraper(UtilsScraper):
         
         try:
             # 0. Inicialização e login
-            self.start_scraper()
-            self.login()
-            results.append({
-                'status': 'success',
-                'message': 'Login realizado com sucesso',
-                'etapa': 'autenticação'
-            })
+            # self.start_scraper()
+            # self.login()
+            # results.append({
+            #     'status': 'success',
+            #     'message': 'Login realizado com sucesso',
+            #     'etapa': 'autenticação'
+            # })
 
-            # 1. Executar Financeiro
-            try:       
-                financeiro = ExtracaoFinanceiro(self.page)
-                resultado_financeiro = financeiro.execucao()
-                results.append(resultado_financeiro)
+            # # 1. Executar Financeiro
+            # try:       
+            #     financeiro = ExtracaoFinanceiro(self.page)
+            #     resultado_financeiro = financeiro.execucao()
+            #     results.append(resultado_financeiro)
                 
-            except Exception as e:
-                results.append({
-                    'status': 'error',
-                    'message': f'Falha no Financeiro: {str(e)}',
-                    'etapa': 'financeiro'
-                })
-                # Reiniciar completamente para próxima extração
+            # except Exception as e:
+            #     results.append({
+            #         'status': 'error',
+            #         'message': f'Falha no Financeiro: {str(e)}',
+            #         'etapa': 'financeiro'
+            #     })
+            #     # Reiniciar completamente para próxima extração
                 
-                self.browser.close()
-                self._initialize_resources()
-                self.start_scraper()
-                self.login()
+            #     self.browser.close()
+            #     self._initialize_resources()
+            #     self.start_scraper()
+            #     self.login()
 
-            # 2. Executar Modelo_1 (sempre após possível reinicialização)
-            try:
-                modelo_1 = Modelo_1(self.page)
-                resultado_modelo = modelo_1.execucao()
-                results.append(resultado_modelo)
-            except Exception as e:
-                results.append({
-                    'status': 'error',
-                    'message': f'Falha no Modelo_1: {str(e)}',
-                    'etapa': 'modelo_1'
-                })
-                # Reiniciar para próxima extração
+            # # 2. Executar Modelo_1 (sempre após possível reinicialização)
+            # try:
+            #     modelo_1 = Modelo_1(self.page)
+            #     resultado_modelo = modelo_1.execucao()
+            #     results.append(resultado_modelo)
+            # except Exception as e:
+            #     results.append({
+            #         'status': 'error',
+            #         'message': f'Falha no Modelo_1: {str(e)}',
+            #         'etapa': 'modelo_1'
+            #     })
+            #     # Reiniciar para próxima extração
                 
-                self.browser.close()
-                self._initialize_resources()
-                self.start_scraper()
-                self.login()
+            #     self.browser.close()
+            #     self._initialize_resources()
+            #     self.start_scraper()
+            #     self.login()
 
             # 3. Executar Contas x Itens
-            try:
-                contasxitens = Contas_x_itens(self.page)
-                resultado_contas = contasxitens.execucao()
-                results.append(resultado_contas)
-            except Exception as e:
-                results.append({
-                    'status': 'error',
-                    'message': f'Falha em Contas x Itens: {str(e)}',
-                    'etapa': 'contas_x_itens'
-                })
-            time.sleep(10)
-            self.browser.close()
+            # try:
+            #     contasxitens = Contas_x_itens(self.page)
+            #     resultado_contas = contasxitens.execucao()
+            #     results.append(resultado_contas)
+            # except Exception as e:
+            #     results.append({
+            #         'status': 'error',
+            #         'message': f'Falha em Contas x Itens: {str(e)}',
+            #         'etapa': 'contas_x_itens'
+            #     })
+            # time.sleep(10)
+            # self.browser.close()
 
             # 4. Processamento no banco de dados (tenta mesmo com erros anteriores)
             try:
