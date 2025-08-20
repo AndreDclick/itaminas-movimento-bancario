@@ -52,7 +52,7 @@ class Settings:
     SHUTDOWN_DELAY = 3 
     
     # Browser
-    HEADLESS = False
+    HEADLESS = True
     
     # Planilhas
     FORNECEDORES_EXCLUIR = ['NDF', 'PA']  

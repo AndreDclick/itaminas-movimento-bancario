@@ -32,12 +32,45 @@ class ProtheusScraper(UtilsScraper):
         self._definir_locators()
 
     def _setup_browser(self):
-        """Configura o navegador Edge"""
+        """Tenta encontrar e conectar ao WebAgent"""
+        webagent_ports = [64233, 9222, 9223, 9229]  # Portas comuns do WebAgent
+        
+        for port in webagent_ports:
+            try:
+                self.browser = self.playwright.chromium.connect_over_cdp(
+                    f"http://localhost:{port}"
+                )
+                logger.info(f"Conectado ao WebAgent na porta {port}")
+                return
+            except:
+                continue
+        
+        # Se não encontrar WebAgent, inicia normalmente
+        logger.warning("WebAgent não encontrado - iniciando navegador normal")
         self.browser = self.playwright.chromium.launch(
             headless=self.settings.HEADLESS,
             args=["--start-maximized"],
             channel="msedge"
         )
+
+    # def _verificar_webagent(self):
+    #     """Verifica se está conectado ao WebAgent"""
+    #     try:
+    #         # Tenta acessar a página de debug do WebAgent
+    #         response = self.page.evaluate("""() => {
+    #             return navigator.userAgent;
+    #         }""")
+            
+    #         if "WebAgent" in response:
+    #             logger.info("✅ Conectado ao WebAgent do Protheus")
+    #             return True
+    #         else:
+    #             logger.warning("⚠️  Navegador normal (não WebAgent)")
+    #             return False
+                
+    #     except Exception as e:
+    #         logger.error(f"Erro ao verificar WebAgent: {e}")
+    #         return False
     def _setup_page(self):
         """Configura a página e contexto"""
         self.context = self.browser.new_context(
@@ -144,7 +177,7 @@ class ProtheusScraper(UtilsScraper):
         results = []
         
         try:
-            # 0. Inicialização e login
+            # # 0. Inicialização e login
             # self.start_scraper()
             # self.login()
             # results.append({
@@ -152,6 +185,11 @@ class ProtheusScraper(UtilsScraper):
             #     'message': 'Login realizado com sucesso',
             #     'etapa': 'autenticação'
             # })
+
+            # webagent_connected = self._verificar_webagent()
+            
+            # if not webagent_connected:
+            #     logger.warning("Alertas: Operação pode falhar sem WebAgent")
 
             # # 1. Executar Financeiro
             # try:       
