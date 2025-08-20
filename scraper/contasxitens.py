@@ -102,8 +102,10 @@ class Contas_x_itens(UtilsScraper):
         # primeiro, ultimo = self.primeiro_e_ultimo_dia()
         # input_data_inicial = primeiro
         # input_data_final = ultimo
-        input_data_inicial = '01/04/2025'
-        input_data_final = '30/04/2025'
+        input_data_inicial = '01/01/2023'
+        input_data_final = '31/12/2024'
+        # input_data_inicial = '01/04/2025'
+        # input_data_final = '30/04/2025'
         input_conta_inicial = '20102010001'
         input_conta_final = '20102010001'
         input_folha_inicial = '2'
@@ -189,7 +191,7 @@ class Contas_x_itens(UtilsScraper):
                 self.locators['aba_planilha'].click()
                 time.sleep(1)
             
-            self.locators['formato'].select_option("3")
+            self.locators['formato'].select_option("2")
             time.sleep(1) 
             
             # Esperar pelo download com timeout aumentado
