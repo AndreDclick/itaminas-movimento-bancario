@@ -139,27 +139,27 @@ class ProtheusScraper(UtilsScraper):
             logger.error(f"Falha no login: {str(e)}")
             raise FormSubmitFailed(f"Erro de login: {e}")
 
-    def _check_excel_file(self, file_path):
-        """Verifica se o arquivo é um Excel válido e retorna o tipo"""
-        try:
-            with open(file_path, 'rb') as f:
-                header = f.read(8)
+    # def _check_excel_file(self, file_path):
+    #     """Verifica se o arquivo é um Excel válido e retorna o tipo"""
+    #     try:
+    #         with open(file_path, 'rb') as f:
+    #             header = f.read(8)
                 
-                # Assinatura de arquivos .xlsx (ZIP)
-                if header.startswith(b'PK'):
-                    return 'xlsx'
+    #             # Assinatura de arquivos .xlsx (ZIP)
+    #             if header.startswith(b'PK'):
+    #                 return 'xlsx'
                     
-                # Assinatura de arquivos .xls (Compound File Binary Format)
-                elif header.startswith(b'\xD0\xCF\x11\xE0\xA1\xB1\x1A\xE1'):
-                    return 'xls'
+    #             # Assinatura de arquivos .xls (Compound File Binary Format)
+    #             elif header.startswith(b'\xD0\xCF\x11\xE0\xA1\xB1\x1A\xE1'):
+    #                 return 'xls'
                     
-                else:
-                    logger.error(f"Arquivo {file_path} não é um Excel válido")
-                    return 'invalid'
+    #             else:
+    #                 logger.error(f"Arquivo {file_path} não é um Excel válido")
+    #                 return 'invalid'
                     
-        except Exception as e:
-            logger.error(f"Erro ao verificar arquivo {file_path}: {e}")
-            return 'error'
+    #     except Exception as e:
+    #         logger.error(f"Erro ao verificar arquivo {file_path}: {e}")
+    #         return 'error'
             
 
     def run(self):
@@ -227,86 +227,86 @@ class ProtheusScraper(UtilsScraper):
 
             
             # 4. Processamento no banco de dados (tenta mesmo com erros anteriores)
-            try:
-                with DatabaseManager() as db:
-                    caminho_planilhas = Path(self.settings.CAMINHO_PLS)
+            # try:
+            #     with DatabaseManager() as db:
+            #         caminho_planilhas = Path(self.settings.CAMINHO_PLS)
                     
-                    # Importar cada planilha e verificar sucesso
-                    importacoes = [
-                        ('financeiro', self.settings.PLS_FINANCEIRO, self.settings.TABLE_FINANCEIRO),
-                        ('modelo1', self.settings.PLS_MODELO_1, self.settings.TABLE_MODELO1),
-                        ('contas_itens', self.settings.PLS_CONTAS_X_ITENS, self.settings.TABLE_CONTAS_ITENS)
-                    ]
+            #         # Importar cada planilha e verificar sucesso
+            #         importacoes = [
+            #             ('financeiro', self.settings.PLS_FINANCEIRO, self.settings.TABLE_FINANCEIRO),
+            #             ('modelo1', self.settings.PLS_MODELO_1, self.settings.TABLE_MODELO1),
+            #             ('contas_itens', self.settings.PLS_CONTAS_X_ITENS, self.settings.TABLE_CONTAS_ITENS)
+            #         ]
                     
-                    for nome, arquivo, tabela in importacoes:
-                        try:
-                            file_path = caminho_planilhas / arquivo
+            #         for nome, arquivo, tabela in importacoes:
+            #             try:
+            #                 file_path = caminho_planilhas / arquivo
                             
-                            # Verifica se o arquivo existe e é válido
-                            if not file_path.exists():
-                                logger.error(f"Arquivo {arquivo} não encontrado")
-                                results.append({
-                                    'status': 'error',
-                                    'message': f'Arquivo {arquivo} não encontrado',
-                                    'etapa': 'importação'
-                                })
-                                continue
+            #                 # Verifica se o arquivo existe e é válido
+            #                 if not file_path.exists():
+            #                     logger.error(f"Arquivo {arquivo} não encontrado")
+            #                     results.append({
+            #                         'status': 'error',
+            #                         'message': f'Arquivo {arquivo} não encontrado',
+            #                         'etapa': 'importação'
+            #                     })
+            #                     continue
                                 
-                            # Tenta detectar se é um Excel válido
-                            file_type = self._check_excel_file(file_path)
-                            if file_type == 'invalid':
-                                logger.error(f"Arquivo {arquivo} não é um Excel válido")
-                                results.append({
-                                    'status': 'error',
-                                    'message': f'Arquivo {arquivo} não é um Excel válido ou está corrompido',
-                                    'etapa': 'importação'
-                                })
-                                continue
+            #                 # # Tenta detectar se é um Excel válido
+            #                 # file_type = self._check_excel_file(file_path)
+            #                 # if file_type == 'invalid':
+            #                 #     logger.error(f"Arquivo {arquivo} não é um Excel válido")
+            #                 #     results.append({
+            #                 #         'status': 'error',
+            #                 #         'message': f'Arquivo {arquivo} não é um Excel válido ou está corrompido',
+            #                 #         'etapa': 'importação'
+            #                 #     })
+            #                 #     continue
                             
-                            # Se chegou aqui, o arquivo é válido, tenta importar
-                            success = db.import_from_excel(file_path, tabela)
-                            if not success:
-                                raise Exception(f"Falha na importação do arquivo {arquivo}")
+            #                 # Se chegou aqui, o arquivo é válido, tenta importar
+            #                 success = db.import_from_excel(file_path, tabela)
+            #                 if not success:
+            #                     raise Exception(f"Falha na importação do arquivo {arquivo}")
                             
-                            results.append({
-                                'status': 'success',
-                                'message': f'Planilha {nome} importada com sucesso',
-                                'etapa': 'importação'
-                            })
+            #                 results.append({
+            #                     'status': 'success',
+            #                     'message': f'Planilha {nome} importada com sucesso',
+            #                     'etapa': 'importação'
+            #                 })
                             
-                        except Exception as e:
-                            results.append({
-                                'status': 'error',
-                                'message': f'Falha ao importar {nome}: {str(e)}',
-                                'etapa': 'importação'
-                            })
-                            continue
+            #             except Exception as e:
+            #                 results.append({
+            #                     'status': 'error',
+            #                     'message': f'Falha ao importar {nome}: {str(e)}',
+            #                     'etapa': 'importação'
+            #                 })
+            #                 continue
                                 
-                    # Processa os dados (se pelo menos uma importação teve sucesso)
-                    try:
-                        if not db.process_data():
-                            raise Exception("Nenhum dado válido para processamento")
+            #         # Processa os dados (se pelo menos uma importação teve sucesso)
+            #         try:
+            #             if not db.process_data():
+            #                 raise Exception("Nenhum dado válido para processamento")
                         
-                        output_path = db.export_to_excel()
-                        if output_path:
-                            results.append({
-                                'status': 'success',
-                                'message': f'Conciliação gerada em {output_path}',
-                                'etapa': 'processamento'
-                            })
-                    except Exception as e:
-                        results.append({
-                            'status': 'error',
-                            'message': f'Falha no processamento: {str(e)}',
-                            'etapa': 'processamento'
-                        })
+            #             output_path = db.export_to_excel()
+            #             if output_path:
+            #                 results.append({
+            #                     'status': 'success',
+            #                     'message': f'Conciliação gerada em {output_path}',
+            #                     'etapa': 'processamento'
+            #                 })
+            #         except Exception as e:
+            #             results.append({
+            #                 'status': 'error',
+            #                 'message': f'Falha no processamento: {str(e)}',
+            #                 'etapa': 'processamento'
+            #             })
 
-            except Exception as e:
-                results.append({
-                    'status': 'critical_error',
-                    'message': f'Falha na conexão com o banco: {str(e)}',
-                    'etapa': 'database'
-                })
+            # except Exception as e:
+            #     results.append({
+            #         'status': 'critical_error',
+            #         'message': f'Falha na conexão com o banco: {str(e)}',
+            #         'etapa': 'database'
+            #     })
 
             # 5 Verificação final
             if any(r['status'] == 'error' for r in results):

@@ -1,4 +1,6 @@
 import os
+import json
+
 from pathlib import Path
 from datetime import datetime, timedelta  
 from dotenv import load_dotenv
@@ -16,14 +18,15 @@ class Settings:
     CAMINHO_PLS = os.getenv("CAMINHO_PLANILHAS")
     PLS_FINANCEIRO = os.getenv("PLANILHA_FINANCEIRO")
     PLS_MODELO_1 = os.getenv("PLANILHA_MODELO_1")
-    PLS_CONTAS_X_ITENS = os.getenv("PLANILHA_CONTAS_X_ITENS")
-    
+    FORNECEDOR_NACIONAL = os.getenv("FORNECEDOR_NACIONAL")
+    ADIANTAMENTO_NACIONAL = os.getenv("ADIANTAMENTO_NACIONAL")
     # Paths
     DATA_DIR = BASE_DIR / "data"
     LOGS_DIR = BASE_DIR / "logs"
     RESULTS_DIR = BASE_DIR / "results"
     DB_PATH = DATA_DIR / "database.db"
-    
+    PARAMETERS_DIR = BASE_DIR / "parameters"
+
     # Files
     DOWNLOAD_PATH = DATA_DIR 
     RESULTS_PATH = RESULTS_DIR 
@@ -97,7 +100,44 @@ class Settings:
         'saldo_atual': 'Saldo Atual'
     }
 
+    ADIANTAMENTO_NACIONAL = {
+        'item_conta': 'Item Conta',
+        'descrica': 'DESCRICAO',
+        'codigo': 'Codigo',      
+        'descricao_fornecedor': 'Descricao',
+        'saldo_anterior': 'Saldo Anterior',
+        'debito': 'Debito',
+        'credito': 'Credito',
+        'movimento_periodo': 'Mov. Periodo',
+        'saldo_atual': 'Saldo Atual'
+    }
+
+
     def __init__(self):
         os.makedirs(self.DATA_DIR, exist_ok=True)
         os.makedirs(self.LOGS_DIR, exist_ok=True)
         os.makedirs(self.RESULTS_DIR, exist_ok=True)
+        os.makedirs(self.PARAMETERS_DIR, exist_ok=True)
+
+        # Carrega os arquivos Json que se encontra na pasta "parameters"a
+        self.parametros_modelo_1 = self._carregar_parametros('modelo_1.json')
+        self.parametros_financeiro = self._carregar_parametros('financeiro.json')
+        self.parametros_contas_itens = self._carregar_parametros('contasxtens.json') 
+    def _carregar_parametros(self, nome_arquivo: str) -> dict:
+        """Carrega parâmetros de um arquivo JSON"""
+        parametros_path = self.PARAMETERS_DIR / nome_arquivo
+        try:
+            if parametros_path.exists():
+                with open(parametros_path, 'r', encoding='utf-8') as f:
+                    parametros = json.load(f)
+                    print(f"Parâmetros carregados: {nome_arquivo}")
+                    return parametros
+            else:
+                print(f"Arquivo de parâmetros não encontrado: {parametros_path}")
+                return {}
+        except json.JSONDecodeError as e:
+            print(f"Erro ao decodificar JSON {nome_arquivo}: {e}")
+            return {}
+        except Exception as e:
+            print(f"Erro ao carregar parâmetros {nome_arquivo}: {e}")
+            return {}

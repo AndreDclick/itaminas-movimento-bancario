@@ -59,7 +59,6 @@ class Contas_x_itens(UtilsScraper):
         }
         logger.info("Seledores definidos")
 
-
     def _navegar_menu(self):
         """navegação no menu"""
         try:
@@ -98,16 +97,14 @@ class Contas_x_itens(UtilsScraper):
         
         return primeiro_dia, ultimo_dia
 
-    def _preencher_parametros(self):
+    def _preencher_parametros(self, conta):
         # primeiro, ultimo = self.primeiro_e_ultimo_dia()
         # input_data_inicial = primeiro
         # input_data_final = ultimo
         input_data_inicial = '01/01/2023'
         input_data_final = '31/12/2024'
         # input_data_inicial = '01/04/2025'
-        # input_data_final = '30/04/2025'
-        input_conta_inicial = '20102010001'
-        input_conta_final = '20102010001'
+        # input_data_final = '30/04/2025"
         input_folha_inicial = '2'
         input_desc_moeda = '01'
         input_imprime_saldo = '1'
@@ -122,10 +119,10 @@ class Contas_x_itens(UtilsScraper):
             self.locators['data_final'].fill(input_data_final)
             time.sleep(0.5) 
             self.locators['conta_inicial'].click()
-            self.locators['conta_inicial'].fill(input_conta_inicial)
+            self.locators['conta_inicial'].fill(conta)
             time.sleep(0.5) 
             self.locators['conta_final'].click()
-            self.locators['conta_final'].fill(input_conta_final)  
+            self.locators['conta_final'].fill(conta)  
             time.sleep(0.5) 
             self.locators['imprime_item'].click()     
             self.locators['imprime_item'].select_option("1")
@@ -229,29 +226,42 @@ class Contas_x_itens(UtilsScraper):
             #     logger.error("Download falhou - caminho não disponível")
             
             # Verificar se há botão de confirmação (se necessário)
-            
+            self.locators['menu_relatorios'].wait_for(state="visible", timeout=50000)
         except Exception as e:
             logger.error(f"Falha na geração da planilha: {e}")
             raise
 
-    def execucao(self):
-        """Fluxo principal de execução"""
+    def _processar_conta(self, conta):
+        """Processa uma conta individual"""
         try:
-            logger.info('Iniciando execução do Contas x itens')
+            logger.info(f'Processando conta: {conta}')
             self._navegar_menu()
             time.sleep(1) 
-            self._confirmar_operacao()
+            self._confirmar_operacao()  
             time.sleep(1) 
-            self._fechar_popup_se_existir()
-            self._preencher_parametros()
-            self._selecionar_filiais()
+            self._fechar_popup_se_existir()  
+            self._preencher_parametros(conta)  
+            self._selecionar_filiais()  
             self._gerar_planilha()
-            logger.info("✅ Contas x itens executado com sucesso")
+            logger.info(f"✅ Conta {conta} processada com sucesso")
+            
+        except Exception as e:
+            logger.error(f"❌ Falha no processamento da conta {conta}: {str(e)}")
+            raise
+
+    def execucao(self):
+        """Fluxo principal de execução para todas as contas"""
+        try:
+            contas = ["10106020001", "20102010001"]
+            
+            for conta in contas:
+                self._processar_conta(conta)
+                
             return {
                 'status': 'success',
-                'message': 'Contas x itens completo'
+                'message': f'Todas as {len(contas)} contas processadas com sucesso'
             }
-            
+                
         except Exception as e:
             error_msg = f"❌ Falha na execução: {str(e)}"
             logger.error(error_msg)

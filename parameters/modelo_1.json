@@ -1,0 +1,15 @@
+{
+    "modelo_1": {
+        "data_inicial": "{{primeiro_e_ultimo_dia}}",
+        "data_final": "{{primeiro_e_ultimo_dia}}",
+        "conta_inicial": "",
+        "conta_final": "ZZZZZZZZZZZZZZZZZZZZ",
+        "data_lucros_perdas": "",
+        "grupos_receitas_despesas": "3456",
+        "data_sid_art": "{{obter_ultimo_dia_ano_passado}}",
+        "num_linha_balancete": "99",
+        "desc_moeda": "01",
+        "filial": "0",
+        "formato_planilha": "3"
+    }
+}

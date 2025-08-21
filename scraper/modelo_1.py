@@ -15,6 +15,7 @@ class Modelo_1(UtilsScraper):
     def __init__(self, page):  
         """Inicializa o Modelo 1 com a página do navegador"""
         self.page = page
+        self.parametros = self.settings.parametros_modelo_1
         self._definir_locators()
         logger.info("Modelo_1 inicializado")
 
@@ -75,39 +76,30 @@ class Modelo_1(UtilsScraper):
             
             raise
 
-    def primeiro_e_ultimo_dia(self):
-        hoje = date.today()
-        mes_passado = hoje.month - 1 if hoje.month > 1 else 12
-        ano_mes_passado = hoje.year if hoje.month > 1 else hoje.year - 1
-        
-        primeiro_dia = date(ano_mes_passado, mes_passado, 1).strftime("%d/%m/%Y")
-        ultimo_dia_num = calendar.monthrange(ano_mes_passado, mes_passado)[1]
-        ultimo_dia = date(ano_mes_passado, mes_passado, ultimo_dia_num).strftime("%d/%m/%Y")
-        
-        return primeiro_dia, ultimo_dia
-
-
-    def obter_ultimo_dia_ano_passado(self):
-        ano_passado = date.today().year - 1
-        ultimo_dia = date(ano_passado, 12, 31).strftime("%d/%m/%Y")
-        return ultimo_dia
-
 
     def _preencher_parametros(self):
-        # primeiro, ultimo = self.primeiro_e_ultimo_dia()
-        # input_data_inicial = primeiro 
-        # input_data_final = ultimo
-        input_data_inicial = '01/04/2025'
-        input_data_final = '30/04/2025'
-        input_conta_inicial = ''
-        input_conta_final = 'ZZZZZZZZZZZZZZZZZZZZ'
-        input_data_lucros_perdas = ''
-        input_grupos_receitas_despesas = '3456'
-        # input_data_sid_art = self.obter_ultimo_dia_ano_passado()
-        input_data_sid_art = '31/12/2024'
-        input_num_linha_balancete = '99'
-        input_desc_moeda = '01'
         try:
+
+            # Resolver valores dinâmicos
+            input_data_inicial = self._resolver_valor(self.parametros.get('data_inicial'))
+            input_data_final = self._resolver_valor(self.parametros.get('data_final'))
+            input_data_sid_art  = self._resolver_valor(self.parametros.get('data_sid_art'))
+            
+            # Se primeiro_e_ultimo_dia retornar tupla, extrair os valores
+            if isinstance(data_inicial, tuple):
+                data_inicial = data_inicial[0]  # Primeiro dia
+            if isinstance(data_final, tuple):
+                data_final = data_final[1]      # Último dia
+            
+            # Obter outros parâmetros
+            input_conta_inicial = self.parametros.get('conta_inicial')
+            input_conta_final = self.parametros.get('conta_final', 'ZZZZZZZZZZZZZZZZZZZZ')
+            input_data_lucros_perdas = self.parametros.get('data_lucros_perdas')
+            input_grupos_receitas_despesas = self.parametros.get('grupos_receitas_despesas')
+            input_data_sid_art = self.parametros.get('data_sid_art')
+            input_num_linha_balancete = self.parametros.get('num_linha_balancete')
+            input_desc_moeda = self.parametros.get('desc_moeda')
+
             # parâmetros
             self.locators['data_inicial'].wait_for(state="visible")
             self.locators['data_inicial'].click()

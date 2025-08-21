@@ -190,26 +190,8 @@ class DatabaseManager:
     def import_from_excel(self, file_path, table_name):
         """Importa dados de arquivo Excel para a tabela especificada"""
         try:
-            # Verifica se o arquivo existe
-            if not Path(file_path).exists():
-                logger.error(f"Arquivo não encontrado: {file_path}")
-                return False
-                
-            # Detecta automaticamente o tipo de arquivo e escolhe o engine apropriado
-            file_extension = Path(file_path).suffix.lower()
-            
-            if file_extension == '.xlsx':
-                # Para arquivos .xlsx modernos
-                df = pd.read_excel(file_path, header=1, engine='openpyxl')
-            elif file_extension == '.xls':
-                # Para arquivos .xls mais antigos
-                df = pd.read_excel(file_path, header=1, engine='xlrd')
-            else:
-                # Tenta detectar automaticamente
-                try:
-                    df = pd.read_excel(file_path, header=1, engine='openpyxl')
-                except:
-                    df = pd.read_excel(file_path, header=1, engine='xlrd')
+            # Lê o arquivo Excel (pula a primeira linha como header)
+            df = pd.read_excel(file_path, header=1)  
             logger.info(f"Colunas originais em {file_path}: {df.columns.tolist()}")
             # Limpa caracteres especiais dos nomes das colunas
             df.columns = df.columns.str.replace(r'_x000D_\n', ' ', regex=True).str.strip()
@@ -263,46 +245,6 @@ class DatabaseManager:
             logger.error(f"Falha ao importar {file_path}: {e}", exc_info=True)
             return False
     
-    # Adicione esta verificação antes de tentar ler o arquivo
-    def check_excel_file(file_path):
-        """Verifica se o arquivo Excel é válido"""
-        try:
-            with open(file_path, 'rb') as f:
-                # Verifica os primeiros bytes para identificar o formato
-                header = f.read(8)
-                # Arquivos .xlsx começam com PK (zip)
-                # Arquivos .xls têm assinatura específica
-                if header.startswith(b'PK'):
-                    return 'xlsx'
-                elif header.startswith(b'\xD0\xCF\x11\xE0\xA1\xB1\x1A\xE1'):
-                    return 'xls'
-                else:
-                    return 'invalid'
-        except Exception as e:
-            return 'error'
-        
-    def _check_excel_file(self, file_path):
-        """Verifica se o arquivo é um Excel válido e retorna o tipo"""
-        try:
-            with open(file_path, 'rb') as f:
-                header = f.read(8)
-                
-                # Assinatura de arquivos .xlsx (ZIP)
-                if header.startswith(b'PK'):
-                    return 'xlsx'
-                    
-                # Assinatura de arquivos .xls (Compound File Binary Format)
-                elif header.startswith(b'\xD0\xCF\x11\xE0\xA1\xB1\x1A\xE1'):
-                    return 'xls'
-                    
-                else:
-                    logger.error(f"Arquivo {file_path} não é um Excel válido")
-                    return 'invalid'
-                    
-        except Exception as e:
-            logger.error(f"Erro ao verificar arquivo {file_path}: {e}")
-            return 'error'
-    
     def get_expected_columns(self, table_name):
         """Retorna lista de colunas esperadas para cada tipo de tabela"""
         if table_name == self.settings.TABLE_FINANCEIRO:
@@ -312,13 +254,13 @@ class DatabaseManager:
                 'saldo_devedor', 'situacao', 'conta_contabil', 'centro_custo'
             ]
         elif table_name == self.settings.TABLE_MODELO1:
-            
+            # AGORA: MODELO1 é ctbr040 (não tem código/descrição fornecedor)
             return [
-                'conta_contabil', 'descricao_conta',  
+                'conta_contabil', 'descricao_conta',
                 'saldo_anterior', 'debito', 'credito', 'saldo_atual'
             ]
         elif table_name == self.settings.TABLE_CONTAS_ITENS:
-            
+            # AGORA: CONTAS_ITENS é ctbr140 (tem código/descrição fornecedor)
             return [
                 'conta_contabil', 'descricao_item',
                 'codigo_fornecedor', 'descricao_fornecedor',
@@ -326,7 +268,7 @@ class DatabaseManager:
             ]
         else:
             raise ValueError(f"Tabela desconhecida: {table_name}")
-            
+        
     def _clean_dataframe(self, df, sheet_type):
         """Executa limpeza geral do DataFrame baseado no tipo de planilha"""
         try:
@@ -382,7 +324,7 @@ class DatabaseManager:
         return df
 
     def _clean_modelo1_data(self, df):
-        """Limpeza específica para dados do modelo1 (ctbr040) - AGORA SEM FORNECEDOR"""
+        """Limpeza específica para dados do modelo1 (ctbr040) - AGORA SEM FORNECEDOR EXPLÍCITO"""
         # Classifica tipo de fornecedor baseado na descrição da conta
         if 'descricao_conta' in df.columns:
             df['tipo_fornecedor'] = df['descricao_conta'].apply(
@@ -391,11 +333,13 @@ class DatabaseManager:
                 else 'OUTROS'
             )
         
+        # AGORA: ctbr040 não tem código/descrição fornecedor, então preenchemos com base na descrição da conta
         if 'codigo_fornecedor' not in df.columns:
             df['codigo_fornecedor'] = None
         if 'descricao_fornecedor' not in df.columns:
             df['descricao_fornecedor'] = None
         
+        # Tenta extrair código do fornecedor da descrição da conta
         if df['codigo_fornecedor'].isna().all() and 'descricao_conta' in df.columns:
             # Extrai possíveis códigos da descrição
             df['codigo_fornecedor'] = df['descricao_conta'].str.extract(r'(\d{3,})', expand=False)
@@ -415,7 +359,7 @@ class DatabaseManager:
         return df
 
     def _clean_contas_itens_data(self, df):
-        """Limpeza específica para dados de contas x itens"""
+        """Limpeza específica para dados de contas x itens (ctbr140) - AGORA COM FORNECEDOR EXPLÍCITO"""
         # Limpa e converte colunas numéricas
         num_cols = ['saldo_anterior', 'debito', 'credito', 'saldo_atual']
         for col in num_cols:
@@ -459,11 +403,12 @@ class DatabaseManager:
                 'Natureza': 'situacao',
                 'Porta- dor': 'centro_custo'
             }
-        # Mapeamento para arquivos contábeis
-        elif 'ctbr040' in filename:
+        
+        # Mapeamento para MODELO1 (CTBR040) - INVERTIDO
+        elif self.settings.PLANILHA_MODELO_1.lower().replace('.xlsx', '') in filename:
             return {
                 'Conta': 'conta_contabil',
-                'Descricao': 'descricao_item',   
+                'Descricao': 'descricao_conta',   
                 'Saldo anterior': 'saldo_anterior',
                 'Debito': 'debito',
                 'Credito': 'credito',
@@ -471,11 +416,11 @@ class DatabaseManager:
                 'Saldo atual': 'saldo_atual'
             }
 
-        # Mapeamento para arquivos contábeis 
-        elif 'ctbr140' in filename:
+        # Mapeamento para CONTAS_X_ITENS (CTBR140) - INVERTIDO
+        elif self.settings.FORNECEDOR_NACIONAL.lower().replace('.xlsx', '') in filename:
             return {
                 'Codigo': 'conta_contabil',
-                'Descricao': 'descricao_conta',
+                'Descricao': 'descricao_item',
                 'Codigo.1': 'codigo_fornecedor',
                 'Descricao.1': 'descricao_fornecedor',
                 'Saldo anterior': 'saldo_anterior',
@@ -486,17 +431,19 @@ class DatabaseManager:
             }
         else:
             raise ValueError(f"Tipo de planilha não reconhecido: {file_path.name}")
-        
+    
     def process_data(self):
         """Processa os dados importados e gera resultados da conciliação"""
         try:
-            self.conn.execute("BEGIN TRANSACTION")
+            self.conn.execute("BEGIN TRANSACTION")  # Inicia transação
             cursor = self.conn.cursor()
             
+            # Obtém período de referência
             data_inicial, data_final = self._get_datas_referencia()
+            # Limpa tabela de resultados anterior
             cursor.execute(f"DELETE FROM {self.settings.TABLE_RESULTADO}")
             
-            # Query financeiro (mantém igual)
+            # Insere dados financeiros na tabela de resultados
             query_financeiro = f"""
                 INSERT INTO {self.settings.TABLE_RESULTADO}
                 (codigo_fornecedor, descricao_fornecedor, saldo_financeiro, status)
@@ -523,19 +470,19 @@ class DatabaseManager:
                         SELECT COALESCE(SUM(saldo_atual),0)
                         FROM {self.settings.TABLE_MODELO1} m
                         WHERE m.descricao_conta LIKE '%' || {self.settings.TABLE_RESULTADO}.codigo_fornecedor || '%'
-                        OR m.codigo_fornecedor = {self.settings.TABLE_RESULTADO}.codigo_fornecedor
+                           OR m.codigo_fornecedor = {self.settings.TABLE_RESULTADO}.codigo_fornecedor
                     ),
                     detalhes = (
                         SELECT GROUP_CONCAT(COALESCE(m.tipo_fornecedor,'') || ': ' || m.saldo_atual, ' | ')
                         FROM {self.settings.TABLE_MODELO1} m
                         WHERE m.descricao_conta LIKE '%' || {self.settings.TABLE_RESULTADO}.codigo_fornecedor || '%'
-                        OR m.codigo_fornecedor = {self.settings.TABLE_RESULTADO}.codigo_fornecedor
+                           OR m.codigo_fornecedor = {self.settings.TABLE_RESULTADO}.codigo_fornecedor
                     )
                 WHERE EXISTS (
                     SELECT 1
                     FROM {self.settings.TABLE_MODELO1} m2
                     WHERE m2.descricao_conta LIKE '%' || {self.settings.TABLE_RESULTADO}.codigo_fornecedor || '%'
-                    OR m2.codigo_fornecedor = {self.settings.TABLE_RESULTADO}.codigo_fornecedor
+                       OR m2.codigo_fornecedor = {self.settings.TABLE_RESULTADO}.codigo_fornecedor
                 )
             """
             cursor.execute(query_contabil_update)
@@ -833,29 +780,6 @@ class DatabaseManager:
         data_final = hoje
         logger.warning("USANDO VERSÃO TEMPORÁRIA DE _get_datas_referencia() - IGNORANDO VERIFICAÇÃO DE DIA 20/ÚLTIMO DIA")
         return data_inicial.strftime("%d/%m/%Y"), data_final.strftime("%d/%m/%Y")
-        """Retorna datas de referência ajustando para feriados"""
-        # cal = Brazil()
-        # hoje = datetime.now().date()
-
-        # # Ajusta a data se não for dia útil
-        # if not cal.is_working_day(hoje):
-        #     hoje = cal.add_working_days(hoje, 1)
-        #     logger.warning(f"Data ajustada para o próximo dia útil: {hoje.strftime('%d/%m/%Y')}")
-
-        # # Verifica se é dia 20 ou último dia do mês
-        # if hoje.day == 20 or hoje.day == self._ultimo_dia_mes(hoje).day:
-        #     if hoje.day == 20:
-        #         data_inicial = hoje.replace(day=1)
-        #     else:
-        #         data_inicial = hoje.replace(day=1)
-            
-        #     # Garante que as datas são dias úteis
-        #     data_inicial = cal.add_working_days(data_inicial - timedelta(days=1), 1)
-        #     data_final = hoje
-            
-        #     return data_inicial.strftime("%d/%m/%Y"), data_final.strftime("%d/%m/%Y")
-        # else:
-        #     raise ValueError("Processamento só deve ocorrer no dia 20 ou último dia do mês")
 
     def _ultimo_dia_mes(self, date):
         """Retorna o último dia do mês da data fornecida"""
@@ -1020,7 +944,7 @@ class DatabaseManager:
                     saldo_atual as "Saldo Atual",
                     tipo_fornecedor as "Tipo Fornecedor"
                 FROM 
-                    {self.settings.TABLE_MODELO1}  
+                    {self.settings.TABLE_MODELO1}
                 WHERE 
                     descricao_conta LIKE 'FORNEC%'
                 ORDER BY 
