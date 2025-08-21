@@ -20,7 +20,7 @@ class ProtheusScraper(UtilsScraper):
         self.browser = None
         self.context = None
         self.page = None
-        self.downloads = [] 
+        # self.downloads = [] 
         self._initialize_resources()
         logger.info("Navegador inicializado")
 
@@ -42,29 +42,29 @@ class ProtheusScraper(UtilsScraper):
         """Configura a página e contexto"""
         self.context = self.browser.new_context(
             no_viewport=True,
-            accept_downloads=True  
+            # accept_downloads=True  
         )
         
         # Monitorar eventos de download
-        self.context.on("download", self._handle_download)
+        # self.context.on("download", self._handle_download)
         
         self.page = self.context.new_page()
         self.page.set_default_timeout(self.settings.TIMEOUT)
 
-    def _handle_download(self, download):
-        """Manipula eventos de download - apenas monitora, não salva"""
-        try:
-            # Aguardar o download ser concluído
-            download_path = download.path()
+    # def _handle_download(self, download):
+    #     """Manipula eventos de download - apenas monitora, não salva"""
+    #     try:
+    #         # Aguardar o download ser concluído
+    #         download_path = download.path()
             
-            if download_path:
-                logger.info(f"Download concluído: {download.suggested_filename}")
-                # Não salva aqui - cada classe de extração salva com seu próprio nome
-            else:
-                logger.error(f"Download falhou: {download.suggested_filename}")
+    #         if download_path:
+    #             logger.info(f"Download concluído: {download.suggested_filename}")
+    #             # Não salva aqui - cada classe de extração salva com seu próprio nome
+    #         else:
+    #             logger.error(f"Download falhou: {download.suggested_filename}")
                 
-        except Exception as e:
-            logger.error(f"Erro ao processar download: {e}")
+    #     except Exception as e:
+    #         logger.error(f"Erro ao processar download: {e}")
                 
     def _definir_locators(self):
         """Centraliza todos os locators como variáveis"""
@@ -177,41 +177,41 @@ class ProtheusScraper(UtilsScraper):
 
             
             # 1. Executar Financeiro
-            # try:       
-            #     financeiro = ExtracaoFinanceiro(self.page)
-            #     resultado_financeiro = financeiro.execucao()
-            #     results.append(resultado_financeiro)
+            try:       
+                financeiro = ExtracaoFinanceiro(self.page)
+                resultado_financeiro = financeiro.execucao()
+                results.append(resultado_financeiro)
                 
-            # except Exception as e:
-            #     results.append({
-            #         'status': 'error',
-            #         'message': f'Falha no Financeiro: {str(e)}',
-            #         'etapa': 'financeiro'
-            #     })
-            #     # Reiniciar completamente para próxima extração
+            except Exception as e:
+                results.append({
+                    'status': 'error',
+                    'message': f'Falha no Financeiro: {str(e)}',
+                    'etapa': 'financeiro'
+                })
+                # Reiniciar completamente para próxima extração
                 
-            #     self.browser.close()
-            #     self._initialize_resources()
-            #     self.start_scraper()
-            #     self.login()
+                self.browser.close()
+                self._initialize_resources()
+                self.start_scraper()
+                self.login()
 
-            # # 2. Executar Modelo_1 (sempre após possível reinicialização)
-            # try:
-            #     modelo_1 = Modelo_1(self.page)
-            #     resultado_modelo = modelo_1.execucao()
-            #     results.append(resultado_modelo)
-            # except Exception as e:
-            #     results.append({
-            #         'status': 'error',
-            #         'message': f'Falha no Modelo_1: {str(e)}',
-            #         'etapa': 'modelo_1'
-            #     })
-            #     # Reiniciar para próxima extração
+            # 2. Executar Modelo_1 (sempre após possível reinicialização)
+            try:
+                modelo_1 = Modelo_1(self.page)
+                resultado_modelo = modelo_1.execucao()
+                results.append(resultado_modelo)
+            except Exception as e:
+                results.append({
+                    'status': 'error',
+                    'message': f'Falha no Modelo_1: {str(e)}',
+                    'etapa': 'modelo_1'
+                })
+                # Reiniciar para próxima extração
                 
-            #     self.browser.close()
-            #     self._initialize_resources()
-            #     self.start_scraper()
-            #     self.login()
+                self.browser.close()
+                self._initialize_resources()
+                self.start_scraper()
+                self.login()
 
             # 3. Executar Contas x Itens
             try:
