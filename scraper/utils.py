@@ -2,7 +2,8 @@ from playwright.sync_api import Page
 from config.logger import configure_logger
 from datetime import date
 import time
-
+import os               
+import calendar
 logger = configure_logger()
 
 class UtilsScraper:
@@ -76,7 +77,7 @@ class UtilsScraper:
                 
                 return resultado
             
-            logger.warning(f"Método '{nome_metodo}' não encontrado para resolver: {valor}")
+            logger.warning(f"❌ Método '{nome_metodo}' não encontrado para resolver: {valor}")
         
         return valor
 

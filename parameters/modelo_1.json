@@ -8,8 +8,6 @@
         "grupos_receitas_despesas": "3456",
         "data_sid_art": "{{obter_ultimo_dia_ano_passado}}",
         "num_linha_balancete": "99",
-        "desc_moeda": "01",
-        "filial": "0",
-        "formato_planilha": "3"
+        "desc_moeda": "01"
     }
 }

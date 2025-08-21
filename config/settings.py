@@ -121,8 +121,9 @@ class Settings:
 
         # Carrega os arquivos Json que se encontra na pasta "parameters"a
         self.parametros_modelo_1 = self._carregar_parametros('modelo_1.json')
-        self.parametros_financeiro = self._carregar_parametros('financeiro.json')
-        self.parametros_contas_itens = self._carregar_parametros('contasxtens.json') 
+        # self.parametros_financeiro = self._carregar_parametros('financeiro.json')
+        # self.parametros_contas_itens = self._carregar_parametros('contasxtens.json') 
+    
     def _carregar_parametros(self, nome_arquivo: str) -> dict:
         """Carrega parâmetros de um arquivo JSON"""
         parametros_path = self.PARAMETERS_DIR / nome_arquivo
@@ -133,11 +134,11 @@ class Settings:
                     print(f"Parâmetros carregados: {nome_arquivo}")
                     return parametros
             else:
-                print(f"Arquivo de parâmetros não encontrado: {parametros_path}")
+                print(f"❌ Arquivo de parâmetros não encontrado: {parametros_path}")
                 return {}
         except json.JSONDecodeError as e:
-            print(f"Erro ao decodificar JSON {nome_arquivo}: {e}")
+            print(f"❌ Erro ao decodificar JSON {nome_arquivo}: {e}")
             return {}
         except Exception as e:
-            print(f"Erro ao carregar parâmetros {nome_arquivo}: {e}")
+            print(f"❌ Erro ao carregar parâmetros {nome_arquivo}: {e}")
             return {}

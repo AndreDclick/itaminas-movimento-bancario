@@ -5,8 +5,6 @@ from .utils import UtilsScraper
 from datetime import date
 from pathlib import Path
 
-import os               
-import calendar
 import time
 
 logger = configure_logger()
@@ -16,6 +14,7 @@ class Modelo_1(UtilsScraper):
         """Inicializa o Modelo 1 com a página do navegador"""
         self.page = page
         self.parametros = self.settings.parametros_modelo_1
+        self.settings = Settings() 
         self._definir_locators()
         logger.info("Modelo_1 inicializado")
 
@@ -93,7 +92,7 @@ class Modelo_1(UtilsScraper):
             
             # Obter outros parâmetros
             input_conta_inicial = self.parametros.get('conta_inicial')
-            input_conta_final = self.parametros.get('conta_final', 'ZZZZZZZZZZZZZZZZZZZZ')
+            input_conta_final = self.parametros.get('conta_final')
             input_data_lucros_perdas = self.parametros.get('data_lucros_perdas')
             input_grupos_receitas_despesas = self.parametros.get('grupos_receitas_despesas')
             input_data_sid_art = self.parametros.get('data_sid_art')
