@@ -30,7 +30,13 @@ class ProtheusScraper(UtilsScraper):
         self._setup_browser()
         self._setup_page()
         self._definir_locators()
-
+    def _setup_browser(self):
+            """Configura o navegador Edge"""
+            self.browser = self.playwright.chromium.launch(
+                headless=self.settings.HEADLESS,
+                args=["--start-maximized"],
+                channel="msedge"
+            )
 
     def _setup_page(self):
         """Configura a página e contexto"""
@@ -133,6 +139,28 @@ class ProtheusScraper(UtilsScraper):
             logger.error(f"Falha no login: {str(e)}")
             raise FormSubmitFailed(f"Erro de login: {e}")
 
+    def _check_excel_file(self, file_path):
+        """Verifica se o arquivo é um Excel válido e retorna o tipo"""
+        try:
+            with open(file_path, 'rb') as f:
+                header = f.read(8)
+                
+                # Assinatura de arquivos .xlsx (ZIP)
+                if header.startswith(b'PK'):
+                    return 'xlsx'
+                    
+                # Assinatura de arquivos .xls (Compound File Binary Format)
+                elif header.startswith(b'\xD0\xCF\x11\xE0\xA1\xB1\x1A\xE1'):
+                    return 'xls'
+                    
+                else:
+                    logger.error(f"Arquivo {file_path} não é um Excel válido")
+                    return 'invalid'
+                    
+        except Exception as e:
+            logger.error(f"Erro ao verificar arquivo {file_path}: {e}")
+            return 'error'
+            
 
     def run(self):
         results = []
@@ -148,7 +176,7 @@ class ProtheusScraper(UtilsScraper):
             })
 
             
-            # # 1. Executar Financeiro
+            # 1. Executar Financeiro
             # try:       
             #     financeiro = ExtracaoFinanceiro(self.page)
             #     resultado_financeiro = financeiro.execucao()
@@ -196,9 +224,8 @@ class ProtheusScraper(UtilsScraper):
                     'message': f'Falha em Contas x Itens: {str(e)}',
                     'etapa': 'contas_x_itens'
                 })
-            # time.sleep(10)
-            # self.browser.close()
 
+            
             # 4. Processamento no banco de dados (tenta mesmo com erros anteriores)
             try:
                 with DatabaseManager() as db:
@@ -213,22 +240,48 @@ class ProtheusScraper(UtilsScraper):
                     
                     for nome, arquivo, tabela in importacoes:
                         try:
-                            success = db.import_from_excel(caminho_planilhas / arquivo, tabela)
+                            file_path = caminho_planilhas / arquivo
+                            
+                            # Verifica se o arquivo existe e é válido
+                            if not file_path.exists():
+                                logger.error(f"Arquivo {arquivo} não encontrado")
+                                results.append({
+                                    'status': 'error',
+                                    'message': f'Arquivo {arquivo} não encontrado',
+                                    'etapa': 'importação'
+                                })
+                                continue
+                                
+                            # Tenta detectar se é um Excel válido
+                            file_type = self._check_excel_file(file_path)
+                            if file_type == 'invalid':
+                                logger.error(f"Arquivo {arquivo} não é um Excel válido")
+                                results.append({
+                                    'status': 'error',
+                                    'message': f'Arquivo {arquivo} não é um Excel válido ou está corrompido',
+                                    'etapa': 'importação'
+                                })
+                                continue
+                            
+                            # Se chegou aqui, o arquivo é válido, tenta importar
+                            success = db.import_from_excel(file_path, tabela)
                             if not success:
-                                raise Exception(f"Arquivo {arquivo} não encontrado ou inválido")
+                                raise Exception(f"Falha na importação do arquivo {arquivo}")
+                            
                             results.append({
                                 'status': 'success',
                                 'message': f'Planilha {nome} importada com sucesso',
                                 'etapa': 'importação'
                             })
+                            
                         except Exception as e:
                             results.append({
                                 'status': 'error',
                                 'message': f'Falha ao importar {nome}: {str(e)}',
                                 'etapa': 'importação'
                             })
-                            continue  # Continua para próxima importação
-                    
+                            continue
+                                
                     # Processa os dados (se pelo menos uma importação teve sucesso)
                     try:
                         if not db.process_data():

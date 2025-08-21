@@ -190,8 +190,26 @@ class DatabaseManager:
     def import_from_excel(self, file_path, table_name):
         """Importa dados de arquivo Excel para a tabela especificada"""
         try:
-            # Lê o arquivo Excel (pula a primeira linha como header)
-            df = pd.read_excel(file_path, header=1)  
+            # Verifica se o arquivo existe
+            if not Path(file_path).exists():
+                logger.error(f"Arquivo não encontrado: {file_path}")
+                return False
+                
+            # Detecta automaticamente o tipo de arquivo e escolhe o engine apropriado
+            file_extension = Path(file_path).suffix.lower()
+            
+            if file_extension == '.xlsx':
+                # Para arquivos .xlsx modernos
+                df = pd.read_excel(file_path, header=1, engine='openpyxl')
+            elif file_extension == '.xls':
+                # Para arquivos .xls mais antigos
+                df = pd.read_excel(file_path, header=1, engine='xlrd')
+            else:
+                # Tenta detectar automaticamente
+                try:
+                    df = pd.read_excel(file_path, header=1, engine='openpyxl')
+                except:
+                    df = pd.read_excel(file_path, header=1, engine='xlrd')
             logger.info(f"Colunas originais em {file_path}: {df.columns.tolist()}")
             # Limpa caracteres especiais dos nomes das colunas
             df.columns = df.columns.str.replace(r'_x000D_\n', ' ', regex=True).str.strip()
@@ -244,6 +262,46 @@ class DatabaseManager:
         except Exception as e:
             logger.error(f"Falha ao importar {file_path}: {e}", exc_info=True)
             return False
+    
+    # Adicione esta verificação antes de tentar ler o arquivo
+    def check_excel_file(file_path):
+        """Verifica se o arquivo Excel é válido"""
+        try:
+            with open(file_path, 'rb') as f:
+                # Verifica os primeiros bytes para identificar o formato
+                header = f.read(8)
+                # Arquivos .xlsx começam com PK (zip)
+                # Arquivos .xls têm assinatura específica
+                if header.startswith(b'PK'):
+                    return 'xlsx'
+                elif header.startswith(b'\xD0\xCF\x11\xE0\xA1\xB1\x1A\xE1'):
+                    return 'xls'
+                else:
+                    return 'invalid'
+        except Exception as e:
+            return 'error'
+        
+    def _check_excel_file(self, file_path):
+        """Verifica se o arquivo é um Excel válido e retorna o tipo"""
+        try:
+            with open(file_path, 'rb') as f:
+                header = f.read(8)
+                
+                # Assinatura de arquivos .xlsx (ZIP)
+                if header.startswith(b'PK'):
+                    return 'xlsx'
+                    
+                # Assinatura de arquivos .xls (Compound File Binary Format)
+                elif header.startswith(b'\xD0\xCF\x11\xE0\xA1\xB1\x1A\xE1'):
+                    return 'xls'
+                    
+                else:
+                    logger.error(f"Arquivo {file_path} não é um Excel válido")
+                    return 'invalid'
+                    
+        except Exception as e:
+            logger.error(f"Erro ao verificar arquivo {file_path}: {e}")
+            return 'error'
     
     def get_expected_columns(self, table_name):
         """Retorna lista de colunas esperadas para cada tipo de tabela"""

@@ -191,13 +191,16 @@ class Contas_x_itens(UtilsScraper):
                 self.locators['aba_planilha'].click()
                 time.sleep(1)
             
-            self.locators['formato'].select_option("2")
+            self.locators['formato'].select_option("3")
             time.sleep(1) 
             
             # Esperar pelo download com timeout aumentado
             with self.page.expect_download(timeout=120000) as download_info:
                 self.locators['botao_imprimir'].click()
                 logger.info(f"Botão download clicado")
+                time.sleep(2)
+                if 'botao_sim' in self.locators and self.locators['botao_sim'].is_visible():
+                    self.locators['botao_sim'].click()
                 time.sleep(2)
                 self._fechar_popup_se_existir()
                 
@@ -219,9 +222,6 @@ class Contas_x_itens(UtilsScraper):
                 logger.error("Download falhou - caminho não disponível")
             
             # Verificar se há botão de confirmação (se necessário)
-            if 'botao_sim' in self.locators and self.locators['botao_sim'].is_visible():
-                self.locators['botao_sim'].click()
-                
             
         except Exception as e:
             logger.error(f"Falha na geração da planilha: {e}")
