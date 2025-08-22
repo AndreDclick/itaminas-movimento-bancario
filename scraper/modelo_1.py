@@ -4,7 +4,7 @@ from config.settings import Settings
 from .utils import UtilsScraper
 from datetime import date
 from pathlib import Path
-import json
+
 
 import time
 
@@ -15,6 +15,7 @@ class Modelo_1(UtilsScraper):
         """Inicializa o Modelo 1 com a página do navegador"""
         self.page = page
         self.settings = Settings() 
+        self.parametros_json = 'modelo_1'
         self._definir_locators()
         logger.info("Modelo_1 inicializado")
 
@@ -74,30 +75,10 @@ class Modelo_1(UtilsScraper):
             logger.error(f"Falha na navegação do menu: {e}")
             
             raise
-    def _carregar_parametros(self, nome_arquivo: str) -> dict:
-        """Carrega parâmetros de um arquivo JSON"""
-        parametros_path = self.settings.PARAMETERS_DIR / nome_arquivo
-        try:
-            if parametros_path.exists():
-                with open(parametros_path, 'r', encoding='utf-8') as f:
-                    parametros = json.load(f)
-                    # Store the parameters in an instance variable
-                    self.parametros = parametros.get('modelo_1', {})
-                    logger.info(f"Parâmetros carregados: {nome_arquivo}")
-                    return self.parametros
-            else:
-                logger.error(f"❌ Arquivo de parâmetros não encontrado: {parametros_path}")
-                return {}
-        except json.JSONDecodeError as e:
-            logger.error(f"❌ Erro ao decodificar JSON {nome_arquivo}: {e}")
-            return {}
-        except Exception as e:
-            logger.error(f"❌ Erro ao carregar parâmetros {nome_arquivo}: {e}")
-            return {}
 
     def _preencher_parametros(self):
         try:
-
+            logger.info(f"Usando chave JSON: {self.parametros_json}")
             # Resolver valores dinâmicos
             input_data_inicial = self._resolver_valor(self.parametros.get('data_inicial'))
             input_data_final = self._resolver_valor(self.parametros.get('data_final'))
@@ -201,8 +182,9 @@ class Modelo_1(UtilsScraper):
     def execucao(self):
         """Fluxo principal de execução"""
         try:
+            
             logger.info('Iniciando execução do Modelo 1')
-            self._carregar_parametros('modelo_1.json')
+            self._carregar_parametros('modelo_1.json', self.parametros_json)
             self._navegar_menu()
             time.sleep(1) 
             self._confirmar_operacao()

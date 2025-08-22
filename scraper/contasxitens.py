@@ -86,17 +86,6 @@ class Contas_x_itens(UtilsScraper):
             
             raise
 
-    def primeiro_e_ultimo_dia(self):
-        hoje = date.today()
-        mes_passado = hoje.month - 1 if hoje.month > 1 else 12
-        ano_mes_passado = hoje.year if hoje.month > 1 else hoje.year - 1
-        
-        primeiro_dia = date(ano_mes_passado, mes_passado, 1).strftime("%d/%m/%Y")
-        ultimo_dia_num = calendar.monthrange(ano_mes_passado, mes_passado)[1]
-        ultimo_dia = date(ano_mes_passado, mes_passado, ultimo_dia_num).strftime("%d/%m/%Y")
-        
-        return primeiro_dia, ultimo_dia
-
     def _preencher_parametros(self, conta):
         # primeiro, ultimo = self.primeiro_e_ultimo_dia()
         # input_data_inicial = primeiro
@@ -234,6 +223,8 @@ class Contas_x_itens(UtilsScraper):
     def _processar_conta(self, conta):
         """Processa uma conta individual"""
         try:
+            parametros_json = 'contaxitens'
+
             logger.info(f'Processando conta: {conta}')
             self._navegar_menu()
             time.sleep(1) 

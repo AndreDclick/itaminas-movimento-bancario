@@ -1,12 +1,12 @@
 {
     "modelo_1": {
-        "data_inicial": "{{primeiro_e_ultimo_dia}}",
-        "data_final": "{{primeiro_e_ultimo_dia}}",
+        "data_inicial": "01/04/2025",
+        "data_final": "30/04/2025",
         "conta_inicial": "",
         "conta_final": "ZZZZZZZZZZZZZZZZZZZZ",
         "data_lucros_perdas": "",
         "grupos_receitas_despesas": "3456",
-        "data_sid_art": "{{obter_ultimo_dia_ano_passado}}",
+        "data_sid_art": "31/12/2024",
         "num_linha_balancete": "99",
         "desc_moeda": "01"
     }
