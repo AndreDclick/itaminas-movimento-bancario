@@ -203,12 +203,11 @@ class DatabaseManager:
         return df
 
     def import_from_excel(self, file_path, table_name):
-        """Importa dados de arquivo Excel para a tabela especificada"""
+        """Importa dados de arquivo Excel/TXT/XML para a tabela especificada"""
         try:
+            filename = Path(file_path).stem.lower()
 
             # Determina a tabela destino baseada no nome do arquivo
-            filename = Path(file_path).stem.lower()
-            
             if 'ctbr100' in filename:
                 table_name = self.settings.TABLE_ADIANTAMENTO
             elif 'ctbr140' in filename:
@@ -218,60 +217,80 @@ class DatabaseManager:
             elif 'finr150' in filename:
                 table_name = self.settings.TABLE_FINANCEIRO
 
-            # Lê o arquivo Excel (pula a primeira linha como header)
-            df = pd.read_excel(file_path, header=1)  
+            ext = Path(file_path).suffix.lower()
+            
+            if ext == ".xlsx":
+                df = pd.read_excel(file_path, header=1)
+
+            elif ext == ".xml":
+                try:
+                    # Tenta ler como XML estruturado
+                    df = pd.read_xml(file_path)
+                except Exception:
+                    # Fallback: alguns XML do Protheus são HTML disfarçado
+                    df = pd.read_html(file_path, encoding="latin1")[0]
+
+            elif ext == ".txt":
+                try:
+                    df = pd.read_csv(file_path, sep=";", encoding="latin1", header=1)
+                except Exception:
+                    df = pd.read_csv(file_path, sep="\t", encoding="latin1", header=1)
+
+            else:
+                raise ValueError(f"Formato de arquivo não suportado: {ext}")
+
             logger.info(f"Colunas originais em {file_path}: {df.columns.tolist()}")
+
             # Limpa caracteres especiais dos nomes das colunas
             df.columns = df.columns.str.replace(r'_x000D_\n', ' ', regex=True).str.strip()
             logger.info(f"Colunas após limpeza: {df.columns.tolist()}")
-            
-            # Obtém mapeamento de colunas baseado no nome do arquivo
+
+            # Aplica mapeamento de colunas
             column_mapping = self._get_column_mapping(Path(file_path))
             df.rename(columns=column_mapping, inplace=True)
             logger.info(f"Colunas após mapeamento: {df.columns.tolist()}")
-            
+
             # Verifica colunas obrigatórias
             expected_columns = self.get_expected_columns(table_name)
             missing_mappings = [col for col in expected_columns if col not in df.columns]
 
             if missing_mappings:
                 logger.warning(f"Colunas mapeadas não encontradas: {missing_mappings}")
-                # Tenta aplicar sugestões automáticas
                 df = self.aplicar_sugestoes_colunas(df, missing_mappings)
                 remaining_missing = [col for col in expected_columns if col not in df.columns]
-                
-                # Trata colunas específicas que podem ser derivadas
+
                 if remaining_missing:
                     if 'parcela' in remaining_missing and 'titulo' in df.columns:
-                        # Extrai número da parcela do título
                         df['parcela'] = df['titulo'].astype(str).str.extract(r'(\d+)$').fillna('1')
                         logger.warning("Coluna 'parcela' criada a partir do título")
                         remaining_missing.remove('parcela')
-                    
+
                     if 'conta_contabil' in remaining_missing:
-                        # Define valor padrão para conta contábil
-                        df['conta_contabil'] = 'CONTA_PADRAO' 
+                        df['conta_contabil'] = 'CONTA_PADRAO'
                         logger.warning("Coluna 'conta_contabil' preenchida com valor padrão")
                         remaining_missing.remove('conta_contabil')
-                    
+
                     if remaining_missing:
                         logger.error(f"Colunas obrigatórias ausentes após tratamento: {remaining_missing}")
                         raise ValueError(f"Colunas obrigatórias ausentes: {remaining_missing}")
 
             # Limpa e prepara os dados
             df = self._clean_dataframe(df, table_name.lower())
-            # Obtém colunas da tabela destino
+
+            # Mantém apenas colunas que existem na tabela destino
             table_columns = [col[1] for col in self.conn.execute(f"PRAGMA table_info({table_name})").fetchall()]
-            # Mantém apenas colunas que existem na tabela
             keep = [col for col in df.columns if col in table_columns]
             df = df[keep]
+
             # Insere dados no banco
             df.to_sql(table_name, self.conn, if_exists='append', index=False)
             logger.info(f"Dados importados para '{table_name}' com sucesso.")
-            return True  
+            return True
+
         except Exception as e:
             logger.error(f"Falha ao importar {file_path}: {e}", exc_info=True)
             return False
+
     
     def get_expected_columns(self, table_name):
         """Retorna lista de colunas esperadas para cada tipo de tabela"""

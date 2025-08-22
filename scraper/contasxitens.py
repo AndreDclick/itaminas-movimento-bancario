@@ -166,7 +166,7 @@ class Contas_x_itens(UtilsScraper):
             logger.error(f"Falha no preenchimento de parâmetros {e}")
             raise
 
-    def _gerar_planilha(self):
+    def _gerar_planilha(self, conta):
         """Gera e baixa a planilha """
         try: 
             self.locators['aba_planilha'].wait_for(state="visible")
@@ -178,7 +178,7 @@ class Contas_x_itens(UtilsScraper):
                 self.locators['aba_planilha'].click()
                 time.sleep(1)
             
-            self.locators['formato'].select_option("3")
+            self.locators['formato'].select_option("2")
             # time.sleep(1) 
             # self.locators['botao_imprimir'].click()
             # logger.info(f"Botão download clicado")
@@ -206,9 +206,13 @@ class Contas_x_itens(UtilsScraper):
             download_path = download.path()
             if download_path:
                 settings = Settings()
-                destino = Path(settings.CAMINHO_PLS) / settings.PLS_CONTAS_X_ITENS
-                destino.parent.mkdir(parents=True, exist_ok=True)
+                if conta == "10106020001":
+                    destino = Path(settings.CAMINHO_PLS) / "ctbr100.xml"
+                else:
+                    destino = Path(settings.CAMINHO_PLS) / "ctbr140.xml"
+                                
                 
+                destino.parent.mkdir(parents=True, exist_ok=True)
                 
                 download.save_as(destino)
                 logger.info(f"Arquivo Contas x itens salvo em: {destino}")
@@ -233,7 +237,7 @@ class Contas_x_itens(UtilsScraper):
             self._fechar_popup_se_existir()  
             self._preencher_parametros(conta)  
             self._selecionar_filiais()  
-            self._gerar_planilha()
+            self._gerar_planilha(conta)
             logger.info(f"✅ Conta {conta} processada com sucesso")
             
         except Exception as e:

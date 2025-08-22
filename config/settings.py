@@ -84,7 +84,7 @@ class Settings:
         'saldo_atual': 'Saldo atual'
     }
 
-    # Planilha Fornecedor Nacional (ctbr140.xlsx)
+    # Planilha Fornecedor Nacional (ctbr140.txt)
     COLUNAS_CONTAS_ITENS = {
         'conta_contabil': 'Codigo',
         'descricao_item': 'Descricao',
@@ -97,7 +97,7 @@ class Settings:
         'saldo_atual': 'Saldo atual'
     }
 
-    # Planilha Adiantamento Nacional (ctbr100.xlsx)
+    # Planilha Adiantamento Nacional (ctbr100.txt)
     COLUNAS_ADIANTAMENTO = {
         'conta_contabil': 'Codigo',
         'descricao_item': 'Descricao',
