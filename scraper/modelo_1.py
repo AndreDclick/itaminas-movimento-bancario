@@ -80,10 +80,13 @@ class Modelo_1(UtilsScraper):
         try:
             logger.info(f"Usando chave JSON: {self.parametros_json}")
             # Resolver valores dinâmicos
-            input_data_inicial = self._resolver_valor(self.parametros.get('data_inicial'))
-            input_data_final = self._resolver_valor(self.parametros.get('data_final'))
-            input_data_sid_art  = self._resolver_valor(self.parametros.get('data_sid_art'))
-            
+            # input_data_inicial = self._resolver_valor(self.parametros.get('data_inicial'))
+            # input_data_final = self._resolver_valor(self.parametros.get('data_final'))
+            # input_data_sid_art  = self._resolver_valor(self.parametros.get('data_sid_art'))
+
+            input_data_inicial = self.parametros.get('data_inicial')
+            input_data_final =self.parametros.get('data_final')
+            input_data_inicial =self.parametros.get('data_sid_art')
             # Obter outros parâmetros
             input_conta_inicial = self.parametros.get('conta_inicial')
             input_conta_final = self.parametros.get('conta_final')
@@ -184,7 +187,7 @@ class Modelo_1(UtilsScraper):
         try:
             
             logger.info('Iniciando execução do Modelo 1')
-            self._carregar_parametros('modelo_1.json', self.parametros_json)
+            self._carregar_parametros('parameters.json', self.parametros_json)
             self._navegar_menu()
             time.sleep(1) 
             self._confirmar_operacao()

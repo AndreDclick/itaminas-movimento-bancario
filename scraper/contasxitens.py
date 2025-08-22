@@ -15,6 +15,8 @@ class Contas_x_itens(UtilsScraper):
         """Inicializa o Contas X Itens com a página do navegador"""
         self.page = page
         self._definir_locators()
+        self.settings = Settings() 
+        self.parametros_json = 'contasxitens'
         logger.info("Contas_x_itens inicializado")
 
     def _definir_locators(self):
@@ -87,17 +89,16 @@ class Contas_x_itens(UtilsScraper):
             raise
 
     def _preencher_parametros(self, conta):
-        # primeiro, ultimo = self.primeiro_e_ultimo_dia()
-        # input_data_inicial = primeiro
-        # input_data_final = ultimo
-        input_data_inicial = '01/01/2023'
-        input_data_final = '31/12/2024'
-        # input_data_inicial = '01/04/2025'
-        # input_data_final = '30/04/2025"
-        input_folha_inicial = '2'
-        input_desc_moeda = '01'
-        input_imprime_saldo = '1'
-        input_data_lucros = '30/06/2024'
+        logger.info(f"Usando chave JSON: {self.parametros_json}")
+        # Resolver valores dinâmicos
+        # input_data_inicial = self._resolver_valor(self.parametros.get('data_inicial'))
+        # input_data_final = self._resolver_valor(self.parametros.get('data_final'))
+        input_data_inicial =self.parametros.get('data_inicial')
+        input_data_final = self.parametros.get('data_final')
+        input_folha_inicial = self.parametros.get('folha_inicial')
+        input_desc_moeda = self.parametros.get('desc_moeda')
+        input_imprime_saldo = self.parametros.get('imprime_saldo')
+        input_data_lucros = self.parametros.get('data_lucros')
         try:
             # parâmetros
             self.locators['data_inicial'].wait_for(state="visible")
@@ -223,9 +224,8 @@ class Contas_x_itens(UtilsScraper):
     def _processar_conta(self, conta):
         """Processa uma conta individual"""
         try:
-            parametros_json = 'contaxitens'
-
             logger.info(f'Processando conta: {conta}')
+            self._carregar_parametros('parameters.json', self.parametros_json)
             self._navegar_menu()
             time.sleep(1) 
             self._confirmar_operacao()  

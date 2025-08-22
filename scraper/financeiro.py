@@ -16,7 +16,8 @@ class ExtracaoFinanceiro(UtilsScraper):
     def __init__(self, page):
         self.page = page
         self._definir_locators()
-        
+        self.settings = Settings()
+        self.parametros_json = 'financeiro' 
         logger.info("Financeiro inicializada")
 
     def _definir_locators(self):
@@ -124,18 +125,18 @@ class ExtracaoFinanceiro(UtilsScraper):
         return f"31/12/{ano_futuro}"
 
     def _preencher_parametros(self):
-        input_do_vencimento = '01/01/2000'
-        input_ate_o_vencimento = '31/12/2050'
-        input_da_emissao = '01/01/2000'
-        input_ate_a_emissao = '31/12/2050'
-        input_da_data_contabil = '01/01/2020'
-        # input_ate_a_data_contabil = datetime.now().strftime("%d/%m/%Y")
-        # input_ate_a_data_contabil = self.fechamento_mes()
-        input_ate_a_data_contabil = self.data_contabil()
-        # input_data_base = datetime.now().strftime("%d/%m/%Y")
-        input_data_base = '30/04/2025'
-        
         try:
+            logger.info(f"Usando chave JSON: {self.parametros_json}")
+
+            # Valores carregados do JSON
+            input_do_vencimento = self.parametros.get('do_vencimento')
+            input_ate_o_vencimento = self.parametros.get('ate_o_vencimento')
+            input_da_emissao = self.parametros.get('da_emissao')
+            input_ate_a_emissao = self.parametros.get('ate_a_emissao')
+            input_da_data_contabil = self.parametros.get('da_data_contabil')
+            input_ate_a_data_contabil = self.parametros.get('ate_a_data_contabil')
+            input_data_base = self.parametros.get('data_base')
+
             # parâmetros
             self.locators['do_vencimento'].wait_for(state="visible")
             self.locators['do_vencimento'].click()
@@ -161,9 +162,11 @@ class ExtracaoFinanceiro(UtilsScraper):
             time.sleep(0.5)
             self.locators['ok_btn'].click()
             logger.info("Parâmetros preenchidos com sucesso")
+
         except Exception as e:
             logger.error(f"Falha no preenchimento de parâmetros {e}")
             raise
+
 
     def _imprimir_e_baixar(self):
         """Clica no botão de imprimir e baixa o arquivo"""
@@ -217,6 +220,9 @@ class ExtracaoFinanceiro(UtilsScraper):
         """Fluxo principal de extração de planilha financeira."""
         try:
             logger.info('Iniciando extração da planilha financeira - Títulos a Pagar')
+            # Carregar os parâmetros do JSON no início da execução
+            self._carregar_parametros('parameters.json', self.parametros_json)
+
             self._navegar_e_configurar_planilha()
             self._criar_planilha()
             self._outras_acoes()

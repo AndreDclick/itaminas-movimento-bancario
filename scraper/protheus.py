@@ -3,9 +3,9 @@ from config.settings import Settings
 from config.logger import configure_logger
 from .exceptions import FormSubmitFailed
 from .utils import UtilsScraper
+from .financeiro import ExtracaoFinanceiro
 from .modelo_1 import Modelo_1
-# from .financeiro import ExtracaoFinanceiro
-# from .contasxitens import Contas_x_itens
+from .contasxitens import Contas_x_itens
 from .database import DatabaseManager
 from pathlib import Path
 
@@ -139,29 +139,7 @@ class ProtheusScraper(UtilsScraper):
             logger.error(f"Falha no login: {str(e)}")
             raise FormSubmitFailed(f"Erro de login: {e}")
 
-    # def _check_excel_file(self, file_path):
-    #     """Verifica se o arquivo é um Excel válido e retorna o tipo"""
-    #     try:
-    #         with open(file_path, 'rb') as f:
-    #             header = f.read(8)
-                
-    #             # Assinatura de arquivos .xlsx (ZIP)
-    #             if header.startswith(b'PK'):
-    #                 return 'xlsx'
-                    
-    #             # Assinatura de arquivos .xls (Compound File Binary Format)
-    #             elif header.startswith(b'\xD0\xCF\x11\xE0\xA1\xB1\x1A\xE1'):
-    #                 return 'xls'
-                    
-    #             else:
-    #                 logger.error(f"Arquivo {file_path} não é um Excel válido")
-    #                 return 'invalid'
-                    
-    #     except Exception as e:
-    #         logger.error(f"Erro ao verificar arquivo {file_path}: {e}")
-    #         return 'error'
-            
-
+    
     def run(self):
         results = []
         
@@ -177,17 +155,17 @@ class ProtheusScraper(UtilsScraper):
 
             
             # 1. Executar Financeiro
-            # try:       
-            #     financeiro = ExtracaoFinanceiro(self.page)
-            #     resultado_financeiro = financeiro.execucao()
-            #     results.append(resultado_financeiro)
+            try:       
+                financeiro = ExtracaoFinanceiro(self.page)
+                resultado_financeiro = financeiro.execucao()
+                results.append(resultado_financeiro)
                 
-            # except Exception as e:
-            #     results.append({
-            #         'status': 'error',
-            #         'message': f'Falha no Financeiro: {str(e)}',
-            #         'etapa': 'financeiro'
-            #     })
+            except Exception as e:
+                results.append({
+                    'status': 'error',
+                    'message': f'Falha no Financeiro: {str(e)}',
+                    'etapa': 'financeiro'
+                })
 
 
             # 2. Executar Modelo_1 (sempre após possível reinicialização)
@@ -204,16 +182,16 @@ class ProtheusScraper(UtilsScraper):
                 })
 
             # 3. Executar Contas x Itens
-            # try:
-            #     contasxitens = Contas_x_itens(self.page)
-            #     resultado_contas = contasxitens.execucao()
-            #     results.append(resultado_contas)
-            # except Exception as e:
-            #     results.append({
-            #         'status': 'error',
-            #         'message': f'Falha em Contas x Itens: {str(e)}',
-            #         'etapa': 'contas_x_itens'
-            #     })
+            try:
+                contasxitens = Contas_x_itens(self.page)
+                resultado_contas = contasxitens.execucao()
+                results.append(resultado_contas)
+            except Exception as e:
+                results.append({
+                    'status': 'error',
+                    'message': f'Falha em Contas x Itens: {str(e)}',
+                    'etapa': 'contas_x_itens'
+                })
 
             
             # 4. Processamento no banco de dados (tenta mesmo com erros anteriores)

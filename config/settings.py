@@ -25,7 +25,7 @@ class Settings:
     LOGS_DIR = BASE_DIR / "logs"
     RESULTS_DIR = BASE_DIR / "results"
     DB_PATH = DATA_DIR / "database.db"
-    PARAMETERS_DIR = BASE_DIR / "parameters"
+    PARAMETERS_DIR =  "parameters"
 
     # Files
     DOWNLOAD_PATH = DATA_DIR 
@@ -77,7 +77,7 @@ class Settings:
     }
 
 
-    # Planilha Modelo 1 (ctbr140.xlsx)
+    
     COLUNAS_MODELO1 = {
         'conta_contabil': 'Conta Contábil',
         'descricao_item': 'Descrição Item',
@@ -88,7 +88,7 @@ class Settings:
         'saldo_atual': 'Saldo Atual'
     }
 
-    # Planilha Contas x Itens (ctbr040.xlsx)
+    
     COLUNAS_CONTAS_ITENS = {
         'descricao_conta': 'Descrição Conta',
         'codigo_fornecedor': 'Código Fornecedor',

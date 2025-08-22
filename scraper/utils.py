@@ -107,9 +107,9 @@ class UtilsScraper:
         ultimo_dia = date(ano_passado, 12, 31).strftime("%d/%m/%Y")
         return ultimo_dia
     
-
     def _carregar_parametros(self, nome_arquivo: str, parametros_json: str = None) -> dict:
         """Carrega parâmetros de um arquivo JSON"""
+
         parametros_path = self.settings.PARAMETERS_DIR / nome_arquivo
         try:
             if parametros_path.exists():
