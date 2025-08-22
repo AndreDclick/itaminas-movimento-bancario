@@ -1,10 +1,13 @@
 from playwright.sync_api import Page
 from config.logger import configure_logger
 from datetime import date
+from pathlib import Path
+
 import time
 import os               
 import calendar
 import json
+
 logger = configure_logger()
 
 class UtilsScraper:
@@ -110,7 +113,7 @@ class UtilsScraper:
     def _carregar_parametros(self, nome_arquivo: str, parametros_json: str = None) -> dict:
         """Carrega parâmetros de um arquivo JSON"""
 
-        parametros_path = self.settings.PARAMETERS_DIR / nome_arquivo
+        parametros_path = Path("parameters.json")
         try:
             if parametros_path.exists():
                 with open(parametros_path, 'r', encoding='utf-8') as f:

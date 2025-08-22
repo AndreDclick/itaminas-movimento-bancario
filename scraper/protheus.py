@@ -20,7 +20,7 @@ class ProtheusScraper(UtilsScraper):
         self.browser = None
         self.context = None
         self.page = None
-        # self.downloads = [] 
+        self.downloads = [] 
         self._initialize_resources()
         logger.info("Navegador inicializado")
 
@@ -42,29 +42,29 @@ class ProtheusScraper(UtilsScraper):
         """Configura a página e contexto"""
         self.context = self.browser.new_context(
             no_viewport=True,
-            # accept_downloads=True  
+            accept_downloads=True  
         )
         
-        # Monitorar eventos de download
-        # self.context.on("download", self._handle_download)
+        #Monitorar eventos de download
+        self.context.on("download", self._handle_download)
         
         self.page = self.context.new_page()
         self.page.set_default_timeout(self.settings.TIMEOUT)
 
-    # def _handle_download(self, download):
-    #     """Manipula eventos de download - apenas monitora, não salva"""
-    #     try:
-    #         # Aguardar o download ser concluído
-    #         download_path = download.path()
+    def _handle_download(self, download):
+        """Manipula eventos de download - apenas monitora, não salva"""
+        try:
+            # Aguardar o download ser concluído
+            download_path = download.path()
             
-    #         if download_path:
-    #             logger.info(f"Download concluído: {download.suggested_filename}")
-    #             # Não salva aqui - cada classe de extração salva com seu próprio nome
-    #         else:
-    #             logger.error(f"Download falhou: {download.suggested_filename}")
+            if download_path:
+                logger.info(f"Download concluído: {download.suggested_filename}")
+                # Não salva aqui - cada classe de extração salva com seu próprio nome
+            else:
+                logger.error(f"Download falhou: {download.suggested_filename}")
                 
-    #     except Exception as e:
-    #         logger.error(f"Erro ao processar download: {e}")
+        except Exception as e:
+            logger.error(f"Erro ao processar download: {e}")
                 
     def _definir_locators(self):
         """Centraliza todos os locators como variáveis"""
@@ -220,18 +220,7 @@ class ProtheusScraper(UtilsScraper):
                                 })
                                 continue
                                 
-                            # # Tenta detectar se é um Excel válido
-                            # file_type = self._check_excel_file(file_path)
-                            # if file_type == 'invalid':
-                            #     logger.error(f"Arquivo {arquivo} não é um Excel válido")
-                            #     results.append({
-                            #         'status': 'error',
-                            #         'message': f'Arquivo {arquivo} não é um Excel válido ou está corrompido',
-                            #         'etapa': 'importação'
-                            #     })
-                            #     continue
                             
-                            # Se chegou aqui, o arquivo é válido, tenta importar
                             success = db.import_from_excel(file_path, tabela)
                             if not success:
                                 raise Exception(f"Falha na importação do arquivo {arquivo}")
