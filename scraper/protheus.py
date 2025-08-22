@@ -3,7 +3,7 @@ from config.settings import Settings
 from config.logger import configure_logger
 from .exceptions import FormSubmitFailed
 from .utils import UtilsScraper
-
+from .modelo_1 import Modelo_1
 # from .financeiro import ExtracaoFinanceiro
 # from .contasxitens import Contas_x_itens
 from .database import DatabaseManager
@@ -192,7 +192,6 @@ class ProtheusScraper(UtilsScraper):
 
             # 2. Executar Modelo_1 (sempre após possível reinicialização)
             try:
-                from .modelo_1 import Modelo_1
                 modelo_1 = Modelo_1(self.page)
                 resultado_modelo = modelo_1.execucao()
                 results.append(resultado_modelo)

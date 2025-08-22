@@ -118,27 +118,3 @@ class Settings:
         os.makedirs(self.LOGS_DIR, exist_ok=True)
         os.makedirs(self.RESULTS_DIR, exist_ok=True)
         os.makedirs(self.PARAMETERS_DIR, exist_ok=True)
-
-        # Carrega os arquivos Json que se encontra na pasta "parameters"a
-        self.parametros_modelo_1 = self._carregar_parametros('modelo_1.json')
-        # self.parametros_financeiro = self._carregar_parametros('financeiro.json')
-        # self.parametros_contas_itens = self._carregar_parametros('contasxtens.json') 
-    
-    def _carregar_parametros(self, nome_arquivo: str) -> dict:
-        """Carrega parâmetros de um arquivo JSON"""
-        parametros_path = self.PARAMETERS_DIR / nome_arquivo
-        try:
-            if parametros_path.exists():
-                with open(parametros_path, 'r', encoding='utf-8') as f:
-                    parametros = json.load(f)
-                    print(f"Parâmetros carregados: {nome_arquivo}")
-                    return parametros
-            else:
-                print(f"❌ Arquivo de parâmetros não encontrado: {parametros_path}")
-                return {}
-        except json.JSONDecodeError as e:
-            print(f"❌ Erro ao decodificar JSON {nome_arquivo}: {e}")
-            return {}
-        except Exception as e:
-            print(f"❌ Erro ao carregar parâmetros {nome_arquivo}: {e}")
-            return {}
