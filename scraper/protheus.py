@@ -3,8 +3,8 @@ from config.settings import Settings
 from config.logger import configure_logger
 from .exceptions import FormSubmitFailed
 from .utils import UtilsScraper
-from .modelo_1 import Modelo_1
 from .financeiro import ExtracaoFinanceiro
+from .modelo_1 import Modelo_1
 from .contasxitens import Contas_x_itens
 from .database import DatabaseManager
 from pathlib import Path
@@ -20,6 +20,7 @@ class ProtheusScraper(UtilsScraper):
         self.browser = None
         self.context = None
         self.page = None
+        self.downloads = [] 
         self._initialize_resources()
         logger.info("Navegador inicializado")
 
@@ -29,21 +30,42 @@ class ProtheusScraper(UtilsScraper):
         self._setup_browser()
         self._setup_page()
         self._definir_locators()
-
     def _setup_browser(self):
-        """Configura o navegador Edge"""
-        self.browser = self.playwright.chromium.launch(
-            headless=self.settings.HEADLESS,
-            args=["--start-maximized"],
-            channel="msedge"
-        )
+            """Configura o navegador Edge"""
+            self.browser = self.playwright.chromium.launch(
+                headless=self.settings.HEADLESS,
+                args=["--start-maximized"],
+                channel="msedge"
+            )
 
     def _setup_page(self):
         """Configura a página e contexto"""
-        self.context = self.browser.new_context(no_viewport=True)
+        self.context = self.browser.new_context(
+            no_viewport=True,
+            accept_downloads=True  
+        )
+        
+        #Monitorar eventos de download
+        self.context.on("download", self._handle_download)
+        
         self.page = self.context.new_page()
         self.page.set_default_timeout(self.settings.TIMEOUT)
 
+    def _handle_download(self, download):
+        """Manipula eventos de download - apenas monitora, não salva"""
+        try:
+            # Aguardar o download ser concluído
+            download_path = download.path()
+            
+            if download_path:
+                logger.info(f"Download concluído: {download.suggested_filename}")
+                # Não salva aqui - cada classe de extração salva com seu próprio nome
+            else:
+                logger.error(f"Download falhou: {download.suggested_filename}")
+                
+        except Exception as e:
+            logger.error(f"Erro ao processar download: {e}")
+                
     def _definir_locators(self):
         """Centraliza todos os locators como variáveis"""
         self.locators = {
@@ -75,7 +97,7 @@ class ProtheusScraper(UtilsScraper):
     def start_scraper(self):
         """Inicia o navegador e página inicial"""
         try:
-            logger.info(f"Navegando para: {self.settings.BASE_URL}")
+            logger.info(f"Navegando para: Protheus")
             self.page.goto(self.settings.BASE_URL)
             if self.locators['botao_ok'].is_visible():
                 self.locators['botao_ok'].click()
@@ -117,58 +139,62 @@ class ProtheusScraper(UtilsScraper):
             logger.error(f"Falha no login: {str(e)}")
             raise FormSubmitFailed(f"Erro de login: {e}")
 
-
+    
     def run(self):
         results = []
         
         try:
             # 0. Inicialização e login
-            # self.start_scraper()
-            # self.login()
-            # results.append({
-            #     'status': 'success',
-            #     'message': 'Login realizado com sucesso',
-            #     'etapa': 'autenticação'
-            # })
+            self.start_scraper()
+            self.login()
+            results.append({
+                'status': 'success',
+                'message': 'Login realizado com sucesso',
+                'etapa': 'autenticação'
+            })
 
-            # try:       
-            #     financeiro = ExtracaoFinanceiro(self.page)
-            #     resultado_financeiro = financeiro.execucao()
-            #     results.append(resultado_financeiro)
+            
+            # 1. Executar Financeiro
+            try:       
+                financeiro = ExtracaoFinanceiro(self.page)
+                resultado_financeiro = financeiro.execucao()
+                results.append(resultado_financeiro)
                 
-            #     # Se Financeiro rodou, executa Modelo_1 em seguida
-            #     modelo_1 = Modelo_1(self.page)
-            #     resultado_modelo = modelo_1.execucao()
-            #     results.append(resultado_modelo)
+            except Exception as e:
+                results.append({
+                    'status': 'error',
+                    'message': f'Falha no Financeiro: {str(e)}',
+                    'etapa': 'financeiro'
+                })
 
-            # except Exception as e:
-            #     # Se Financeiro falhar, reinicia e roda APENAS Modelo_1
-            #     results.append({
-            #         'status': 'error',
-            #         'message': f'Falha no Financeiro, tentando Modelo_1: {str(e)}',
-            #         'etapa': 'financeiro_fallback'
-            #     })
-                
-            #     self.start_scraper()
-            #     self.login()
-                
-            #     modelo_1 = Modelo_1(self.page)
-            #     resultado_modelo = modelo_1.execucao()
-            #     results.append(resultado_modelo)
 
-            # # 2. Executa Contas x Itens (independente de erros anteriores)
-            # try:
-            #     contasxitens = Contas_x_itens(self.page)
-            #     resultado_contas = contasxitens.execucao()
-            #     results.append(resultado_contas)
-            # except Exception as e:
-            #     results.append({
-            #         'status': 'error',
-            #         'message': f'Falha em Contas x Itens: {str(e)}',
-            #         'etapa': 'contas_x_itens'
-            #     })
+            # 2. Executar Modelo_1 (sempre após possível reinicialização)
+            try:
+                modelo_1 = Modelo_1(self.page)
+                resultado_modelo = modelo_1.execucao()
+                results.append(resultado_modelo)
+            except Exception as e:
+                print(f"❌ Exceção modelo_1"),
+                results.append({
+                    'status': 'error',
+                    'message': f'Falha no Modelo_1: {str(e)}',
+                    'etapa': 'modelo_1'
+                })
 
-            # 3. Processamento no banco de dados (tenta mesmo com erros anteriores)
+            # 3. Executar Contas x Itens
+            try:
+                contasxitens = Contas_x_itens(self.page)
+                resultado_contas = contasxitens.execucao()
+                results.append(resultado_contas)
+            except Exception as e:
+                results.append({
+                    'status': 'error',
+                    'message': f'Falha em Contas x Itens: {str(e)}',
+                    'etapa': 'contas_x_itens'
+                })
+
+            
+            # 4. Processamento no banco de dados (tenta mesmo com erros anteriores)
             try:
                 with DatabaseManager() as db:
                     caminho_planilhas = Path(self.settings.CAMINHO_PLS)
@@ -182,22 +208,37 @@ class ProtheusScraper(UtilsScraper):
                     
                     for nome, arquivo, tabela in importacoes:
                         try:
-                            success = db.import_from_excel(caminho_planilhas / arquivo, tabela)
+                            file_path = caminho_planilhas / arquivo
+                            
+                            # Verifica se o arquivo existe e é válido
+                            if not file_path.exists():
+                                logger.error(f"Arquivo {arquivo} não encontrado")
+                                results.append({
+                                    'status': 'error',
+                                    'message': f'Arquivo {arquivo} não encontrado',
+                                    'etapa': 'importação'
+                                })
+                                continue
+                                
+                            
+                            success = db.import_from_excel(file_path, tabela)
                             if not success:
-                                raise Exception(f"Arquivo {arquivo} não encontrado ou inválido")
+                                raise Exception(f"Falha na importação do arquivo {arquivo}")
+                            
                             results.append({
                                 'status': 'success',
                                 'message': f'Planilha {nome} importada com sucesso',
                                 'etapa': 'importação'
                             })
+                            
                         except Exception as e:
                             results.append({
                                 'status': 'error',
                                 'message': f'Falha ao importar {nome}: {str(e)}',
                                 'etapa': 'importação'
                             })
-                            continue  # Continua para próxima importação
-                    
+                            continue
+                                
                     # Processa os dados (se pelo menos uma importação teve sucesso)
                     try:
                         if not db.process_data():
@@ -224,7 +265,7 @@ class ProtheusScraper(UtilsScraper):
                     'etapa': 'database'
                 })
 
-            # 4. Verificação final
+            # 5 Verificação final
             if any(r['status'] == 'error' for r in results):
                 logger.warning("Processo concluído com erros parciais")
             else:

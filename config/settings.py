@@ -1,4 +1,5 @@
 import os
+import json
 from pathlib import Path
 from datetime import datetime, timedelta  
 from dotenv import load_dotenv
@@ -14,16 +15,21 @@ class Settings:
     SENHA = os.getenv("SENHA")
     BASE_URL = os.getenv("BASE_URL")
     CAMINHO_PLS = os.getenv("CAMINHO_PLANILHAS")
+    
+    #Planilhas
+    CAMINHO_PLS = os.getenv("CAMINHO_PLANILHAS")
     PLS_FINANCEIRO = os.getenv("PLANILHA_FINANCEIRO")
     PLS_MODELO_1 = os.getenv("PLANILHA_MODELO_1")
-    PLS_CONTAS_X_ITENS = os.getenv("PLANILHA_CONTAS_X_ITENS")
-    
+    COLUNAS_CONTAS_ITENS = os.getenv("FORNECEDOR_NACIONAL")
+    COLUNAS_ADIANTAMENTO = os.getenv("ADIANTAMENTO_NACIONAL")
+
     # Paths
     DATA_DIR = BASE_DIR / "data"
     LOGS_DIR = BASE_DIR / "logs"
     RESULTS_DIR = BASE_DIR / "results"
     DB_PATH = DATA_DIR / "database.db"
-    
+    PARAMETERS_DIR = "parameters"
+
     # Files
     DOWNLOAD_PATH = DATA_DIR 
     RESULTS_PATH = RESULTS_DIR 
@@ -37,14 +43,8 @@ class Settings:
     TABLE_FINANCEIRO = "financeiro"
     TABLE_MODELO1 = "modelo1"
     TABLE_CONTAS_ITENS = "contas_itens"
+    TABLE_ADIANTAMENTO = "adiantamento"
     TABLE_RESULTADO = "resultado"
-    
-    # Mapeamento de colunas 
-    COLUNAS_FINANCEIRO = {
-        "fornecedor": "Fornecedor",
-        "titulo": "Título",
-        "saldo_devedor": "Saldo Devedor"
-    }
     
     # Timeouts
     TIMEOUT = 30000  
@@ -52,7 +52,7 @@ class Settings:
     SHUTDOWN_DELAY = 3 
     
     # Browser
-    HEADLESS = False
+    HEADLESS = True
     
     # Planilhas
     FORNECEDORES_EXCLUIR = ['NDF', 'PA']  
@@ -73,28 +73,41 @@ class Settings:
         'centro_custo': 'Porta- dor'
     }
 
-
-    # Planilha Modelo 1 (ctbr140.xlsx)
+    # Planilha Modelo 1 (ctbr040.xlsx)
     COLUNAS_MODELO1 = {
-        'descricao_conta': 'Descrição Conta',
-        'codigo_fornecedor': 'Código Fornecedor',
-        'descricao_fornecedor': 'Descrição Fornecedor',
-        'saldo_anterior': 'Saldo Anterior',
-        'debito': 'Débito',
-        'credito': 'Crédito',
-        'movimento_periodo': 'Movimento Período',
-        'saldo_atual': 'Saldo Atual'
+        'conta_contabil': 'Conta',
+        'descricao_conta': 'Descricao',
+        'saldo_anterior': 'Saldo anterior',
+        'debito': 'Debito',
+        'credito': 'Credito',
+        'movimento_periodo': 'Mov  periodo',
+        'saldo_atual': 'Saldo atual'
     }
 
-    # Planilha Contas x Itens (ctbr040.xlsx)
+    # Planilha Fornecedor Nacional (ctbr140.txt)
     COLUNAS_CONTAS_ITENS = {
-        'conta_contabil': 'Conta Contábil',
-        'descricao_item': 'Descrição Item',
-        'saldo_anterior': 'Saldo Anterior',
-        'debito': 'Débito',
-        'credito': 'Crédito',
-        'movimento_periodo': 'Movimento Período',
-        'saldo_atual': 'Saldo Atual'
+        'conta_contabil': 'Codigo',
+        'descricao_item': 'Descricao',
+        'codigo_fornecedor': 'Codigo.1',
+        'descricao_fornecedor': 'Descricao.1',
+        'saldo_anterior': 'Saldo anterior',
+        'debito': 'Debito',
+        'credito': 'Credito',
+        'movimento_periodo': 'Movimento do periodo',
+        'saldo_atual': 'Saldo atual'
+    }
+
+    # Planilha Adiantamento Nacional (ctbr100.txt)
+    COLUNAS_ADIANTAMENTO = {
+        'conta_contabil': 'Codigo',
+        'descricao_item': 'Descricao',
+        'codigo_fornecedor': 'Codigo.1',
+        'descricao_fornecedor': 'Descricao.1',
+        'saldo_anterior': 'Saldo anterior',
+        'debito': 'Debito',
+        'credito': 'Credito',
+        'movimento_periodo': 'Movimento do periodo',
+        'saldo_atual': 'Saldo atual'
     }
 
     def __init__(self):

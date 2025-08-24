@@ -98,6 +98,21 @@ class DatabaseManager:
                 )
             """)
             
+            cursor.execute(f"""
+                CREATE TABLE IF NOT EXISTS {self.settings.TABLE_ADIANTAMENTO} (
+                    id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    conta_contabil TEXT,
+                    descricao_item TEXT,
+                    codigo_fornecedor TEXT,
+                    descricao_fornecedor TEXT,
+                    saldo_anterior REAL DEFAULT 0,
+                    debito REAL DEFAULT 0,
+                    credito REAL DEFAULT 0,
+                    saldo_atual REAL DEFAULT 0,
+                    data_processamento TEXT DEFAULT CURRENT_TIMESTAMP
+                )
+            """)
+
             # Cria tabela resultado (concatenação) se não existir
             cursor.execute(f"""
                 CREATE TABLE IF NOT EXISTS {self.settings.TABLE_RESULTADO} (
@@ -188,62 +203,94 @@ class DatabaseManager:
         return df
 
     def import_from_excel(self, file_path, table_name):
-        """Importa dados de arquivo Excel para a tabela especificada"""
+        """Importa dados de arquivo Excel/TXT/XML para a tabela especificada"""
         try:
-            # Lê o arquivo Excel (pula a primeira linha como header)
-            df = pd.read_excel(file_path, header=1)  
+            filename = Path(file_path).stem.lower()
+
+            # Determina a tabela destino baseada no nome do arquivo
+            if 'ctbr100' in filename:
+                table_name = self.settings.TABLE_ADIANTAMENTO
+            elif 'ctbr140' in filename:
+                table_name = self.settings.TABLE_CONTAS_ITENS
+            elif 'ctbr040' in filename:
+                table_name = self.settings.TABLE_MODELO1
+            elif 'finr150' in filename:
+                table_name = self.settings.TABLE_FINANCEIRO
+
+            ext = Path(file_path).suffix.lower()
+            
+            if ext == ".xlsx":
+                df = pd.read_excel(file_path, header=1)
+
+            elif ext == ".xml":
+                try:
+                    # Tenta ler como XML estruturado
+                    df = pd.read_xml(file_path)
+                except Exception:
+                    # Fallback: alguns XML do Protheus são HTML disfarçado
+                    df = pd.read_html(file_path, encoding="latin1")[0]
+
+            elif ext == ".txt":
+                try:
+                    df = pd.read_csv(file_path, sep=";", encoding="latin1", header=1)
+                except Exception:
+                    df = pd.read_csv(file_path, sep="\t", encoding="latin1", header=1)
+
+            else:
+                raise ValueError(f"Formato de arquivo não suportado: {ext}")
+
             logger.info(f"Colunas originais em {file_path}: {df.columns.tolist()}")
+
             # Limpa caracteres especiais dos nomes das colunas
             df.columns = df.columns.str.replace(r'_x000D_\n', ' ', regex=True).str.strip()
             logger.info(f"Colunas após limpeza: {df.columns.tolist()}")
-            
-            # Obtém mapeamento de colunas baseado no nome do arquivo
+
+            # Aplica mapeamento de colunas
             column_mapping = self._get_column_mapping(Path(file_path))
             df.rename(columns=column_mapping, inplace=True)
             logger.info(f"Colunas após mapeamento: {df.columns.tolist()}")
-            
+
             # Verifica colunas obrigatórias
             expected_columns = self.get_expected_columns(table_name)
             missing_mappings = [col for col in expected_columns if col not in df.columns]
 
             if missing_mappings:
                 logger.warning(f"Colunas mapeadas não encontradas: {missing_mappings}")
-                # Tenta aplicar sugestões automáticas
                 df = self.aplicar_sugestoes_colunas(df, missing_mappings)
                 remaining_missing = [col for col in expected_columns if col not in df.columns]
-                
-                # Trata colunas específicas que podem ser derivadas
+
                 if remaining_missing:
                     if 'parcela' in remaining_missing and 'titulo' in df.columns:
-                        # Extrai número da parcela do título
                         df['parcela'] = df['titulo'].astype(str).str.extract(r'(\d+)$').fillna('1')
                         logger.warning("Coluna 'parcela' criada a partir do título")
                         remaining_missing.remove('parcela')
-                    
+
                     if 'conta_contabil' in remaining_missing:
-                        # Define valor padrão para conta contábil
-                        df['conta_contabil'] = 'CONTA_PADRAO' 
+                        df['conta_contabil'] = 'CONTA_PADRAO'
                         logger.warning("Coluna 'conta_contabil' preenchida com valor padrão")
                         remaining_missing.remove('conta_contabil')
-                    
+
                     if remaining_missing:
                         logger.error(f"Colunas obrigatórias ausentes após tratamento: {remaining_missing}")
                         raise ValueError(f"Colunas obrigatórias ausentes: {remaining_missing}")
 
             # Limpa e prepara os dados
             df = self._clean_dataframe(df, table_name.lower())
-            # Obtém colunas da tabela destino
+
+            # Mantém apenas colunas que existem na tabela destino
             table_columns = [col[1] for col in self.conn.execute(f"PRAGMA table_info({table_name})").fetchall()]
-            # Mantém apenas colunas que existem na tabela
             keep = [col for col in df.columns if col in table_columns]
             df = df[keep]
+
             # Insere dados no banco
             df.to_sql(table_name, self.conn, if_exists='append', index=False)
             logger.info(f"Dados importados para '{table_name}' com sucesso.")
-            return True  
+            return True
+
         except Exception as e:
             logger.error(f"Falha ao importar {file_path}: {e}", exc_info=True)
             return False
+
     
     def get_expected_columns(self, table_name):
         """Retorna lista de colunas esperadas para cada tipo de tabela"""
@@ -255,17 +302,20 @@ class DatabaseManager:
             ]
         elif table_name == self.settings.TABLE_MODELO1:
             return [
-                'conta_contabil', 'descricao_conta', 'codigo_fornecedor', 'descricao_fornecedor',
+                'conta_contabil', 'descricao_conta',
                 'saldo_anterior', 'debito', 'credito', 'saldo_atual'
             ]
         elif table_name == self.settings.TABLE_CONTAS_ITENS:
             return [
-                'conta_contabil',
-                'descricao_item',
-                'saldo_anterior',
-                'debito',
-                'credito',
-                'saldo_atual'
+                'conta_contabil', 'descricao_item',
+                'codigo_fornecedor', 'descricao_fornecedor',
+                'saldo_anterior', 'debito', 'credito', 'saldo_atual'
+            ]
+        elif table_name == self.settings.TABLE_ADIANTAMENTO:
+            return [
+                'conta_contabil', 'descricao_item',
+                'codigo_fornecedor', 'descricao_fornecedor',
+                'saldo_anterior', 'debito', 'credito', 'saldo_atual'
             ]
         else:
             raise ValueError(f"Tabela desconhecida: {table_name}")
@@ -325,8 +375,8 @@ class DatabaseManager:
         return df
 
     def _clean_modelo1_data(self, df):
-        """Limpeza específica para dados do modelo1 (contábil)"""
-        # Classifica tipo de fornecedor baseado na descrição
+        """Limpeza específica para dados do modelo1 (ctbr040) - AGORA SEM FORNECEDOR EXPLÍCITO"""
+        # Classifica tipo de fornecedor baseado na descrição da conta
         if 'descricao_conta' in df.columns:
             df['tipo_fornecedor'] = df['descricao_conta'].apply(
                 lambda x: 'FORNECEDOR NACIONAL' if 'FORNEC' in str(x).upper() and 'NAC' in str(x).upper()
@@ -334,15 +384,17 @@ class DatabaseManager:
                 else 'OUTROS'
             )
         
-        # Garante colunas de fornecedor
+        # AGORA: ctbr040 não tem código/descrição fornecedor, então preenchemos com base na descrição da conta
         if 'codigo_fornecedor' not in df.columns:
             df['codigo_fornecedor'] = None
         if 'descricao_fornecedor' not in df.columns:
             df['descricao_fornecedor'] = None
         
-        # Tenta extrair código do fornecedor da descrição
+        # Tenta extrair código do fornecedor da descrição da conta
         if df['codigo_fornecedor'].isna().all() and 'descricao_conta' in df.columns:
+            # Extrai possíveis códigos da descrição
             df['codigo_fornecedor'] = df['descricao_conta'].str.extract(r'(\d{3,})', expand=False)
+            df['descricao_fornecedor'] = df['descricao_conta']
         
         # Limpa e converte colunas numéricas
         num_cols = ['saldo_anterior', 'debito', 'credito', 'saldo_atual']
@@ -358,7 +410,7 @@ class DatabaseManager:
         return df
 
     def _clean_contas_itens_data(self, df):
-        """Limpeza específica para dados de contas x itens"""
+        """Limpeza específica para dados de contas x itens (ctbr140 e ctbr100)"""
         # Limpa e converte colunas numéricas
         num_cols = ['saldo_anterior', 'debito', 'credito', 'saldo_atual']
         for col in num_cols:
@@ -370,63 +422,28 @@ class DatabaseManager:
                     errors='coerce'
                 ).fillna(0)
         
-        # Preenche colunas derivadas se não existirem
-        if 'item' not in df.columns:
-            df['item'] = df.get('descricao_item', '').str[:50]  # Limita a 50 caracteres
-            
-        if 'quantidade' not in df.columns:
-            df['quantidade'] = 1  # Valor padrão
-            
-        if 'valor_unitario' not in df.columns and 'saldo_atual' in df.columns:
-            df['valor_unitario'] = df['saldo_atual']  # Usa saldo como valor unitário
-            
-        if 'valor_total' not in df.columns and 'saldo_atual' in df.columns:
-            df['valor_total'] = df['saldo_atual']  # Usa saldo como valor total
-
         return df
     
     def _get_column_mapping(self, file_path: Path):
         """Retorna mapeamento de colunas baseado no nome do arquivo"""
         filename = file_path.stem.lower()
         
-        # Mapeamento para arquivos financeiros
-        if 'finr' in filename:
-            return {
-                'Codigo-Nome do Fornecedor': 'fornecedor',
-                'Prf-Numero Parcela': 'titulo',
-                'Tp': 'tipo_titulo',
-                'Data de Emissao': 'data_emissao',
-                'Data de Vencto': 'data_vencimento',
-                'Valor Original': 'valor_original',
-                'Tit Vencidos Valor nominal': 'saldo_devedor',
-                'Natureza': 'situacao',
-                'Porta- dor': 'centro_custo'
-            }
-        # Mapeamento para arquivos contábeis CTBR140
-        elif 'ctbr140' in filename:
-            return {
-                'Codigo': 'conta_contabil',
-                'Descricao': 'descricao_conta',
-                'Codigo.1': 'codigo_fornecedor',
-                'Descricao.1': 'descricao_fornecedor',
-                'Saldo anterior': 'saldo_anterior',
-                'Debito': 'debito',
-                'Credito': 'credito',
-                'Movimento do periodo': 'movimento_periodo',
-                'Saldo atual': 'saldo_atual'
-            }
-
-        # Mapeamento para arquivos contábeis CTBR040
+        # Mapeamento para arquivos financeiros (finr150.xlsx)
+        if 'finr150' in filename:
+            return self.settings.COLUNAS_FINANCEIRO
+        
+        # Mapeamento para MODELO1 (CTBR040.xlsx)
         elif 'ctbr040' in filename:
-            return {
-                'Conta': 'conta_contabil',
-                'Descricao': 'descricao_item',   
-                'Saldo anterior': 'saldo_anterior',
-                'Debito': 'debito',
-                'Credito': 'credito',
-                'Mov  periodo': 'movimento_periodo',
-                'Saldo atual': 'saldo_atual'
-            }
+            return self.settings.COLUNAS_MODELO1
+        
+        # Mapeamento para FORNECEDOR_NACIONAL (CTBR140.xlsx)
+        elif 'ctbr140' in filename:
+            return self.settings.COLUNAS_CONTAS_ITENS
+        
+        # Mapeamento para ADIANTAMENTO_NACIONAL (CTBR100.xlsx)
+        elif 'ctbr100' in filename:
+            return self.settings.COLUNAS_ADIANTAMENTO
+        
         else:
             raise ValueError(f"Tipo de planilha não reconhecido: {file_path.name}")
     
@@ -460,34 +477,46 @@ class DatabaseManager:
             """
             cursor.execute(query_financeiro)
             
-            # Atualiza com dados contábeis correspondentes
+            # MODELO1 é ctbr040 
             query_contabil_update = f"""
                 UPDATE {self.settings.TABLE_RESULTADO}
                 SET 
                     saldo_contabil = (
                         SELECT COALESCE(SUM(saldo_atual),0)
                         FROM {self.settings.TABLE_MODELO1} m
-                        WHERE 
-                            (m.codigo_fornecedor IS NOT NULL AND m.codigo_fornecedor <> '' AND m.codigo_fornecedor = {self.settings.TABLE_RESULTADO}.codigo_fornecedor)
-                            OR m.descricao_conta LIKE '%' || {self.settings.TABLE_RESULTADO}.codigo_fornecedor || '%'
+                        WHERE m.descricao_conta LIKE '%' || {self.settings.TABLE_RESULTADO}.codigo_fornecedor || '%'
+                           OR m.codigo_fornecedor = {self.settings.TABLE_RESULTADO}.codigo_fornecedor
                     ),
                     detalhes = (
                         SELECT GROUP_CONCAT(COALESCE(m.tipo_fornecedor,'') || ': ' || m.saldo_atual, ' | ')
                         FROM {self.settings.TABLE_MODELO1} m
-                        WHERE 
-                            (m.codigo_fornecedor IS NOT NULL AND m.codigo_fornecedor <> '' AND m.codigo_fornecedor = {self.settings.TABLE_RESULTADO}.codigo_fornecedor)
-                            OR m.descricao_conta LIKE '%' || {self.settings.TABLE_RESULTADO}.codigo_fornecedor || '%'
+                        WHERE m.descricao_conta LIKE '%' || {self.settings.TABLE_RESULTADO}.codigo_fornecedor || '%'
+                           OR m.codigo_fornecedor = {self.settings.TABLE_RESULTADO}.codigo_fornecedor
                     )
                 WHERE EXISTS (
                     SELECT 1
                     FROM {self.settings.TABLE_MODELO1} m2
-                    WHERE 
-                        (m2.codigo_fornecedor IS NOT NULL AND m2.codigo_fornecedor <> '' AND m2.codigo_fornecedor = {self.settings.TABLE_RESULTADO}.codigo_fornecedor)
-                        OR m2.descricao_conta LIKE '%' || {self.settings.TABLE_RESULTADO}.codigo_fornecedor || '%'
+                    WHERE m2.descricao_conta LIKE '%' || {self.settings.TABLE_RESULTADO}.codigo_fornecedor || '%'
+                       OR m2.codigo_fornecedor = {self.settings.TABLE_RESULTADO}.codigo_fornecedor
                 )
             """
             cursor.execute(query_contabil_update)
             
+            query_adiantamento = f"""
+                UPDATE {self.settings.TABLE_RESULTADO}
+                SET 
+                    saldo_contabil = saldo_contabil + (
+                        SELECT COALESCE(SUM(saldo_atual),0)
+                        FROM {self.settings.TABLE_ADIANTAMENTO} a
+                        WHERE a.codigo_fornecedor = {self.settings.TABLE_RESULTADO}.codigo_fornecedor
+                    )
+                WHERE EXISTS (
+                    SELECT 1
+                    FROM {self.settings.TABLE_ADIANTAMENTO} a2
+                    WHERE a2.codigo_fornecedor = {self.settings.TABLE_RESULTADO}.codigo_fornecedor
+                )
+            """
+            cursor.execute(query_adiantamento)
             # Insere dados contábeis que não tiveram match financeiro
             query_contabeis_sem_match = f"""
                 INSERT INTO {self.settings.TABLE_RESULTADO}
@@ -781,29 +810,6 @@ class DatabaseManager:
         data_final = hoje
         logger.warning("USANDO VERSÃO TEMPORÁRIA DE _get_datas_referencia() - IGNORANDO VERIFICAÇÃO DE DIA 20/ÚLTIMO DIA")
         return data_inicial.strftime("%d/%m/%Y"), data_final.strftime("%d/%m/%Y")
-        """Retorna datas de referência ajustando para feriados"""
-        # cal = Brazil()
-        # hoje = datetime.now().date()
-
-        # # Ajusta a data se não for dia útil
-        # if not cal.is_working_day(hoje):
-        #     hoje = cal.add_working_days(hoje, 1)
-        #     logger.warning(f"Data ajustada para o próximo dia útil: {hoje.strftime('%d/%m/%Y')}")
-
-        # # Verifica se é dia 20 ou último dia do mês
-        # if hoje.day == 20 or hoje.day == self._ultimo_dia_mes(hoje).day:
-        #     if hoje.day == 20:
-        #         data_inicial = hoje.replace(day=1)
-        #     else:
-        #         data_inicial = hoje.replace(day=1)
-            
-        #     # Garante que as datas são dias úteis
-        #     data_inicial = cal.add_working_days(data_inicial - timedelta(days=1), 1)
-        #     data_final = hoje
-            
-        #     return data_inicial.strftime("%d/%m/%Y"), data_final.strftime("%d/%m/%Y")
-        # else:
-        #     raise ValueError("Processamento só deve ocorrer no dia 20 ou último dia do mês")
 
     def _ultimo_dia_mes(self, date):
         """Retorna o último dia do mês da data fornecida"""
@@ -977,6 +983,24 @@ class DatabaseManager:
             df_contabil = pd.read_sql(query_contabil, self.conn)
             df_contabil.to_excel(writer, sheet_name='Balancete', index=False)
             
+            query_adiantamento = f"""
+                SELECT 
+                    conta_contabil as "Conta Contábil",
+                    descricao_item as "Descrição Item",
+                    codigo_fornecedor as "Código Fornecedor",
+                    descricao_fornecedor as "Descrição Fornecedor",
+                    saldo_anterior as "Saldo Anterior",
+                    debito as "Débito",
+                    credito as "Crédito",
+                    saldo_atual as "Saldo Atual"
+                FROM 
+                    {self.settings.TABLE_ADIANTAMENTO}
+                ORDER BY 
+                    codigo_fornecedor
+            """
+            df_adiantamento = pd.read_sql(query_adiantamento, self.conn)
+            df_adiantamento.to_excel(writer, sheet_name='Adiantamentos', index=False)
+
             # Cria aba de Metadados
             metadata = {
                 'Item': [

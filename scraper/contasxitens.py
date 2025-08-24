@@ -1,7 +1,9 @@
 from playwright.sync_api import sync_playwright, TimeoutError 
 from config.logger import configure_logger
+from config.settings import Settings
 from .utils import UtilsScraper
 from datetime import date
+from pathlib import Path
 
 import calendar
 import time
@@ -13,6 +15,8 @@ class Contas_x_itens(UtilsScraper):
         """Inicializa o Contas X Itens com a página do navegador"""
         self.page = page
         self._definir_locators()
+        self.settings = Settings() 
+        self.parametros_json = 'contasxitens'
         logger.info("Contas_x_itens inicializado")
 
     def _definir_locators(self):
@@ -57,7 +61,6 @@ class Contas_x_itens(UtilsScraper):
         }
         logger.info("Seledores definidos")
 
-
     def _navegar_menu(self):
         """navegação no menu"""
         try:
@@ -85,29 +88,17 @@ class Contas_x_itens(UtilsScraper):
             
             raise
 
-    def primeiro_e_ultimo_dia(self):
-        hoje = date.today()
-        mes_passado = hoje.month - 1 if hoje.month > 1 else 12
-        ano_mes_passado = hoje.year if hoje.month > 1 else hoje.year - 1
-        
-        primeiro_dia = date(ano_mes_passado, mes_passado, 1).strftime("%d/%m/%Y")
-        ultimo_dia_num = calendar.monthrange(ano_mes_passado, mes_passado)[1]
-        ultimo_dia = date(ano_mes_passado, mes_passado, ultimo_dia_num).strftime("%d/%m/%Y")
-        
-        return primeiro_dia, ultimo_dia
-
-    def _preencher_parametros(self):
-        # primeiro, ultimo = self.primeiro_e_ultimo_dia()
-        # input_data_inicial = primeiro
-        # input_data_final = ultimo
-        input_data_inicial = '01/04/2025'
-        input_data_final = '30/04/2025'
-        input_conta_inicial = '20102010001'
-        input_conta_final = '20102010001'
-        input_folha_inicial = '2'
-        input_desc_moeda = '01'
-        input_imprime_saldo = '1'
-        input_data_lucros = '30/06/2024'
+    def _preencher_parametros(self, conta):
+        logger.info(f"Usando chave JSON: {self.parametros_json}")
+        # Resolver valores dinâmicos
+        # input_data_inicial = self._resolver_valor(self.parametros.get('data_inicial'))
+        # input_data_final = self._resolver_valor(self.parametros.get('data_final'))
+        input_data_inicial =self.parametros.get('data_inicial')
+        input_data_final = self.parametros.get('data_final')
+        input_folha_inicial = self.parametros.get('folha_inicial')
+        input_desc_moeda = self.parametros.get('desc_moeda')
+        input_imprime_saldo = self.parametros.get('imprime_saldo')
+        input_data_lucros = self.parametros.get('data_lucros')
         try:
             # parâmetros
             self.locators['data_inicial'].wait_for(state="visible")
@@ -118,10 +109,10 @@ class Contas_x_itens(UtilsScraper):
             self.locators['data_final'].fill(input_data_final)
             time.sleep(0.5) 
             self.locators['conta_inicial'].click()
-            self.locators['conta_inicial'].fill(input_conta_inicial)
+            self.locators['conta_inicial'].fill(conta)
             time.sleep(0.5) 
             self.locators['conta_final'].click()
-            self.locators['conta_final'].fill(input_conta_final)  
+            self.locators['conta_final'].fill(conta)  
             time.sleep(0.5) 
             self.locators['imprime_item'].click()     
             self.locators['imprime_item'].select_option("1")
@@ -144,6 +135,8 @@ class Contas_x_itens(UtilsScraper):
             self.locators['imp_tot_cta'].click()
             self.locators['imp_tot_cta'].select_option("0")
             time.sleep(0.5)
+            self.locators['pula_pagina'].click()
+            self.locators['pula_pagina'].select_option("0")
             self.locators['salta_linha'].click()
             self.locators['salta_linha'].select_option("1")
             time.sleep(0.5)
@@ -173,7 +166,8 @@ class Contas_x_itens(UtilsScraper):
             logger.error(f"Falha no preenchimento de parâmetros {e}")
             raise
 
-    def _gerar_planilha (self):
+    def _gerar_planilha(self, conta):
+        """Gera e baixa a planilha """
         try: 
             self.locators['aba_planilha'].wait_for(state="visible")
             time.sleep(1) 
@@ -184,36 +178,86 @@ class Contas_x_itens(UtilsScraper):
                 self.locators['aba_planilha'].click()
                 time.sleep(1)
             
-            self.locators['formato'].select_option("3")
-            time.sleep(1) 
-            self.locators['botao_imprimir'].click()
-            time.sleep(5)
-            if self.locators['botao_sim'].is_visible():
-                self.locators['botao_sim'].click()
-            self.locators['menu_relatorios'].wait_for(state="visible", timeout=100000)
+            self.locators['formato'].select_option("2")
+            # time.sleep(1) 
+            # self.locators['botao_imprimir'].click()
+            # logger.info(f"Botão download clicado")
+            # time.sleep(2)
+            # if 'botao_sim' in self.locators and self.locators['botao_sim'].is_visible():
+            #     self.locators['botao_sim'].click()
+            # time.sleep(2)
+            # self._fechar_popup_se_existir()
+
+            # Esperar pelo download com timeout aumentado
+            with self.page.expect_download(timeout=180000) as download_info:
+                self.locators['botao_imprimir'].click()
+                logger.info(f"Botão download clicado")
+                time.sleep(2)
+                if 'botao_sim' in self.locators and self.locators['botao_sim'].is_visible():
+                    self.locators['botao_sim'].click()
+                time.sleep(2)
+                self._fechar_popup_se_existir()
+                
+            
+            download = download_info.value
+            logger.info(f"Download iniciado: {download.suggested_filename}") 
+            
+            # Aguardar conclusão do download
+            download_path = download.path()
+            if download_path:
+                settings = Settings()
+                if conta == "10106020001":
+                    destino = Path(settings.CAMINHO_PLS) / "ctbr100.xml"
+                else:
+                    destino = Path(settings.CAMINHO_PLS) / "ctbr140.xml"
+                                
+                
+                destino.parent.mkdir(parents=True, exist_ok=True)
+                
+                download.save_as(destino)
+                logger.info(f"Arquivo Contas x itens salvo em: {destino}")
+            else:
+                logger.error("Download falhou - caminho não disponível")
+            
+            # Verificar se há botão de confirmação (se necessário)
+            # self.locators['menu_relatorios'].wait_for(state="visible", timeout=80000)
         except Exception as e:
-            logger.error(f"Falha na escolha impressão de planilha {e}")
+            logger.error(f"Falha na geração da planilha: {e}")
+            raise
+
+    def _processar_conta(self, conta):
+        """Processa uma conta individual"""
+        try:
+            logger.info(f'Processando conta: {conta}')
+            
+            self._navegar_menu()
+            time.sleep(1) 
+            self._confirmar_operacao()  
+            time.sleep(1) 
+            self._fechar_popup_se_existir()  
+            self._preencher_parametros(conta)  
+            self._selecionar_filiais()  
+            self._gerar_planilha(conta)
+            logger.info(f"✅ Conta {conta} processada com sucesso")
+            
+        except Exception as e:
+            logger.error(f"❌ Falha no processamento da conta {conta}: {str(e)}")
             raise
 
     def execucao(self):
-        """Fluxo principal de execução"""
+        """Fluxo principal de execução para todas as contas"""
         try:
-            logger.info('Iniciando execução do Contas X Itens')
-            self._navegar_menu()
-            time.sleep(1)
-            self._confirmar_operacao()
-            time.sleep(1)
-            self._fechar_popup_se_existir()
-            self._preencher_parametros()
-            self._selecionar_filiais()
-            self._confirmar_operacao
-            self._gerar_planilha()
-            logger.info("✅ Contas X Itens executado com sucesso")
+
+            contas = ["10106020001", "20102010001"]
+            self._carregar_parametros('parameters.json', self.parametros_json)
+            for conta in contas:
+                self._processar_conta(conta)
+                
             return {
                 'status': 'success',
-                'message': 'Contas X Itens completo'
+                'message': f'Todas as {len(contas)} contas processadas com sucesso'
             }
-            
+                
         except Exception as e:
             error_msg = f"❌ Falha na execução: {str(e)}"
             logger.error(error_msg)

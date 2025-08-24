@@ -1,9 +1,11 @@
 from playwright.sync_api import sync_playwright, TimeoutError 
 from config.logger import configure_logger
+from config.settings import Settings
 from .utils import UtilsScraper
 from datetime import date
+from pathlib import Path
 
-import calendar
+
 import time
 
 logger = configure_logger()
@@ -12,6 +14,8 @@ class Modelo_1(UtilsScraper):
     def __init__(self, page):  
         """Inicializa o Modelo 1 com a página do navegador"""
         self.page = page
+        self.settings = Settings() 
+        self.parametros_json = 'modelo_1'
         self._definir_locators()
         logger.info("Modelo_1 inicializado")
 
@@ -72,39 +76,26 @@ class Modelo_1(UtilsScraper):
             
             raise
 
-    def primeiro_e_ultimo_dia(self):
-        hoje = date.today()
-        mes_passado = hoje.month - 1 if hoje.month > 1 else 12
-        ano_mes_passado = hoje.year if hoje.month > 1 else hoje.year - 1
-        
-        primeiro_dia = date(ano_mes_passado, mes_passado, 1).strftime("%d/%m/%Y")
-        ultimo_dia_num = calendar.monthrange(ano_mes_passado, mes_passado)[1]
-        ultimo_dia = date(ano_mes_passado, mes_passado, ultimo_dia_num).strftime("%d/%m/%Y")
-        
-        return primeiro_dia, ultimo_dia
-
-
-    def obter_ultimo_dia_ano_passado(self):
-        ano_passado = date.today().year - 1
-        ultimo_dia = date(ano_passado, 12, 31).strftime("%d/%m/%Y")
-        return ultimo_dia
-
-
     def _preencher_parametros(self):
-        # primeiro, ultimo = self.primeiro_e_ultimo_dia()
-        # input_data_inicial = primeiro 
-        # input_data_final = ultimo
-        input_data_inicial = '01/04/2025'
-        input_data_final = '30/04/2025'
-        input_conta_inicial = ''
-        input_conta_final = 'ZZZZZZZZZZZZZZZZZZZZ'
-        input_data_lucros_perdas = ''
-        input_grupos_receitas_despesas = '3456'
-        # input_data_sid_art = self.obter_ultimo_dia_ano_passado()
-        input_data_sid_art = '31/12/2024'
-        input_num_linha_balancete = '99'
-        input_desc_moeda = '01'
         try:
+            logger.info(f"Usando chave JSON: {self.parametros_json}")
+            # Resolver valores dinâmicos
+            # input_data_inicial = self._resolver_valor(self.parametros.get('data_inicial'))
+            # input_data_final = self._resolver_valor(self.parametros.get('data_final'))
+            # input_data_sid_art  = self._resolver_valor(self.parametros.get('data_sid_art'))
+
+            input_data_inicial = self.parametros.get('data_inicial')
+            input_data_final =self.parametros.get('data_final')
+            input_data_inicial =self.parametros.get('data_sid_art')
+            # Obter outros parâmetros
+            input_conta_inicial = self.parametros.get('conta_inicial')
+            input_conta_final = self.parametros.get('conta_final')
+            input_data_lucros_perdas = self.parametros.get('data_lucros_perdas')
+            input_grupos_receitas_despesas = self.parametros.get('grupos_receitas_despesas')
+            input_data_sid_art = self.parametros.get('data_sid_art')
+            input_num_linha_balancete = self.parametros.get('num_linha_balancete')
+            input_desc_moeda = self.parametros.get('desc_moeda')
+
             # parâmetros
             self.locators['data_inicial'].wait_for(state="visible")
             self.locators['data_inicial'].click()
@@ -143,7 +134,9 @@ class Modelo_1(UtilsScraper):
             logger.error(f"Falha no preenchimento de parâmetros {e}")
             raise
 
-    def _gerar_planilha (self):
+
+    def _gerar_planilha(self):
+        """Gera e baixa a planilha do Modelo 1"""
         try: 
             self.locators['aba_planilha'].wait_for(state="visible")
             time.sleep(1) 
@@ -156,19 +149,45 @@ class Modelo_1(UtilsScraper):
             
             self.locators['formato'].select_option("3")
             time.sleep(1) 
-            self.locators['botao_imprimir'].click()
-            time.sleep(5)
-            if self.locators['botao_sim'].is_visible():
+            
+            # Esperar pelo download com timeout aumentado
+            with self.page.expect_download(timeout=120000) as download_info:
+                self.locators['botao_imprimir'].click()
+                time.sleep(2)
+                self._fechar_popup_se_existir()
+                
+            
+            download = download_info.value
+            logger.info(f"Download iniciado: {download.suggested_filename}") 
+            
+            # Aguardar conclusão do download
+            download_path = download.path()
+            if download_path:
+                settings = Settings()
+                destino = Path(settings.CAMINHO_PLS) / settings.PLS_MODELO_1
+                destino.parent.mkdir(parents=True, exist_ok=True)
+                
+                
+                download.save_as(destino)
+                logger.info(f"Arquivo Modelo 1 salvo em: {destino}")
+            else:
+                logger.error("Download falhou - caminho não disponível")
+            
+            
+            # Verificar se há botão de confirmação (se necessário)
+            if 'botao_sim' in self.locators and self.locators['botao_sim'].is_visible():
                 self.locators['botao_sim'].click()
-            self.locators['menu_relatorios'].wait_for(state="visible", timeout=100000)
+                
         except Exception as e:
-            logger.error(f"Falha na escolha impressão de planilha {e}")
+            logger.error(f"Falha na geração da planilha: {e}")
             raise
 
     def execucao(self):
         """Fluxo principal de execução"""
         try:
+            
             logger.info('Iniciando execução do Modelo 1')
+            self._carregar_parametros('parameters.json', self.parametros_json)
             self._navegar_menu()
             time.sleep(1) 
             self._confirmar_operacao()
