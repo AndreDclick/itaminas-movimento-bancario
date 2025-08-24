@@ -10,7 +10,7 @@ import json
 
 logger = configure_logger()
 
-class UtilsScraper:
+class Utils:
     def __init__(self, page: Page):
         self.page = page
         self._definir_locators()

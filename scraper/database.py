@@ -82,7 +82,7 @@ class DatabaseManager:
             
             # Cria tabela contas_itens se não existir
             cursor.execute(f"""
-                CREATE TABLE IF NOT EXISTS contas_itens (
+                CREATE TABLE IF NOT EXISTS {self.settings.TABLE_CONTAS_ITENS}(
                     id INTEGER PRIMARY KEY AUTOINCREMENT,
                     conta_contabil TEXT,
                     descricao_item TEXT,

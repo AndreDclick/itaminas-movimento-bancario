@@ -1,7 +1,7 @@
 from playwright.sync_api import sync_playwright, TimeoutError 
 from config.logger import configure_logger
 from config.settings import Settings
-from .utils import UtilsScraper
+from .utils import Utils
 from datetime import date
 from pathlib import Path
 
@@ -10,7 +10,7 @@ import time
 
 logger = configure_logger()
 
-class Contas_x_itens(UtilsScraper):
+class Contas_x_itens(Utils):
     def __init__(self, page):  
         """Inicializa o Contas X Itens com a página do navegador"""
         self.page = page

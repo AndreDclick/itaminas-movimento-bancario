@@ -1,7 +1,7 @@
 from playwright.sync_api import sync_playwright, TimeoutError as PlaywrightTimeoutError
 from config.logger import configure_logger
 from config.settings import Settings
-from .utils import UtilsScraper
+from .utils import Utils
 from datetime import datetime, timedelta
 from pathlib import Path
 
@@ -12,7 +12,7 @@ from pathlib import Path
 
 logger = configure_logger()
 
-class ExtracaoFinanceiro(UtilsScraper):
+class ExtracaoFinanceiro(Utils):
     def __init__(self, page):
         self.page = page
         self._definir_locators()

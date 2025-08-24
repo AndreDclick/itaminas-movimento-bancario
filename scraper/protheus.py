@@ -2,7 +2,7 @@ from playwright.sync_api import sync_playwright, TimeoutError as PlaywrightTimeo
 from config.settings import Settings
 from config.logger import configure_logger
 from .exceptions import FormSubmitFailed
-from .utils import UtilsScraper
+from .utils import Utils
 from .financeiro import ExtracaoFinanceiro
 from .modelo_1 import Modelo_1
 from .contasxitens import Contas_x_itens
@@ -13,7 +13,7 @@ import time
 
 logger = configure_logger()
 
-class ProtheusScraper(UtilsScraper):
+class ProtheusScraper(Utils):
     def __init__(self, settings=Settings()):
         self.settings = settings
         self.playwright = None
