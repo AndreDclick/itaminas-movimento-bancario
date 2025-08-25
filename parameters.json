@@ -1,9 +1,9 @@
 
 {
     "Financeiro": {
-        "do_vencimento": "01/01/2000",
+        "do_vencimento": "01/01/2024",
         "ate_o_vencimento": "31/12/2050",
-        "da_emissao": "01/01/2000",
+        "da_emissao": "01/01/2024",
         "ate_a_emissao": "31/12/2050",
         "da_data_contabil": "01/01/2020",
         "ate_a_data_contabil": "31/12/2050",
@@ -24,7 +24,7 @@
     },
     
     "Contas_X_Itens":{
-        "data_inicial" : "01/04/2024",
+        "data_inicial" : "01/11/2024",
         "data_final" : "31/12/2024",
         "folha_inicial" : "2",
         "desc_moeda" : "01",

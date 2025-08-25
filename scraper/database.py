@@ -7,6 +7,8 @@ from openpyxl.utils import get_column_letter
 from difflib import get_close_matches
 from workalendar.america import Brazil
 from datetime import datetime, timedelta
+import pandas as pd
+import xml.etree.ElementTree as ET
 
 import pandas as pd
 import numpy as np
@@ -224,11 +226,11 @@ class DatabaseManager:
 
             elif ext == ".xml":
                 try:
-                    # Tenta ler como XML estruturado
-                    df = pd.read_xml(file_path, parser='etree')
-                except Exception:
-                    # Fallback: alguns XML do Protheus são HTML disfarçado
-                    df = pd.read_html(file_path, encoding="latin1")[0]
+                    df = DatabaseManager.read_spreadsheetml(file_path)
+
+                except Exception as e:
+                    self.logger.error(f"Falha ao ler {file_path} como SpreadsheetML: {e}")
+                    return None
 
             elif ext == ".txt":
                 try:
@@ -291,7 +293,43 @@ class DatabaseManager:
             logger.error(f"Falha ao importar {file_path}: {e}", exc_info=True)
             return False
 
-    
+    @staticmethod
+    def read_spreadsheetml(path: str) -> pd.DataFrame:
+        ns = {"ss": "urn:schemas-microsoft-com:office:spreadsheet"}
+        tree = ET.parse(path)
+        root = tree.getroot()
+
+        rows = []
+        for row in root.findall(".//ss:Row", ns):
+            values = []
+            for cell in row.findall("ss:Cell", ns):
+                data = cell.find("ss:Data", ns)
+                values.append(data.text if data is not None else None)
+            rows.append(values)
+
+        if not rows or len(rows) < 2:
+            raise ValueError("Não foi possível encontrar cabeçalho e dados no arquivo XML")
+
+        # Pula a primeira linha (título "Item Conta")
+        header = rows[1]
+        data = rows[2:]
+
+        df = pd.DataFrame(data, columns=header)
+
+        # Deduplicar nomes de colunas manualmente
+        counts = {}
+        new_columns = []
+        for col in df.columns:
+            if col not in counts:
+                counts[col] = 0
+                new_columns.append(col)
+            else:
+                counts[col] += 1
+                new_columns.append(f"{col}_{counts[col]}")
+
+        df.columns = new_columns
+        return df
+
     def get_expected_columns(self, table_name):
         """Retorna lista de colunas esperadas para cada tipo de tabela"""
         if table_name == self.settings.TABLE_FINANCEIRO:
@@ -310,12 +348,14 @@ class DatabaseManager:
                 'conta_contabil', 'descricao_item',
                 'codigo_fornecedor', 'descricao_fornecedor',
                 'saldo_anterior', 'debito', 'credito', 'saldo_atual'
+                # movimento_periodo não é obrigatório para a tabela
             ]
         elif table_name == self.settings.TABLE_ADIANTAMENTO:
             return [
                 'conta_contabil', 'descricao_item',
                 'codigo_fornecedor', 'descricao_fornecedor',
                 'saldo_anterior', 'debito', 'credito', 'saldo_atual'
+                # movimento_periodo não é obrigatório para a tabela
             ]
         else:
             raise ValueError(f"Tabela desconhecida: {table_name}")
@@ -411,6 +451,12 @@ class DatabaseManager:
 
     def _clean_contas_itens_data(self, df):
         """Limpeza específica para dados de contas x itens (ctbr140 e ctbr100)"""
+        # Remove colunas não utilizadas nas tabelas do banco
+        columns_to_drop = ['movimento_periodo', 'Movimento do periodo']
+        for col in columns_to_drop:
+            if col in df.columns:
+                df = df.drop(col, axis=1)
+        
         # Limpa e converte colunas numéricas
         num_cols = ['saldo_anterior', 'debito', 'credito', 'saldo_atual']
         for col in num_cols:
@@ -425,24 +471,51 @@ class DatabaseManager:
         return df
     
     def _get_column_mapping(self, file_path: Path):
-        """Retorna mapeamento de colunas baseado no nome do arquivo"""
+        """Retorna mapeamento de colunas baseado no nome do arquivo e extensão"""
         filename = file_path.stem.lower()
+        ext = file_path.suffix.lower()
+        
+        # Mapeamento para arquivos XML (ctbr140.xml e ctbr100.xml)
+        if ext == ".xml":
+            if 'ctbr140' in filename:
+                return {
+                    'Codigo': 'conta_contabil',
+                    'Descricao': 'descricao_item',
+                    'Codigo_1': 'codigo_fornecedor',
+                    'Descricao_1': 'descricao_fornecedor',
+                    'Saldo anterior': 'saldo_anterior',
+                    'Debito': 'debito',
+                    'Credito': 'credito',
+                    'Movimento do periodo': 'movimento_periodo',
+                    'Saldo atual': 'saldo_atual'
+                }
+            elif 'ctbr100' in filename:
+                return {
+                    'Codigo': 'conta_contabil',
+                    'Descricao': 'descricao_item',
+                    'Codigo_1': 'codigo_fornecedor',
+                    'Descricao_1': 'descricao_fornecedor',
+                    'Saldo anterior': 'saldo_anterior',
+                    'Debito': 'debito',
+                    'Credito': 'credito',
+                    'Movimento do periodo': 'movimento_periodo',
+                    'Saldo atual': 'saldo_atual'
+                }
+        
+        # Mapeamento para arquivos TXT (ctbr140.txt e ctbr100.txt)
+        elif ext == ".txt":
+            if 'ctbr140' in filename:
+                return self.settings.COLUNAS_CONTAS_ITENS
+            elif 'ctbr100' in filename:
+                return self.settings.COLUNAS_ADIANTAMENTO
         
         # Mapeamento para arquivos financeiros (finr150.xlsx)
-        if 'finr150' in filename:
+        elif 'finr150' in filename:
             return self.settings.COLUNAS_FINANCEIRO
         
         # Mapeamento para MODELO1 (CTBR040.xlsx)
         elif 'ctbr040' in filename:
             return self.settings.COLUNAS_MODELO1
-        
-        # Mapeamento para FORNECEDOR_NACIONAL (CTBR140.xlsx)
-        elif 'ctbr140' in filename:
-            return self.settings.COLUNAS_CONTAS_ITENS
-        
-        # Mapeamento para ADIANTAMENTO_NACIONAL (CTBR100.xlsx)
-        elif 'ctbr100' in filename:
-            return self.settings.COLUNAS_ADIANTAMENTO
         
         else:
             raise ValueError(f"Tipo de planilha não reconhecido: {file_path.name}")
@@ -955,6 +1028,7 @@ class DatabaseManager:
                 WHERE 
                     excluido = 0
                     AND data_vencimento BETWEEN '{data_inicial}' AND '{data_final}'
+                    AND UPPER(tipo_titulo) NOT IN ('NDF', 'PA')  
                 ORDER BY 
                     fornecedor, titulo
             """
