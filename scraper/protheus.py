@@ -1,3 +1,9 @@
+"""
+Módulo principal para automação do sistema Protheus.
+Coordena o fluxo completo de extração de dados, incluindo login,
+execução de relatórios financeiros e processamento de dados.
+"""
+
 from playwright.sync_api import sync_playwright, TimeoutError as PlaywrightTimeoutError
 from config.settings import Settings
 from config.logger import configure_logger
@@ -8,13 +14,21 @@ from .modelo_1 import Modelo_1
 from .contasxitens import Contas_x_itens
 from .database import DatabaseManager
 from pathlib import Path
-
 import time
 
+# Configuração do logger para registro de atividades
 logger = configure_logger()
 
 class ProtheusScraper(Utils):
+    """Classe principal para automação do sistema Protheus."""
+    
     def __init__(self, settings=Settings()):
+        """
+        Inicializa o scraper do Protheus.
+        
+        Args:
+            settings: Configurações do sistema (default: Settings())
+        """
         self.settings = settings
         self.playwright = None
         self.browser = None
@@ -25,34 +39,44 @@ class ProtheusScraper(Utils):
         logger.info("Navegador inicializado")
 
     def _initialize_resources(self):
-        """Inicializa todos os recursos do Playwright"""
+        """Inicializa todos os recursos do Playwright."""
         self.playwright = sync_playwright().start()
         self._setup_browser()
         self._setup_page()
         self._definir_locators()
+    
     def _setup_browser(self):
-            """Configura o navegador Edge"""
-            self.browser = self.playwright.chromium.launch(
-                headless=self.settings.HEADLESS,
-                args=["--start-maximized"],
-                channel="msedge"
-            )
+        """
+        Configura o navegador Edge com as opções especificadas.
+        """
+        self.browser = self.playwright.chromium.launch(
+            headless=self.settings.HEADLESS,
+            args=["--start-maximized"],
+            channel="msedge"
+        )
 
     def _setup_page(self):
-        """Configura a página e contexto"""
+        """
+        Configura a página e contexto do navegador.
+        """
         self.context = self.browser.new_context(
             no_viewport=True,
             accept_downloads=True  
         )
         
-        #Monitorar eventos de download
+        # Monitorar eventos de download
         self.context.on("download", self._handle_download)
         
         self.page = self.context.new_page()
         self.page.set_default_timeout(self.settings.TIMEOUT)
 
     def _handle_download(self, download):
-        """Manipula eventos de download - apenas monitora, não salva"""
+        """
+        Manipula eventos de download - monitora mas não salva os arquivos.
+        
+        Args:
+            download: Objeto de download do Playwright
+        """
         try:
             # Aguardar o download ser concluído
             download_path = download.path()
@@ -67,7 +91,7 @@ class ProtheusScraper(Utils):
             logger.error(f"Erro ao processar download: {e}")
                 
     def _definir_locators(self):
-        """Centraliza todos os locators como variáveis"""
+        """Define todos os locators utilizados na automação."""
         self.locators = {
             'iframe': self.page.locator("iframe"),
             'botao_ok': self.page.locator('button:has-text("Ok")'),
@@ -81,24 +105,40 @@ class ProtheusScraper(Utils):
         }
 
     def __enter__(self):
+        """Implementa o protocolo context manager."""
         return self
 
     def __exit__(self, exc_type, exc_val, exc_tb):
+        """
+        Fecha todos os recursos ao sair do contexto.
+        
+        Args:
+            exc_type: Tipo de exceção (se ocorreu)
+            exc_val: Valor da exceção
+            exc_tb: Traceback da exceção
+        """
         self._fechar_recursos()
         logger.info("Navegador fechado")
 
     def _fechar_recursos(self):
-        """Fecha todos os recursos de forma segura"""
+        """Fecha todos os recursos de forma segura."""
         time.sleep(self.settings.SHUTDOWN_DELAY)
         self.context.close()
         self.browser.close()
         self.playwright.stop()
 
     def start_scraper(self):
-        """Inicia o navegador e página inicial"""
+        """
+        Inicia o navegador e navega para a página inicial do Protheus.
+        
+        Raises:
+            FormSubmitFailed: Se falhar ao iniciar o scraper
+        """
         try:
             logger.info(f"Navegando para: Protheus")
             self.page.goto(self.settings.BASE_URL)
+            
+            # Clica no botão OK se estiver visível
             if self.locators['botao_ok'].is_visible():
                 self.locators['botao_ok'].click()
                 logger.info("Botão 'Ok' clicado")
@@ -108,18 +148,27 @@ class ProtheusScraper(Utils):
             raise FormSubmitFailed(f"Erro inicial: {e}")
 
     def login(self):
-        """Realiza o login no sistema"""
+        """
+        Realiza o login no sistema Protheus.
+        
+        Raises:
+            PlaywrightTimeoutError: Se timeout ao esperar elementos
+            FormSubmitFailed: Se falhar no processo de login
+        """
         try:
             logger.info("Iniciando login...")
-            # Interação com elementos
+            
+            # Interação com elementos do login
             self.locators['iframe'].wait_for(state="visible")
             self.locators['campo_usuario'].fill(self.settings.USUARIO)
             self.locators['campo_senha'].fill(self.settings.SENHA)
             self.locators['botao_entrar'].click()
             
+            # Preenche campos adicionais de configuração
             input_campo_grupo = '01'
             input_campo_filial = '0101'
             input_campo_ambiente = '34'
+            
             self.locators['campo_grupo'].wait_for(state="visible")
             self.locators['campo_grupo'].click()
             self.locators['campo_grupo'].fill(input_campo_grupo)
@@ -128,6 +177,8 @@ class ProtheusScraper(Utils):
             self.locators['campo_ambiente'].click()
             self.locators['campo_ambiente'].fill(input_campo_ambiente)
             self.locators['botao_entrar'].click()
+            
+            # Fecha popups se existirem
             self._fechar_popup_se_existir()
             time.sleep(3)
             logger.info("Login realizado com sucesso")
@@ -141,6 +192,12 @@ class ProtheusScraper(Utils):
 
     
     def run(self):
+        """
+        Executa o fluxo completo de automação do Protheus.
+        
+        Returns:
+            list: Lista de resultados de todas as etapas executadas
+        """
         results = []
         
         try:
@@ -153,7 +210,7 @@ class ProtheusScraper(Utils):
                 'etapa': 'autenticação'
             })
 
-            # # 1. Executar Financeiro
+            # 1. Executar Financeiro
             try:       
                 financeiro = ExtracaoFinanceiro(self.page)
                 resultado_financeiro = financeiro.execucao()
@@ -178,7 +235,7 @@ class ProtheusScraper(Utils):
                     'etapa': 'modelo_1'
                 })
 
-            # 3. Executar Contas x Itens
+            # 3. Executar Contas x Itens e Andiamento
             try:
                 contasxitens = Contas_x_itens(self.page)
                 resultado_contas = contasxitens.execucao()
@@ -191,6 +248,7 @@ class ProtheusScraper(Utils):
                 })
                 
         except Exception as e:
+            # Erro crítico não tratado no processo principal
             error_msg = f"Erro crítico não tratado: {str(e)}"
             logger.error(error_msg)
             results.append({
@@ -280,6 +338,7 @@ class ProtheusScraper(Utils):
                         logger.error("❌ Nenhum arquivo importado, pulando processamento")
 
             except Exception as e:
+                # Falha crítica no processamento do banco
                 error_msg = f"Falha crítica no processamento do banco: {str(e)}"
                 logger.error(error_msg)
                 results.append({
@@ -288,7 +347,7 @@ class ProtheusScraper(Utils):
                     'etapa': 'database'
                 })
 
-            # Verificação final
+            # Verificação final dos resultados
             sucessos = sum(1 for r in results if r['status'] == 'success')
             erros = sum(1 for r in results if r['status'] == 'error')
             
