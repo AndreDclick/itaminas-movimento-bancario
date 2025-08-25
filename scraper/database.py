@@ -1,3 +1,9 @@
+"""
+Módulo de gerenciamento de banco de dados para conciliação contábil.
+Responsável por importar, processar e exportar dados de diferentes fontes
+para realizar a conciliação entre sistemas financeiros e contábeis.
+"""
+
 import sqlite3
 from pathlib import Path
 from config.settings import Settings
@@ -9,8 +15,6 @@ from workalendar.america import Brazil
 from datetime import datetime, timedelta
 import pandas as pd
 import xml.etree.ElementTree as ET
-
-import pandas as pd
 import numpy as np
 import openpyxl
 import re
@@ -19,19 +23,35 @@ import re
 logger = configure_logger()
 
 class DatabaseManager:
-    # Implementação do padrão Singleton para garantir apenas uma instância
+    """
+    Gerenciador de banco de dados para conciliação contábil.
+    Implementa padrão Singleton para garantir apenas uma instância.
+    """
+    
+    # Implementação do padrão Singleton
     _instance = None
     
     def __new__(cls):
+        """
+        Implementa o padrão Singleton para garantir apenas uma instância.
+        
+        Returns:
+            DatabaseManager: Instância única da classe
+        """
         if cls._instance is None:
             cls._instance = super(DatabaseManager, cls).__new__(cls)
             cls._instance._initialized = False
         return cls._instance
     
     def __init__(self):
-        # Verifica se já foi inicializado (para evitar múltiplas inicializações no Singleton)
+        """
+        Inicializa o gerenciador de banco de dados.
+        Evita múltiplas inicializações no padrão Singleton.
+        """
+        # Verifica se já foi inicializado
         if self._initialized:
             return
+            
         self.settings = Settings()  # Carrega configurações
         self.conn = None  # Conexão com o banco
         self.logger = configure_logger()  # Logger específico da classe
@@ -39,7 +59,12 @@ class DatabaseManager:
         self._initialized = True  # Marca como inicializado
 
     def _initialize_database(self):
-        """Inicializa o banco de dados SQLite e cria as tabelas necessárias"""
+        """
+        Inicializa o banco de dados SQLite e cria as tabelas necessárias.
+        
+        Raises:
+            Exception: Se ocorrer erro na inicialização do banco
+        """
         try:
             # Conecta ao banco SQLite
             self.conn = sqlite3.connect(self.settings.DB_PATH, timeout=10)
@@ -100,6 +125,7 @@ class DatabaseManager:
                 )
             """)
             
+            # Cria tabela adiantamento se não existir
             cursor.execute(f"""
                 CREATE TABLE IF NOT EXISTS {self.settings.TABLE_ADIANTAMENTO} (
                     id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -133,6 +159,7 @@ class DatabaseManager:
             
             # Função auxiliar para garantir que colunas existam nas tabelas
             def ensure_column(table, column, type_):
+                """Garante que uma coluna exista na tabela especificada."""
                 cursor.execute(f"PRAGMA table_info({table})")
                 cols = [c[1] for c in cursor.fetchall()]
                 if column not in cols:
@@ -151,7 +178,16 @@ class DatabaseManager:
             raise
 
     def aplicar_sugestoes_colunas(self, df, missing_mappings):
-        """Aplica sugestões automáticas para mapeamento de colunas faltantes"""
+        """
+        Aplica sugestões automáticas para mapeamento de colunas faltantes.
+        
+        Args:
+            df: DataFrame com os dados
+            missing_mappings: Lista de colunas que faltam mapeamento
+            
+        Returns:
+            DataFrame: DataFrame com colunas renomeadas conforme sugestões
+        """
         candidates = df.columns.tolist()
         lower_map = {c.lower(): c for c in candidates}  # Mapa case-insensitive
 
@@ -205,7 +241,16 @@ class DatabaseManager:
         return df
 
     def import_from_excel(self, file_path, table_name):
-        """Importa dados de arquivo Excel/TXT/XML para a tabela especificada"""
+        """
+        Importa dados de arquivo Excel/TXT/XML para a tabela especificada.
+        
+        Args:
+            file_path: Caminho do arquivo a ser importado
+            table_name: Nome da tabela destino
+            
+        Returns:
+            bool: True se importação foi bem sucedida, False caso contrário
+        """
         try:
             filename = Path(file_path).stem.lower()
 
@@ -221,13 +266,13 @@ class DatabaseManager:
 
             ext = Path(file_path).suffix.lower()
             
+            # Lê o arquivo conforme o formato
             if ext == ".xlsx":
                 df = pd.read_excel(file_path, header=1)
 
             elif ext == ".xml":
                 try:
                     df = DatabaseManager.read_spreadsheetml(file_path)
-
                 except Exception as e:
                     self.logger.error(f"Falha ao ler {file_path} como SpreadsheetML: {e}")
                     return None
@@ -262,6 +307,7 @@ class DatabaseManager:
                 remaining_missing = [col for col in expected_columns if col not in df.columns]
 
                 if remaining_missing:
+                    # Tenta criar colunas ausentes com valores padrão
                     if 'parcela' in remaining_missing and 'titulo' in df.columns:
                         df['parcela'] = df['titulo'].astype(str).str.extract(r'(\d+)$').fillna('1')
                         logger.warning("Coluna 'parcela' criada a partir do título")
@@ -295,6 +341,18 @@ class DatabaseManager:
 
     @staticmethod
     def read_spreadsheetml(path: str) -> pd.DataFrame:
+        """
+        Lê arquivos XML no formato SpreadsheetML.
+        
+        Args:
+            path: Caminho do arquivo XML
+            
+        Returns:
+            DataFrame: Dados lidos do arquivo XML
+            
+        Raises:
+            ValueError: Se não encontrar cabeçalho e dados suficientes
+        """
         ns = {"ss": "urn:schemas-microsoft-com:office:spreadsheet"}
         tree = ET.parse(path)
         root = tree.getroot()
@@ -331,7 +389,18 @@ class DatabaseManager:
         return df
 
     def get_expected_columns(self, table_name):
-        """Retorna lista de colunas esperadas para cada tipo de tabela"""
+        """
+        Retorna lista de colunas esperadas para cada tipo de tabela.
+        
+        Args:
+            table_name: Nome da tabela
+            
+        Returns:
+            list: Lista de colunas esperadas
+            
+        Raises:
+            ValueError: Se a tabela for desconhecida
+        """
         if table_name == self.settings.TABLE_FINANCEIRO:
             return [
                 'fornecedor', 'titulo', 'parcela', 'tipo_titulo',
@@ -348,20 +417,30 @@ class DatabaseManager:
                 'conta_contabil', 'descricao_item',
                 'codigo_fornecedor', 'descricao_fornecedor',
                 'saldo_anterior', 'debito', 'credito', 'saldo_atual'
-                # movimento_periodo não é obrigatório para a tabela
             ]
         elif table_name == self.settings.TABLE_ADIANTAMENTO:
             return [
                 'conta_contabil', 'descricao_item',
                 'codigo_fornecedor', 'descricao_fornecedor',
                 'saldo_anterior', 'debito', 'credito', 'saldo_atual'
-                # movimento_periodo não é obrigatório para a tabela
             ]
         else:
             raise ValueError(f"Tabela desconhecida: {table_name}")
         
     def _clean_dataframe(self, df, sheet_type):
-        """Executa limpeza geral do DataFrame baseado no tipo de planilha"""
+        """
+        Executa limpeza geral do DataFrame baseado no tipo de planilha.
+        
+        Args:
+            df: DataFrame a ser limpo
+            sheet_type: Tipo de planilha ('financeiro', 'modelo1', 'contas_itens')
+            
+        Returns:
+            DataFrame: DataFrame limpo
+            
+        Raises:
+            Exception: Se ocorrer erro na limpeza
+        """
         try:
             # Limpa strings e remove valores vazios
             df = df.map(lambda x: str(x).strip() if pd.notna(x) else x)
@@ -384,7 +463,15 @@ class DatabaseManager:
             raise
 
     def _clean_financeiro_data(self, df):
-        """Limpeza específica para dados financeiros"""
+        """
+        Limpeza específica para dados financeiros.
+        
+        Args:
+            df: DataFrame com dados financeiros
+            
+        Returns:
+            DataFrame: DataFrame limpo
+        """
         # Remove registros de fornecedores NDF/PA
         if 'fornecedor' in df.columns:
             df = df[~df['fornecedor'].str.contains(r'\bNDF\b|\bPA\b', case=False, na=False)]
@@ -415,7 +502,15 @@ class DatabaseManager:
         return df
 
     def _clean_modelo1_data(self, df):
-        """Limpeza específica para dados do modelo1 (ctbr040) - AGORA SEM FORNECEDOR EXPLÍCITO"""
+        """
+        Limpeza específica para dados do modelo1 (ctbr040).
+        
+        Args:
+            df: DataFrame com dados do modelo1
+            
+        Returns:
+            DataFrame: DataFrame limpo
+        """
         # Classifica tipo de fornecedor baseado na descrição da conta
         if 'descricao_conta' in df.columns:
             df['tipo_fornecedor'] = df['descricao_conta'].apply(
@@ -424,7 +519,7 @@ class DatabaseManager:
                 else 'OUTROS'
             )
         
-        # AGORA: ctbr040 não tem código/descrição fornecedor, então preenchemos com base na descrição da conta
+        # Preenche códigos e descrições de fornecedor
         if 'codigo_fornecedor' not in df.columns:
             df['codigo_fornecedor'] = None
         if 'descricao_fornecedor' not in df.columns:
@@ -450,7 +545,15 @@ class DatabaseManager:
         return df
 
     def _clean_contas_itens_data(self, df):
-        """Limpeza específica para dados de contas x itens (ctbr140 e ctbr100)"""
+        """
+        Limpeza específica para dados de contas x itens (ctbr140 e ctbr100).
+        
+        Args:
+            df: DataFrame com dados de contas x itens
+            
+        Returns:
+            DataFrame: DataFrame limpo
+        """
         # Remove colunas não utilizadas nas tabelas do banco
         columns_to_drop = ['movimento_periodo', 'Movimento do periodo']
         for col in columns_to_drop:
@@ -471,7 +574,18 @@ class DatabaseManager:
         return df
     
     def _get_column_mapping(self, file_path: Path):
-        """Retorna mapeamento de colunas baseado no nome do arquivo e extensão"""
+        """
+        Retorna mapeamento de colunas baseado no nome do arquivo e extensão.
+        
+        Args:
+            file_path: Caminho do arquivo
+            
+        Returns:
+            dict: Dicionário com mapeamento de colunas
+            
+        Raises:
+            ValueError: Se o tipo de planilha não for reconhecido
+        """
         filename = file_path.stem.lower()
         ext = file_path.suffix.lower()
         
@@ -521,7 +635,12 @@ class DatabaseManager:
             raise ValueError(f"Tipo de planilha não reconhecido: {file_path.name}")
     
     def process_data(self):
-        """Processa os dados importados e gera resultados da conciliação"""
+        """
+        Processa os dados importados e gera resultados da conciliação.
+        
+        Returns:
+            bool: True se o processamento foi bem sucedido, False caso contrário
+        """
         try:
             self.conn.execute("BEGIN TRANSACTION")  # Inicia transação
             cursor = self.conn.cursor()
@@ -550,7 +669,7 @@ class DatabaseManager:
             """
             cursor.execute(query_financeiro)
             
-            # MODELO1 é ctbr040 
+            # Atualiza com dados contábeis do modelo1 (ctbr040)
             query_contabil_update = f"""
                 UPDATE {self.settings.TABLE_RESULTADO}
                 SET 
@@ -575,6 +694,7 @@ class DatabaseManager:
             """
             cursor.execute(query_contabil_update)
             
+            # Adiciona dados de adiantamentos
             query_adiantamento = f"""
                 UPDATE {self.settings.TABLE_RESULTADO}
                 SET 
@@ -590,6 +710,7 @@ class DatabaseManager:
                 )
             """
             cursor.execute(query_adiantamento)
+            
             # Insere dados contábeis que não tiveram match financeiro
             query_contabeis_sem_match = f"""
                 INSERT INTO {self.settings.TABLE_RESULTADO}
@@ -633,7 +754,6 @@ class DatabaseManager:
                     END
             """
             cursor.execute(query_diferenca)
-            
             
             # Para fornecedores com status DIVERGENTE, busca detalhes na tabela contas_itens
             query_investigacao = f"""
@@ -683,7 +803,7 @@ class DatabaseManager:
             except Exception as rank_error:
                 logger.error(f"Erro ao classificar por importância: {rank_error}")
 
-            # Atualiza detalhes para registros não divergentes (mantém informações básicas)
+            # Atualiza detalhes para registros não divergentes
             cursor.execute(f"""
                 UPDATE {self.settings.TABLE_RESULTADO}
                 SET detalhes = 
@@ -706,7 +826,12 @@ class DatabaseManager:
             return False
     
     def _apply_styles(self, worksheet):
-        """Aplica estilos visuais à planilha Excel"""
+        """
+        Aplica estilos visuais básicos à planilha Excel.
+        
+        Args:
+            worksheet: Worksheet do openpyxl a ser estilizado
+        """
         # Define estilos para cabeçalho
         header_fill = PatternFill(start_color="4F81BD", end_color="4F81BD", fill_type="solid")
         header_font = Font(color="FFFFFF", bold=True)
@@ -755,7 +880,13 @@ class DatabaseManager:
             worksheet.column_dimensions[column_letter].width = adjusted_width
 
     def _apply_enhanced_styles(self, worksheet, stats):
-        """Aplica estilos visuais melhorados com formatação condicional avançada"""
+        """
+        Aplica estilos visuais melhorados com formatação condicional avançada.
+        
+        Args:
+            worksheet: Worksheet do openpyxl a ser estilizado
+            stats: Estatísticas do processamento
+        """
         # Define estilos para cabeçalho
         header_fill = PatternFill(start_color="4F81BD", end_color="4F81BD", fill_type="solid")
         header_font = Font(color="FFFFFF", bold=True)
@@ -831,7 +962,12 @@ class DatabaseManager:
             worksheet.column_dimensions[column_letter].width = adjusted_width
 
     def _apply_metadata_styles(self, worksheet):
-        """Aplica estilos à aba de metadados"""
+        """
+        Aplica estilos à aba de metadados.
+        
+        Args:
+            worksheet: Worksheet de metadados a ser estilizado
+        """
         # Define estilos
         title_fill = PatternFill(start_color="366092", end_color="366092", fill_type="solid")
         title_font = Font(color="FFFFFF", bold=True, size=14)
@@ -875,7 +1011,12 @@ class DatabaseManager:
             worksheet.column_dimensions[column_letter].width = adjusted_width
 
     def _get_datas_referencia(self):
-        """Retorna datas de referência para o processamento"""
+        """
+        Retorna datas de referência para o processamento.
+        
+        Returns:
+            tuple: (data_inicial, data_final) formatadas como strings
+        """
         cal = Brazil()
         hoje = datetime.now().date()
         data_inicial = hoje.replace(day=1)
@@ -885,12 +1026,28 @@ class DatabaseManager:
         return data_inicial.strftime("%d/%m/%Y"), data_final.strftime("%d/%m/%Y")
 
     def _ultimo_dia_mes(self, date):
-        """Retorna o último dia do mês da data fornecida"""
+        """
+        Retorna o último dia do mês da data fornecida.
+        
+        Args:
+            date: Data para calcular o último dia do mês
+            
+        Returns:
+            datetime: Último dia do mês
+        """
         next_month = date.replace(day=28) + timedelta(days=4)
         return next_month - timedelta(days=next_month.day)
 
     def validate_output(self, output_path):
-        """Valida a estrutura do arquivo Excel gerado, incluindo a nova aba Metadados"""
+        """
+        Valida a estrutura do arquivo Excel gerado.
+        
+        Args:
+            output_path: Caminho do arquivo Excel a ser validado
+            
+        Returns:
+            bool: True se a validação for bem sucedida, False caso contrário
+        """
         try:
             wb = openpyxl.load_workbook(output_path)
             # Verifica abas obrigatórias
@@ -927,7 +1084,12 @@ class DatabaseManager:
             return False
 
     def validate_data_consistency(self):
-        """Valida consistência geral dos dados importados"""
+        """
+        Valida consistência geral dos dados importados.
+        
+        Returns:
+            bool: True se a validação for bem sucedida, False caso contrário
+        """
         try:
             cursor = self.conn.cursor()
             # Verifica fornecedores financeiros sem correspondência contábil
@@ -961,7 +1123,12 @@ class DatabaseManager:
             return False
 
     def export_to_excel(self):
-        """Exporta resultados para arquivo Excel formatado com metadados e formatação melhorada"""
+        """
+        Exporta resultados para arquivo Excel formatado com metadados.
+        
+        Returns:
+            Path: Caminho do arquivo gerado ou None em caso de erro
+        """
         logger.info("Iniciando exportação para Excel...")
         data_inicial, data_final = self._get_datas_referencia()
         output_path = self.settings.RESULTS_DIR / f"CONCILIACAO_{data_inicial.replace('/', '-')}_a_{data_final.replace('/', '-')}.xlsx"
@@ -1057,6 +1224,7 @@ class DatabaseManager:
             df_contabil = pd.read_sql(query_contabil, self.conn)
             df_contabil.to_excel(writer, sheet_name='Balancete', index=False)
             
+            # Query para aba Adiantamentos
             query_adiantamento = f"""
                 SELECT 
                     conta_contabil as "Conta Contábil",
@@ -1151,10 +1319,22 @@ class DatabaseManager:
                 logger.error(f"Erro ao fechar conexão: {e}")
 
     def __enter__(self):
-        """Suporte para context manager (with statement)"""
+        """
+        Suporte para context manager (with statement).
+        
+        Returns:
+            DatabaseManager: Instância da classe
+        """
         self._initialize_database()
         return self
 
     def __exit__(self, exc_type, exc_val, exc_tb):
-        """Suporte para context manager (with statement)"""
+        """
+        Suporte para context manager (with statement).
+        
+        Args:
+            exc_type: Tipo de exceção (se ocorreu)
+            exc_val: Valor da exceção
+            exc_tb: Traceback da exceção
+        """
         self.close()
