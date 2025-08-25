@@ -225,7 +225,7 @@ class DatabaseManager:
             elif ext == ".xml":
                 try:
                     # Tenta ler como XML estruturado
-                    df = pd.read_xml(file_path)
+                    df = pd.read_xml(file_path, parser='etree')
                 except Exception:
                     # Fallback: alguns XML do Protheus são HTML disfarçado
                     df = pd.read_html(file_path, encoding="latin1")[0]

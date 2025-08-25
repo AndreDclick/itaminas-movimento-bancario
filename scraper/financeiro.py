@@ -30,6 +30,7 @@ class ExtracaoFinanceiro(Utils):
             'popup_fechar': self.page.get_by_role("button", name="Fechar"),
             'botao_confirmar': self.page.get_by_role("button", name="Confirmar"),
             'botao_marcar_filiais': self.page.get_by_role("button", name="Marca Todos - <F4>"),
+            'confirmar_moeda': self.page.get_by_text("Moedas"),
 
             # Janela "Posição dos Títulos a Pagar"
             'planilha': self.page.get_by_role("button", name="Planilha"),
@@ -77,9 +78,19 @@ class ExtracaoFinanceiro(Utils):
             self._confirmar_operacao()
             time.sleep(2)
             self._fechar_popup_se_existir()
+            time.sleep(1)
+            if self.locators['popup_fechar'].is_visible():
+                self.locators['popup_fechar'].click()
+            
+            
         except PlaywrightTimeoutError:
             logger.error("Falha na navegação ou configuração da planilha")
             raise
+
+    def _confirmar_moeda(self):
+        time.sleep(2)
+        if self.locators['confirmar_moeda'].is_visible():
+                self.locators['botao_confirmar'].click()
 
     def _criar_planilha (self):
         try:
@@ -223,7 +234,8 @@ class ExtracaoFinanceiro(Utils):
             # Carregar os parâmetros do JSON no início da execução
             self._carregar_parametros('parameters.json', self.parametros_json)
 
-            self._navegar_e_configurar_planilha()
+            self._navegar_e_configurar_planilha()            
+            self._confirmar_moeda()
             self._criar_planilha()
             self._outras_acoes()
             self._preencher_parametros()
