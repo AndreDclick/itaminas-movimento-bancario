@@ -17,7 +17,7 @@ class ExtracaoFinanceiro(Utils):
         self.page = page
         self._definir_locators()
         self.settings = Settings()
-        self.parametros_json = 'financeiro' 
+        self.parametros_json = 'Financeiro' 
         logger.info("Financeiro inicializada")
 
     def _definir_locators(self):
@@ -75,7 +75,7 @@ class ExtracaoFinanceiro(Utils):
             self.locators['menu_titulos_a_pagar'].wait_for(state="visible")
             self.locators['menu_titulos_a_pagar'].click()    
             self._confirmar_operacao()
-            time.sleep(1)
+            time.sleep(2)
             self._fechar_popup_se_existir()
         except PlaywrightTimeoutError:
             logger.error("Falha na navegação ou configuração da planilha")

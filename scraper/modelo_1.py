@@ -15,7 +15,7 @@ class Modelo_1(Utils):
         """Inicializa o Modelo 1 com a página do navegador"""
         self.page = page
         self.settings = Settings() 
-        self.parametros_json = 'modelo_1'
+        self.parametros_json = 'Modelo_1'
         self._definir_locators()
         logger.info("Modelo_1 inicializado")
 

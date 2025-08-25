@@ -16,7 +16,7 @@ class Contas_x_itens(Utils):
         self.page = page
         self._definir_locators()
         self.settings = Settings() 
-        self.parametros_json = 'contasxitens'
+        self.parametros_json = 'Contas_X_Itens'
         logger.info("Contas_x_itens inicializado")
 
     def _definir_locators(self):
@@ -189,12 +189,13 @@ class Contas_x_itens(Utils):
             # self._fechar_popup_se_existir()
 
             # Esperar pelo download com timeout aumentado
-            with self.page.expect_download(timeout=180000) as download_info:
+            with self.page.expect_download(timeout=210000) as download_info:
                 self.locators['botao_imprimir'].click()
                 logger.info(f"Botão download clicado")
                 time.sleep(2)
                 if 'botao_sim' in self.locators and self.locators['botao_sim'].is_visible():
                     self.locators['botao_sim'].click()
+                    logger.info(f"Botão sim clicado")
                 time.sleep(2)
                 self._fechar_popup_se_existir()
                 

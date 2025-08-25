@@ -1,6 +1,6 @@
 
 {
-    "financeiro": {
+    "Financeiro": {
         "do_vencimento": "01/01/2000",
         "ate_o_vencimento": "31/12/2050",
         "da_emissao": "01/01/2000",
@@ -11,7 +11,7 @@
         "ok_btn": "OK"
     },
 
-    "modelo_1": {
+    "Modelo_1": {
         "data_inicial": "01/04/2025",
         "data_final": "30/04/2025",
         "conta_inicial": "",
@@ -23,7 +23,7 @@
         "desc_moeda": "01"
     },
     
-    "contasxitens":{
+    "Contas_X_Itens":{
         "data_inicial" : "01/04/2024",
         "data_final" : "31/12/2024",
         "folha_inicial" : "2",

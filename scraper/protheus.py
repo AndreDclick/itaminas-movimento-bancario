@@ -153,7 +153,6 @@ class ProtheusScraper(Utils):
                 'etapa': 'autenticação'
             })
 
-            
             # 1. Executar Financeiro
             try:       
                 financeiro = ExtracaoFinanceiro(self.page)
@@ -167,14 +166,12 @@ class ProtheusScraper(Utils):
                     'etapa': 'financeiro'
                 })
 
-
-            # 2. Executar Modelo_1 (sempre após possível reinicialização)
+            # 2. Executar Modelo_1
             try:
                 modelo_1 = Modelo_1(self.page)
                 resultado_modelo = modelo_1.execucao()
                 results.append(resultado_modelo)
             except Exception as e:
-                print(f"❌ Exceção modelo_1"),
                 results.append({
                     'status': 'error',
                     'message': f'Falha no Modelo_1: {str(e)}',
@@ -192,85 +189,7 @@ class ProtheusScraper(Utils):
                     'message': f'Falha em Contas x Itens: {str(e)}',
                     'etapa': 'contas_x_itens'
                 })
-
-            
-            # 4. Processamento no banco de dados (tenta mesmo com erros anteriores)
-            try:
-                with DatabaseManager() as db:
-                    caminho_planilhas = Path(self.settings.CAMINHO_PLS)
-                    
-                    # Importar cada planilha e verificar sucesso
-                    importacoes = [
-                        ('financeiro', self.settings.PLS_FINANCEIRO, self.settings.TABLE_FINANCEIRO),
-                        ('modelo1', self.settings.PLS_MODELO_1, self.settings.TABLE_MODELO1),
-                        ('contas_itens', self.settings.PLS_CONTAS_X_ITENS, self.settings.TABLE_CONTAS_ITENS)
-                    ]
-                    
-                    for nome, arquivo, tabela in importacoes:
-                        try:
-                            file_path = caminho_planilhas / arquivo
-                            
-                            # Verifica se o arquivo existe e é válido
-                            if not file_path.exists():
-                                logger.error(f"Arquivo {arquivo} não encontrado")
-                                results.append({
-                                    'status': 'error',
-                                    'message': f'Arquivo {arquivo} não encontrado',
-                                    'etapa': 'importação'
-                                })
-                                continue
-                                
-                            
-                            success = db.import_from_excel(file_path, tabela)
-                            if not success:
-                                raise Exception(f"Falha na importação do arquivo {arquivo}")
-                            
-                            results.append({
-                                'status': 'success',
-                                'message': f'Planilha {nome} importada com sucesso',
-                                'etapa': 'importação'
-                            })
-                            
-                        except Exception as e:
-                            results.append({
-                                'status': 'error',
-                                'message': f'Falha ao importar {nome}: {str(e)}',
-                                'etapa': 'importação'
-                            })
-                            continue
-                                
-                    # Processa os dados (se pelo menos uma importação teve sucesso)
-                    try:
-                        if not db.process_data():
-                            raise Exception("Nenhum dado válido para processamento")
-                        
-                        output_path = db.export_to_excel()
-                        if output_path:
-                            results.append({
-                                'status': 'success',
-                                'message': f'Conciliação gerada em {output_path}',
-                                'etapa': 'processamento'
-                            })
-                    except Exception as e:
-                        results.append({
-                            'status': 'error',
-                            'message': f'Falha no processamento: {str(e)}',
-                            'etapa': 'processamento'
-                        })
-
-            except Exception as e:
-                results.append({
-                    'status': 'critical_error',
-                    'message': f'Falha na conexão com o banco: {str(e)}',
-                    'etapa': 'database'
-                })
-
-            # 5 Verificação final
-            if any(r['status'] == 'error' for r in results):
-                logger.warning("Processo concluído com erros parciais")
-            else:
-                logger.info("Processo concluído com sucesso total")
-
+                
         except Exception as e:
             error_msg = f"Erro crítico não tratado: {str(e)}"
             logger.error(error_msg)
@@ -281,4 +200,101 @@ class ProtheusScraper(Utils):
             })
 
         finally:
+            # PROCESSAMENTO DO BANCO DE DADOS (EXECUTA MESMO COM ERROS ANTERIORES)
+            try:
+                logger.info("Iniciando processamento dos dados no banco de dados...")
+                
+                with DatabaseManager() as db:
+                    caminho_downloads = Path(self.settings.CAMINHO_PLS)
+                    
+                    # Lista de arquivos para importar
+                    arquivos_importar = [
+                        ('financeiro', 'finr150.xlsx', db.settings.TABLE_FINANCEIRO),
+                        ('modelo1', 'ctbr040.xlsx', db.settings.TABLE_MODELO1),
+                        ('contas_itens', 'ctbr140.xml', db.settings.TABLE_CONTAS_ITENS),
+                        ('adiantamento', 'ctbr100.xml', db.settings.TABLE_ADIANTAMENTO)
+                    ]
+                    
+                    # Importar cada arquivo
+                    importacoes_realizadas = 0
+                    for nome, arquivo, tabela in arquivos_importar:
+                        try:
+                            file_path = caminho_downloads / arquivo
+                            
+                            if not file_path.exists():
+                                logger.warning(f"Arquivo {arquivo} não encontrado, pulando...")
+                                continue
+                                
+                            logger.info(f"Importando {arquivo} para tabela {tabela}...")
+                            success = db.import_from_excel(file_path, tabela)
+                            
+                            if success:
+                                importacoes_realizadas += 1
+                                results.append({
+                                    'status': 'success',
+                                    'message': f'Planilha {nome} importada com sucesso',
+                                    'etapa': 'importação'
+                                })
+                                logger.info(f"✅ {arquivo} importado para {tabela}")
+                            else:
+                                raise Exception(f"Falha na importação do arquivo {arquivo}")
+                                
+                        except Exception as e:
+                            results.append({
+                                'status': 'error',
+                                'message': f'Falha ao importar {nome}: {str(e)}',
+                                'etapa': 'importação'
+                            })
+                            logger.error(f"❌ Erro ao importar {arquivo}: {e}")
+
+                    # Processar dados apenas se pelo menos uma importação teve sucesso
+                    if importacoes_realizadas > 0:
+                        logger.info("Processando dados para conciliação...")
+                        if db.process_data():
+                            output_path = db.export_to_excel()
+                            if output_path:
+                                results.append({
+                                    'status': 'success',
+                                    'message': f'Conciliação gerada em {output_path}',
+                                    'etapa': 'processamento'
+                                })
+                                logger.info(f"✅ Planilha final gerada: {output_path}")
+                            else:
+                                results.append({
+                                    'status': 'error',
+                                    'message': 'Falha ao gerar planilha de conciliação',
+                                    'etapa': 'processamento'
+                                })
+                        else:
+                            results.append({
+                                'status': 'error',
+                                'message': 'Falha no processamento dos dados',
+                                'etapa': 'processamento'
+                            })
+                    else:
+                        results.append({
+                            'status': 'error',
+                            'message': 'Nenhum arquivo foi importado com sucesso',
+                            'etapa': 'importação'
+                        })
+                        logger.error("❌ Nenhum arquivo importado, pulando processamento")
+
+            except Exception as e:
+                error_msg = f"Falha crítica no processamento do banco: {str(e)}"
+                logger.error(error_msg)
+                results.append({
+                    'status': 'critical_error',
+                    'message': error_msg,
+                    'etapa': 'database'
+                })
+
+            # Verificação final
+            sucessos = sum(1 for r in results if r['status'] == 'success')
+            erros = sum(1 for r in results if r['status'] == 'error')
+            
+            if erros > 0:
+                logger.warning(f"Processo concluído com {sucessos} sucessos e {erros} erros")
+            else:
+                logger.info(f"Processo concluído com sucesso total: {sucessos} operações")
+
             return results
