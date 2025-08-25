@@ -28,6 +28,7 @@ class Settings:
     LOGS_DIR = BASE_DIR / "logs"
     RESULTS_DIR = BASE_DIR / "results"
     DB_PATH = DATA_DIR / "database.db"
+    UPLOAD_DIR = Path("./uploads/")
     PARAMETERS_DIR = "parameters"
 
     # Files

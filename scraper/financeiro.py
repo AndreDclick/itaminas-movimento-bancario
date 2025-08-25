@@ -1,7 +1,7 @@
 from playwright.sync_api import sync_playwright, TimeoutError as PlaywrightTimeoutError
 from config.logger import configure_logger
 from config.settings import Settings
-from .utils import UtilsScraper
+from .utils import Utils
 from datetime import datetime, timedelta
 from pathlib import Path
 
@@ -12,12 +12,12 @@ from pathlib import Path
 
 logger = configure_logger()
 
-class ExtracaoFinanceiro(UtilsScraper):
+class ExtracaoFinanceiro(Utils):
     def __init__(self, page):
         self.page = page
         self._definir_locators()
         self.settings = Settings()
-        self.parametros_json = 'financeiro' 
+        self.parametros_json = 'Financeiro' 
         logger.info("Financeiro inicializada")
 
     def _definir_locators(self):
@@ -30,6 +30,7 @@ class ExtracaoFinanceiro(UtilsScraper):
             'popup_fechar': self.page.get_by_role("button", name="Fechar"),
             'botao_confirmar': self.page.get_by_role("button", name="Confirmar"),
             'botao_marcar_filiais': self.page.get_by_role("button", name="Marca Todos - <F4>"),
+            'confirmar_moeda': self.page.get_by_text("Moedas"),
 
             # Janela "Posição dos Títulos a Pagar"
             'planilha': self.page.get_by_role("button", name="Planilha"),
@@ -75,11 +76,21 @@ class ExtracaoFinanceiro(UtilsScraper):
             self.locators['menu_titulos_a_pagar'].wait_for(state="visible")
             self.locators['menu_titulos_a_pagar'].click()    
             self._confirmar_operacao()
-            time.sleep(1)
+            time.sleep(2)
             self._fechar_popup_se_existir()
+            time.sleep(1)
+            if self.locators['popup_fechar'].is_visible():
+                self.locators['popup_fechar'].click()
+            
+            
         except PlaywrightTimeoutError:
             logger.error("Falha na navegação ou configuração da planilha")
             raise
+
+    def _confirmar_moeda(self):
+        time.sleep(2)
+        if self.locators['confirmar_moeda'].is_visible():
+                self.locators['botao_confirmar'].click()
 
     def _criar_planilha (self):
         try:
@@ -223,7 +234,8 @@ class ExtracaoFinanceiro(UtilsScraper):
             # Carregar os parâmetros do JSON no início da execução
             self._carregar_parametros('parameters.json', self.parametros_json)
 
-            self._navegar_e_configurar_planilha()
+            self._navegar_e_configurar_planilha()            
+            self._confirmar_moeda()
             self._criar_planilha()
             self._outras_acoes()
             self._preencher_parametros()
