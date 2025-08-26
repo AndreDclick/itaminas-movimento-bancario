@@ -11,7 +11,8 @@ from .exceptions import (
     TimeoutOperacional,
     FormSubmitFailed
 )
-from datetime import date
+
+from datetime import datetime, date
 from pathlib import Path
 import time
 import os
@@ -100,6 +101,74 @@ class Utils:
             logger.error(f"{error_msg}: {e}")
             raise FormSubmitFailed(error_msg) from e
     
+    def _calcular_datas_contas_itens(self, data_referencia=None):
+        """
+        Calcula as datas inicial e final para o relatório Contas X Itens
+        conforme as regras especificadas.
+        
+        Args:
+            data_referencia (datetime, optional): Data de referência para cálculo.
+                Se None, usa a data atual.
+        
+        Returns:
+            tuple: (data_inicial, data_final) no formato DD/MM/YYYY
+        """
+        if data_referencia is None:
+            data_referencia = datetime.now()
+        
+        dia = data_referencia.day
+        mes = data_referencia.month
+        ano = data_referencia.year
+        
+        # Verifica se é o último dia do mês
+        ultimo_dia_mes = calendar.monthrange(ano, mes)[1]
+        eh_ultimo_dia = dia == ultimo_dia_mes
+        
+        if eh_ultimo_dia:
+            # Regra para último dia do mês
+            # Data Inicial: primeiro dia do mês anterior
+            if mes == 1:
+                data_inicial = datetime(ano - 1, 12, 1)
+            else:
+                data_inicial = datetime(ano, mes - 1, 1)
+            
+            # Data Final: último dia do mês anterior
+            if mes == 1:
+                ultimo_dia_anterior = calendar.monthrange(ano - 1, 12)[1]
+                data_final = datetime(ano - 1, 12, ultimo_dia_anterior)
+            else:
+                ultimo_dia_anterior = calendar.monthrange(ano, mes - 1)[1]
+                data_final = datetime(ano, mes - 1, ultimo_dia_anterior)
+        
+        elif dia == 20:
+            # Regra para dia 20
+            # Data Inicial: primeiro dia do mês atual
+            data_inicial = datetime(ano, mes, 1)
+            
+            # Data Final: dia 20 do mês atual
+            data_final = datetime(ano, mes, 20)
+        
+        else:
+            # Para outros dias, use as regras padrão ou defina um comportamento alternativo
+            # Aqui estou usando o mesmo comportamento do dia 20 como padrão
+            data_inicial = datetime(ano, mes, 1)
+            data_final = datetime(ano, mes, min(dia, 20))  # Usa o menor entre o dia atual e 20
+        
+        # Formata as datas para o padrão DD/MM/YYYY
+        data_inicial_str = data_inicial.strftime('%d/%m/%Y')
+        data_final_str = data_final.strftime('%d/%m/%Y')
+        
+        return data_inicial_str, data_final_str
+    
+    def datas_contas_itens(self):
+        """
+        Retorna as datas para o relatório Contas X Itens conforme as regras especificadas.
+        
+        Returns:
+            tuple: (data_inicial, data_final) no formato DD/MM/YYYY
+        """
+        return self._calcular_datas_contas_itens()
+    
     def _resolver_valor(self, valor):
         """
         Resolve valores que contenham placeholders {{}} chamando funções correspondentes.
@@ -115,30 +184,39 @@ class Utils:
         """
         # Verifica se o valor é uma string com placeholder
         if isinstance(valor, str) and valor.startswith('{{') and valor.endswith('}}'):
-            nome_metodo = valor[2:-2].strip()  # Extrai o nome do método do placeholder
+            placeholder = valor[2:-2].strip()
+            
+            # Verifica se há especificação de parte da tupla (ex: .inicial ou .final)
+            if '.' in placeholder:
+                nome_metodo, parte = placeholder.split('.', 1)
+                parte = parte.strip()
+            else:
+                nome_metodo = placeholder
+                parte = None
             
             # Mapeamento de métodos disponíveis para resolução
             metodos_disponiveis = {
                 'primeiro_e_ultimo_dia': self.primeiro_e_ultimo_dia,
                 'obter_ultimo_dia_ano_passado': self.obter_ultimo_dia_ano_passado,
-                'data_atual': self._get_data_atual
+                'data_atual': self._get_data_atual,
+                'data_contabil': self.data_contabil,
+                'datas_contas_itens': self.datas_contas_itens  # Novo método adicionado
             }
             
             # Verifica se o método solicitado está disponível
             if nome_metodo in metodos_disponiveis:
                 resultado = metodos_disponiveis[nome_metodo]()
                 
-                # Trata retornos em tupla (caso do primeiro_e_ultimo_dia)
-                if isinstance(resultado, tuple):
-                    # Lógica para decidir qual valor usar baseado no contexto do placeholder
-                    if 'inicial' in valor.lower() or 'primeiro' in valor.lower():
-                        return resultado[0]  # Retorna o primeiro dia
-                    elif 'final' in valor.lower() or 'ultimo' in valor.lower():
-                        return resultado[1]  # Retorna o último dia
+                # Trata retornos em tupla com especificação de parte
+                if isinstance(resultado, tuple) and parte:
+                    if parte == 'inicial' and len(resultado) >= 1:
+                        return resultado[0]  # Retorna o primeiro elemento da tupla
+                    elif parte == 'final' and len(resultado) >= 2:
+                        return resultado[1]  # Retorna o segundo elemento da tupla
                     else:
-                        return resultado  # Retorna a tupla completa
+                        return resultado  # Retorna a tupla completa se parte não especificada corretamente
                 else:
-                    return resultado  # Retorna o valor simples
+                    return resultado  # Retorna o valor simples ou tupla completa
             else:
                 logger.warning(f"Método '{nome_metodo}' não encontrado para resolução")
                 return valor  # Retorna o valor original se não encontrar o método
@@ -227,6 +305,17 @@ class Utils:
         ano_passado = date.today().year - 1
         ultimo_dia = date(ano_passado, 12, 31)
         return ultimo_dia.strftime('%d/%m/%Y')
+    
+    def data_contabil(self):
+        """
+        Define uma data contábil futura para uso em filtros e relatórios.
+        
+        Returns:
+            str: Data contábil futura no formato DD/MM/YYYY
+        """
+        hoje = datetime.today()
+        ano_futuro = hoje.year + 25
+        return f"31/12/{ano_futuro}"
     
     def _validar_parametros(self, parametros_obrigatorios: list):
         """

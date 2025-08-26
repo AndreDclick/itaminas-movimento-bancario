@@ -244,59 +244,49 @@ class Contas_x_itens(Utils):
             DownloadFailed: Se falhar na geração da planilha
         """
         try: 
-            # Acessa a aba de planilha
             self.locators['aba_planilha'].wait_for(state="visible")
             time.sleep(1) 
             self.locators['aba_planilha'].click()
             time.sleep(1) 
             
-            # Verifica se o formulário está visível
             if not self.locators['formato'].is_visible():
                 self.locators['aba_planilha'].click()
                 time.sleep(1)
             
-            # Seleciona o formato da planilha
             self.locators['formato'].select_option("2")
-            
-            # Espera pelo download com timeout aumentado
+
+            # Esperar pelo download com timeout aumentado
             with self.page.expect_download(timeout=210000) as download_info:
                 self.locators['botao_imprimir'].click()
                 logger.info(f"Botão download clicado")
                 time.sleep(2)
-                
-                # Confirma se necessário
                 if 'botao_sim' in self.locators and self.locators['botao_sim'].is_visible():
                     self.locators['botao_sim'].click()
                     logger.info(f"Botão sim clicado")
-                
                 time.sleep(2)
                 self._fechar_popup_se_existir()
                 
-            # Processa o download
+            
             download = download_info.value
             logger.info(f"Download iniciado: {download.suggested_filename}") 
             
-            # Aguarda conclusão do download
+            # Aguardar conclusão do download
             download_path = download.path()
             if download_path:
                 settings = Settings()
-                
-                # Define o nome do arquivo baseado na conta
                 if conta == "10106020001":
                     destino = Path(settings.CAMINHO_PLS) / "ctbr100.xml"
                 else:
                     destino = Path(settings.CAMINHO_PLS) / "ctbr140.xml"
+                                
                 
-                # Garante que o diretório existe
                 destino.parent.mkdir(parents=True, exist_ok=True)
                 
-                # Salva o arquivo
                 download.save_as(destino)
                 logger.info(f"Arquivo Contas x itens salvo em: {destino}")
             else:
-                error_msg = "Download falhou - caminho não disponível"
-                logger.error(error_msg)
-                raise DownloadFailed(error_msg)
+                logger.error("Download falhou - caminho não disponível")
+            
             
         except TimeoutError as e:
             error_msg = f"Timeout na geração da planilha para conta {conta}"
@@ -320,7 +310,6 @@ class Contas_x_itens(Utils):
         try:
             logger.info(f'Processando conta: {conta}')
             
-            # Executa o fluxo completo para uma conta
             self._navegar_menu()
             time.sleep(1) 
             self._confirmar_operacao()  
@@ -344,15 +333,12 @@ class Contas_x_itens(Utils):
             dict: Resultado da execução com status e mensagem
         """
         try:
-            # Lista de contas a serem processadas
+
             contas = ["10106020001", "20102010001"]
-            
             # Carregar os parâmetros do JSON usando o caminho correto do settings
-            parameters_path = self.settings.PARAMETERS_DIR  # Use o caminho do settings
+            parameters_path = self.settings.PARAMETERS_DIR 
             self._carregar_parametros(parameters_path, self.parametros_json)
 
-            
-            # Processa cada conta
             for conta in contas:
                 self._processar_conta(conta)
                 
@@ -360,6 +346,7 @@ class Contas_x_itens(Utils):
                 'status': 'success',
                 'message': f'Todas as {len(contas)} contas processadas com sucesso'
             }
+            
                 
         except Exception as e:
             error_msg = f"Falha na execução do relatório Contas X Itens"

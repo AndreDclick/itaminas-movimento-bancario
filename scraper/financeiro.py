@@ -23,8 +23,8 @@ logger = configure_logger()
 
 # Automação e extração dos dados financeiros no sistema protheus (navegação e download).
 class ExtracaoFinanceiro(Utils):
-     # Inicialização e seleção dos seletores da interface, para carregas as configurações.
-    def _init_(self, page):
+    # Inicialização e seleção dos seletores da interface, para carregas as configurações.
+    def __init__(self, page):
         self.page = page
         self._definir_locators()
         self.settings = Settings()
@@ -163,11 +163,7 @@ class ExtracaoFinanceiro(Utils):
         data_formatada = datetime(ano_mes_passado, mes_passado, ultimo_dia).strftime("%d/%m/%Y")
         return data_formatada
 
-    # define uma data contábil futura para uso em filtros e relatórios.
-    def data_contabil(self):
-        hoje = datetime.today()
-        ano_futuro = hoje.year + 25
-        return f"31/12/{ano_futuro}"
+    
 
     # Carrega os parâmetros definidos no JSON (parameters.json)
     def _preencher_parametros(self):
@@ -270,7 +266,7 @@ class ExtracaoFinanceiro(Utils):
         """Fluxo principal de extração de planilha financeira."""
         try:
             # Carregar os parâmetros do JSON usando o caminho correto do settings
-            parameters_path = self.settings.PARAMETERS_DIR  # Use o caminho do settings
+            parameters_path = self.settings.PARAMETERS_DIR  
             self._carregar_parametros(parameters_path, self.parametros_json)
 
             self._navegar_e_configurar_planilha()            

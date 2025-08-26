@@ -261,7 +261,7 @@ class Modelo_1(Utils):
             logger.info('Iniciando execução do Modelo 1')
             
             # Carregar os parâmetros do JSON usando o caminho correto do settings
-            parameters_path = self.settings.PARAMETERS_DIR  # Use o caminho do settings
+            parameters_path = self.settings.PARAMETERS_DIR 
             self._carregar_parametros(parameters_path, self.parametros_json)
 
             # Executa o fluxo completo

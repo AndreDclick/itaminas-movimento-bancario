@@ -727,7 +727,7 @@ class DatabaseManager:
                     detalhes = (
                         SELECT GROUP_CONCAT(COALESCE(m.tipo_fornecedor,'') || ': ' || m.saldo_atual, ' | ')
                         FROM {self.settings.TABLE_MODELO1} m
-                        WHERE m.descricao_conta LIKE '%' || {self.settings.TABLE_RESULTado}.codigo_fornecedor || '%'
+                        WHERE m.descricao_conta LIKE '%' || {self.settings.TABLE_RESULTADO}.codigo_fornecedor || '%'
                            OR m.codigo_fornecedor = {self.settings.TABLE_RESULTADO}.codigo_fornecedor
                     )
                 WHERE EXISTS (

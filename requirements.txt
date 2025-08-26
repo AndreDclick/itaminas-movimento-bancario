@@ -6,3 +6,4 @@ numpy
 workalendar
 xlrd
 lxml
+jinja2

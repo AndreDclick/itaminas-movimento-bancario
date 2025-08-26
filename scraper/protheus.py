@@ -287,7 +287,6 @@ class ProtheusScraper(Utils):
             try:
                 contasxitens = Contas_x_itens(self.page)
                 resultado_contas = contasxitens.execucao()
-                resultado_contas['etapa'] = 'contas_x_itens'
                 results.append(resultado_contas)
             except Exception as e:
                 results.append({
