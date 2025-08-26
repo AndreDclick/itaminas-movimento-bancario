@@ -69,7 +69,7 @@ class TimeoutOperacional(Exceptions):
 # Exceções específicas do processo de conciliação
 class DiferencaValoresEncontrada(Exceptions):
     def __init__(self, message="Diferença de valores encontrada na conciliação", 
-                 valor_financeiro=None, valor_contabil=None, fornecedor=None):
+                valor_financeiro=None, valor_contabil=None, fornecedor=None):
         self.code = "CONC001"
         self.valor_financeiro = valor_financeiro
         self.valor_contabil = valor_contabil
@@ -84,7 +84,7 @@ class DataInvalidaConciliação(Exceptions):
 
 class FornecedorNaoEncontrado(Exceptions):
     def __init__(self, message="Fornecedor não encontrado nos relatórios", 
-                 codigo_fornecedor=None, nome_fornecedor=None):
+                codigo_fornecedor=None, nome_fornecedor=None):
         self.code = "CONC003"
         self.codigo_fornecedor = codigo_fornecedor
         self.nome_fornecedor = nome_fornecedor

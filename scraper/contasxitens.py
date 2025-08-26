@@ -7,6 +7,13 @@ e gerar planilhas do relatório Contas X Itens.
 from playwright.sync_api import sync_playwright, TimeoutError 
 from config.logger import configure_logger
 from config.settings import Settings
+from .exceptions import (
+    Exceptions,
+    ExtracaoRelatorioError,
+    TimeoutOperacional,
+    DownloadFailed,
+    ExcecaoNaoMapeadaError
+)
 from .utils import Utils
 from datetime import date
 from pathlib import Path
@@ -79,7 +86,7 @@ class Contas_x_itens(Utils):
         Navega pelo menu do sistema até a opção Contas X Itens.
         
         Raises:
-            Exception: Se falhar na navegação do menu
+            ExtracaoRelatorioError: Se falhar na navegação do menu
         """
         try:
             logger.info("Iniciando navegação no menu...")
@@ -104,9 +111,14 @@ class Contas_x_itens(Utils):
             self.locators['opcao_contas_x_itens'].click()
             logger.info("Contas x Itens selecionada")
             
+        except TimeoutError as e:
+            error_msg = "Timeout na navegação do menu Contas X Itens"
+            logger.error(f"{error_msg}: {e}")
+            raise TimeoutOperacional(error_msg, "navegação_menu", 10000) from e
         except Exception as e:
-            logger.error(f"Falha na navegação do menu: {e}")
-            raise
+            error_msg = "Falha na navegação do menu Contas X Itens"
+            logger.error(f"{error_msg}: {e}")
+            raise ExtracaoRelatorioError(error_msg, "Contas_X_Itens") from e
 
     def _preencher_parametros(self, conta):
         """
@@ -116,13 +128,10 @@ class Contas_x_itens(Utils):
             conta (str): Número da conta a ser processada
             
         Raises:
-            Exception: Se falhar no preenchimento dos parâmetros
+            ExtracaoRelatorioError: Se falhar no preenchimento dos parâmetros
         """
         logger.info(f"Usando chave JSON: {self.parametros_json}")
         
-        # Obtém valores dos parâmetros (comentado o uso de placeholders dinâmicos)
-        # input_data_inicial = self._resolver_valor(self.parametros.get('data_inicial'))
-        # input_data_final = self._resolver_valor(self.parametros.get('data_final'))
         input_data_inicial = self.parametros.get('data_inicial')
         input_data_final = self.parametros.get('data_final')
         input_folha_inicial = self.parametros.get('folha_inicial')
@@ -220,8 +229,9 @@ class Contas_x_itens(Utils):
             self.locators['botao_ok'].click()
             
         except Exception as e:
-            logger.error(f"Falha no preenchimento de parâmetros {e}")
-            raise
+            error_msg = f"Falha no preenchimento de parâmetros para conta {conta}"
+            logger.error(f"{error_msg}: {e}")
+            raise ExtracaoRelatorioError(error_msg, "Contas_X_Itens") from e
 
     def _gerar_planilha(self, conta):
         """
@@ -231,7 +241,7 @@ class Contas_x_itens(Utils):
             conta (str): Número da conta sendo processada
             
         Raises:
-            Exception: Se falhar na geração da planilha
+            DownloadFailed: Se falhar na geração da planilha
         """
         try: 
             # Acessa a aba de planilha
@@ -284,11 +294,18 @@ class Contas_x_itens(Utils):
                 download.save_as(destino)
                 logger.info(f"Arquivo Contas x itens salvo em: {destino}")
             else:
-                logger.error("Download falhou - caminho não disponível")
+                error_msg = "Download falhou - caminho não disponível"
+                logger.error(error_msg)
+                raise DownloadFailed(error_msg)
             
+        except TimeoutError as e:
+            error_msg = f"Timeout na geração da planilha para conta {conta}"
+            logger.error(f"{error_msg}: {e}")
+            raise TimeoutOperacional(error_msg, "geracao_planilha", 210000) from e
         except Exception as e:
-            logger.error(f"Falha na geração da planilha: {e}")
-            raise
+            error_msg = f"Falha na geração da planilha para conta {conta}"
+            logger.error(f"{error_msg}: {e}")
+            raise DownloadFailed(error_msg) from e
 
     def _processar_conta(self, conta):
         """
@@ -298,7 +315,7 @@ class Contas_x_itens(Utils):
             conta (str): Número da conta a ser processada
             
         Raises:
-            Exception: Se falhar no processamento da conta
+            ExtracaoRelatorioError: Se falhar no processamento da conta
         """
         try:
             logger.info(f'Processando conta: {conta}')
@@ -315,8 +332,9 @@ class Contas_x_itens(Utils):
             logger.info(f"✅ Conta {conta} processada com sucesso")
             
         except Exception as e:
-            logger.error(f"❌ Falha no processamento da conta {conta}: {str(e)}")
-            raise
+            error_msg = f"Falha no processamento da conta {conta}"
+            logger.error(f"{error_msg}: {str(e)}")
+            raise ExtracaoRelatorioError(error_msg, "Contas_X_Itens") from e
 
     def execucao(self):
         """
@@ -342,6 +360,10 @@ class Contas_x_itens(Utils):
             }
                 
         except Exception as e:
-            error_msg = f"❌ Falha na execução: {str(e)}"
-            logger.error(error_msg)
-            return {'status': 'error', 'message': error_msg}
+            error_msg = f"Falha na execução do relatório Contas X Itens"
+            logger.error(f"{error_msg}: {str(e)}")
+            return {
+                'status': 'error', 
+                'message': error_msg,
+                'error_code': getattr(e, 'code', 'FE3') if isinstance(e, Exceptions) else 'FE3'
+            }

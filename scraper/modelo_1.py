@@ -7,6 +7,13 @@ e gerar planilhas do relatório Modelo 1 (Balancete).
 from playwright.sync_api import sync_playwright, TimeoutError 
 from config.logger import configure_logger
 from config.settings import Settings
+from .exceptions import (
+    Exceptions,
+    ExtracaoRelatorioError,
+    TimeoutOperacional,
+    DownloadFailed,
+    ExcecaoNaoMapeadaError
+)
 from .utils import Utils
 from datetime import date
 from pathlib import Path
@@ -68,7 +75,7 @@ class Modelo_1(Utils):
         Navega pelo menu do sistema até a opção Modelo 1.
         
         Raises:
-            Exception: Se falhar na navegação do menu
+            ExtracaoRelatorioError: Se falhar na navegação do menu
         """
         try:
             logger.info("Iniciando navegação no menu...")
@@ -95,24 +102,24 @@ class Modelo_1(Utils):
             self.locators['opcao_modelo1'].click()
             logger.info("Modelo 1 selecionada")
             
+        except TimeoutError as e:
+            error_msg = "Timeout na navegação do menu Modelo 1"
+            logger.error(f"{error_msg}: {e}")
+            raise TimeoutOperacional(error_msg, "navegação_menu", 10000) from e
         except Exception as e:
-            logger.error(f"Falha na navegação do menu: {e}")
-            raise
+            error_msg = "Falha na navegação do menu Modelo 1"
+            logger.error(f"{error_msg}: {e}")
+            raise ExtracaoRelatorioError(error_msg, "Modelo_1") from e
 
     def _preencher_parametros(self):
         """
         Preenche todos os parâmetros do relatório Modelo 1.
         
         Raises:
-            Exception: Se falhar no preenchimento dos parâmetros
+            ExtracaoRelatorioError: Se falhar no preenchimento dos parâmetros
         """
         try:
             logger.info(f"Usando chave JSON: {self.parametros_json}")
-            
-            # Obtém valores dos parâmetros (comentado o uso de placeholders dinâmicos)
-            # input_data_inicial = self._resolver_valor(self.parametros.get('data_inicial'))
-            # input_data_final = self._resolver_valor(self.parametros.get('data_final'))
-            # input_data_sid_art = self._resolver_valor(self.parametros.get('data_sid_art'))
             
             input_data_inicial = self.parametros.get('data_inicial')
             input_data_final = self.parametros.get('data_final')
@@ -176,15 +183,16 @@ class Modelo_1(Utils):
             self.locators['botao_ok'].click()
             
         except Exception as e:
-            logger.error(f"Falha no preenchimento de parâmetros {e}")
-            raise
+            error_msg = "Falha no preenchimento de parâmetros do Modelo 1"
+            logger.error(f"{error_msg}: {e}")
+            raise ExtracaoRelatorioError(error_msg, "Modelo_1") from e
 
     def _gerar_planilha(self):
         """
         Gera e baixa a planilha do relatório Modelo 1.
         
         Raises:
-            Exception: Se falhar na geração da planilha
+            DownloadFailed: Se falhar na geração da planilha
         """
         try: 
             # Acessa a aba de planilha
@@ -225,15 +233,22 @@ class Modelo_1(Utils):
                 download.save_as(destino)
                 logger.info(f"Arquivo Modelo 1 salvo em: {destino}")
             else:
-                logger.error("Download falhou - caminho não disponível")
+                error_msg = "Download falhou - caminho não disponível"
+                logger.error(error_msg)
+                raise DownloadFailed(error_msg)
             
             # Verifica se há botão de confirmação adicional
             if 'botao_sim' in self.locators and self.locators['botao_sim'].is_visible():
                 self.locators['botao_sim'].click()
                 
+        except TimeoutError as e:
+            error_msg = "Timeout na geração da planilha Modelo 1"
+            logger.error(f"{error_msg}: {e}")
+            raise TimeoutOperacional(error_msg, "geracao_planilha", 120000) from e
         except Exception as e:
-            logger.error(f"Falha na geração da planilha: {e}")
-            raise
+            error_msg = "Falha na geração da planilha Modelo 1"
+            logger.error(f"{error_msg}: {e}")
+            raise DownloadFailed(error_msg) from e
 
     def execucao(self):
         """
@@ -265,6 +280,10 @@ class Modelo_1(Utils):
             }
             
         except Exception as e:
-            error_msg = f"❌ Falha na execução: {str(e)}"
-            logger.error(error_msg)
-            return {'status': 'error', 'message': error_msg}
+            error_msg = f"Falha na execução do relatório Modelo 1"
+            logger.error(f"{error_msg}: {str(e)}")
+            return {
+                'status': 'error', 
+                'message': error_msg,
+                'error_code': getattr(e, 'code', 'FE3') if isinstance(e, Exceptions) else 'FE3'
+            }

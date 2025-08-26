@@ -6,6 +6,11 @@ e carregamento de parâmetros de configuração.
 
 from playwright.sync_api import Page
 from config.logger import configure_logger
+from .exceptions import (
+    ExcecaoNaoMapeadaError,
+    TimeoutOperacional,
+    FormSubmitFailed
+)
 from datetime import date
 from pathlib import Path
 import time
@@ -51,8 +56,9 @@ class Utils:
             time.sleep(3)  # Aguarda possível aparecimento do popup
             if self.locators['popup_fechar'].is_visible():
                 self.locators['popup_fechar'].click()
+                logger.info("Popup fechado")
         except Exception as e:
-            logger.warning(f" Erro ao verificar popup: {e}")
+            logger.warning(f"Erro ao verificar popup: {e}")
     
     def _confirmar_operacao(self):
         """
@@ -61,25 +67,26 @@ class Utils:
         Após a confirmação, verifica se há popups para fechar.
         
         Raises:
-            Exception: Se não conseguir confirmar a operação
+            FormSubmitFailed: Se não conseguir confirmar a operação
         """
         try:
             time.sleep(3)  # Aguarda carregamento do botão
             self.locators['botao_confirmar'].click()
-            logger.info("operação confirmada")
+            logger.info("Operação confirmada")
             self._fechar_popup_se_existir()  # Fecha possíveis popups pós-confirmação
         except Exception as e:
-            logger.error(f"Falha na confirmação: {e}")
-            raise  # Propaga a exceção para tratamento superior
+            error_msg = "Falha na confirmação da operação"
+            logger.error(f"{error_msg}: {e}")
+            raise FormSubmitFailed(error_msg) from e
     
     def _selecionar_filiais(self):
         """
-        Seleciona todas as filiais disponíveis usando o botão "Marca Todos".
+        Seleciona todas las filiais disponíveis usando o botão "Marca Todos".
         
         Este método é útil para processos que requerem seleção de múltiplas filiais.
         
         Raises:
-            Exception: Se não conseguir selecionar as filiais
+            FormSubmitFailed: Se não conseguir selecionar as filiais
         """
         try: 
             time.sleep(3)  # Aguarda carregamento do botão
@@ -87,9 +94,11 @@ class Utils:
                 self.locators['botao_marcar_filiais'].click()
                 time.sleep(1)  # Pequena pausa após seleção
                 self.locators['botao_confirmar'].click()  # Confirma a seleção
+                logger.info("Filial selecionada")
         except Exception as e:
-            logger.error(f"Falha na escolha de filiais {e}")
-            raise  # Propaga a exceção para tratamento superior
+            error_msg = "Falha na seleção de filiais"
+            logger.error(f"{error_msg}: {e}")
+            raise FormSubmitFailed(error_msg) from e
     
     def _resolver_valor(self, valor):
         """
@@ -126,93 +135,111 @@ class Utils:
                         return resultado[0]  # Retorna o primeiro dia
                     elif 'final' in valor.lower() or 'ultimo' in valor.lower():
                         return resultado[1]  # Retorna o último dia
-                
-                return resultado  # Retorna o resultado para métodos que não retornam tupla
+                    else:
+                        return resultado  # Retorna a tupla completa
+                else:
+                    return resultado  # Retorna o valor simples
+            else:
+                logger.warning(f"Método '{nome_metodo}' não encontrado para resolução")
+                return valor  # Retorna o valor original se não encontrar o método
+        else:
+            return valor  # Retorna o valor original se não for um placeholder
+    
+    def _carregar_parametros(self, arquivo_json: str, chave: str):
+        """
+        Carrega parâmetros de configuração de um arquivo JSON.
+        
+        Este método lê um arquivo JSON e extrai os parâmetros para uma chave específica,
+        resolvendo quaisquer placeholders encontrados nos valores.
+        
+        Args:
+            arquivo_json (str): Nome do arquivo JSON com os parâmetros
+            chave (str): Chave específica dentro do JSON a ser carregada
             
-            logger.warning(f"❌ Método '{nome_metodo}' não encontrado para resolver: {valor}")
-        
-        # "data_inicial": "{{primeiro_e_ultimo_dia}}",
-                        # "data_final": "{{primeiro_e_ultimo_dia}}",
-                        # "data_sid_art": "{{obter_ultimo_dia_ano_passado}}",
-        
-        return valor  # Retorna o valor original se não for um placeholder
+        Raises:
+            FileNotFoundError: Se o arquivo JSON não for encontrado
+            KeyError: Se a chave especificada não existir no JSON
+            JSONDecodeError: Se o arquivo JSON estiver mal formatado
+        """
+        try:
+            caminho_arquivo = Path(__file__).parent.parent / 'config' / arquivo_json
+            
+            with open(caminho_arquivo, 'r', encoding='utf-8') as file:
+                dados = json.load(file)
+            
+            # Verifica se a chave existe no JSON
+            if chave not in dados:
+                raise KeyError(f"Chave '{chave}' não encontrada no arquivo {arquivo_json}")
+            
+            # Carrega os parâmetros e resolve placeholders
+            self.parametros = {}
+            for param, valor in dados[chave].items():
+                self.parametros[param] = self._resolver_valor(valor)
+            
+            logger.info(f"Parâmetros carregados para chave '{chave}'")
+            
+        except FileNotFoundError as e:
+            logger.error(f"Arquivo {arquivo_json} não encontrado: {e}")
+            raise
+        except KeyError as e:
+            logger.error(f"Erro ao acessar chave no JSON: {e}")
+            raise
+        except json.JSONDecodeError as e:
+            logger.error(f"Erro ao decodificar JSON: {e}")
+            raise
+        except Exception as e:
+            error_msg = f"Erro inesperado ao carregar parâmetros: {e}"
+            logger.error(error_msg)
+            raise ExcecaoNaoMapeadaError(error_msg) from e
     
     def _get_data_atual(self):
         """
-        Retorna a data atual formatada no padrão brasileiro.
+        Retorna a data atual no formato DD/MM/YYYY.
         
         Returns:
-            str: Data atual no formato DD/MM/AAAA
+            str: Data atual formatada
         """
-        return date.today().strftime("%d/%m/%Y")
+        return date.today().strftime('%d/%m/%Y')
     
     def primeiro_e_ultimo_dia(self):
         """
-        Calcula o primeiro e último dia do mês anterior ao atual.
+        Retorna uma tupla com o primeiro e último dia do mês atual.
         
         Returns:
-            tuple: (primeiro_dia, ultimo_dia) ambos no formato DD/MM/AAAA
+            tuple: (primeiro_dia, ultimo_dia) no formato DD/MM/YYYY
         """
         hoje = date.today()
+        primeiro_dia = date(hoje.year, hoje.month, 1)
+        ultimo_dia = date(hoje.year, hoje.month, calendar.monthrange(hoje.year, hoje.month)[1])
         
-        # Calcula mês e ano do mês anterior
-        mes_passado = hoje.month - 1 if hoje.month > 1 else 12
-        ano_mes_passado = hoje.year if hoje.month > 1 else hoje.year - 1
-        
-        # Calcula primeiro e último dia do mês anterior
-        primeiro_dia = date(ano_mes_passado, mes_passado, 1).strftime("%d/%m/%Y")
-        ultimo_dia_num = calendar.monthrange(ano_mes_passado, mes_passado)[1]
-        ultimo_dia = date(ano_mes_passado, mes_passado, ultimo_dia_num).strftime("%d/%m/%Y")
-        
-        return primeiro_dia, ultimo_dia
+        return (
+            primeiro_dia.strftime('%d/%m/%Y'),
+            ultimo_dia.strftime('%d/%m/%Y')
+        )
     
     def obter_ultimo_dia_ano_passado(self):
         """
-        Retorna o último dia do ano anterior ao atual.
+        Retorna o último dia do ano anterior.
         
         Returns:
-            str: Último dia do ano anterior no formato DD/MM/AAAA
+            str: Último dia do ano anterior no formato DD/MM/YYYY
         """
         ano_passado = date.today().year - 1
-        ultimo_dia = date(ano_passado, 12, 31).strftime("%d/%m/%Y")
-        return ultimo_dia
+        ultimo_dia = date(ano_passado, 12, 31)
+        return ultimo_dia.strftime('%d/%m/%Y')
     
-    def _carregar_parametros(self, nome_arquivo: str, parametros_json: str = None) -> dict:
+    def _validar_parametros(self, parametros_obrigatorios: list):
         """
-        Carrega parâmetros de um arquivo JSON de configuração.
+        Valida se todos os parâmetros obrigatórios foram carregados corretamente.
         
         Args:
-            nome_arquivo (str): Nome do arquivo (apenas para log)
-            parametros_json (str, optional): Chave específica no JSON. Se None, 
-                                            tenta usar o nome do arquivo sem extensão.
-        
-        Returns:
-            dict: Dicionário com parâmetros carregados ou dicionário vazio em caso de erro
+            parametros_obrigatorios (list): Lista de nomes de parâmetros obrigatórios
+            
+        Raises:
+            ValueError: Se algum parâmetro obrigatório estiver faltando
         """
-        parametros_path = Path("parameters.json")
+        for param in parametros_obrigatorios:
+            if param not in self.parametros:
+                raise ValueError(f"Parâmetro obrigatório '{param}' não encontrado")
         
-        try:
-            if parametros_path.exists():
-                with open(parametros_path, 'r', encoding='utf-8') as f:
-                    parametros = json.load(f)
-                    
-                    # Tenta encontrar a chave específica ou usa fallback
-                    if parametros_json:
-                        self.parametros = parametros.get(parametros_json, {})
-                    else:
-                        # Fallback: usa o nome do arquivo sem extensão como chave
-                        chave_padrao = nome_arquivo.replace('.json', '')
-                        self.parametros = parametros.get(chave_padrao, {})
-                    
-                    logger.info(f"Parâmetros carregados: {nome_arquivo} -> {parametros_json if parametros_json else chave_padrao}")
-                    return self.parametros
-            else:
-                logger.error(f"❌ Arquivo de parâmetros não encontrado: {parametros_path}")
-                return {}  # Retorna dicionário vazio se arquivo não existir
-                
-        except json.JSONDecodeError as e:
-            logger.error(f"❌ Erro ao decodificar JSON {nome_arquivo}: {e}")
-            return {}  # Retorna dicionário vazio em caso de erro de decodificação
-        except Exception as e:
-            logger.error(f"❌ Erro ao carregar parâmetros {nome_arquivo}: {e}")
-            return {}  # Retorna dicionário vazio para qualquer outro erro
+        logger.info("Todos os parâmetros obrigatórios validados com sucesso")

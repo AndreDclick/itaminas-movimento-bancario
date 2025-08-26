@@ -7,7 +7,14 @@ execução de relatórios financeiros e processamento de dados.
 from playwright.sync_api import sync_playwright, TimeoutError as PlaywrightTimeoutError
 from config.settings import Settings
 from config.logger import configure_logger
-from .exceptions import FormSubmitFailed
+from exceptions import (
+    LoginProtheusError,
+    BrowserClosedError,
+    DownloadFailed,
+    TimeoutOperacional,
+    ExcecaoNaoMapeadaError,
+    FormSubmitFailed
+)
 from .utils import Utils
 from .financeiro import ExtracaoFinanceiro
 from .modelo_1 import Modelo_1
@@ -40,35 +47,50 @@ class ProtheusScraper(Utils):
 
     def _initialize_resources(self):
         """Inicializa todos os recursos do Playwright."""
-        self.playwright = sync_playwright().start()
-        self._setup_browser()
-        self._setup_page()
-        self._definir_locators()
+        try:
+            self.playwright = sync_playwright().start()
+            self._setup_browser()
+            self._setup_page()
+            self._definir_locators()
+        except Exception as e:
+            error_msg = "Falha na inicialização dos recursos do Playwright"
+            logger.error(f"{error_msg}: {e}")
+            raise BrowserClosedError(error_msg) from e
     
     def _setup_browser(self):
         """
         Configura o navegador Edge com as opções especificadas.
         """
-        self.browser = self.playwright.chromium.launch(
-            headless=self.settings.HEADLESS,
-            args=["--start-maximized"],
-            channel="msedge"
-        )
+        try:
+            self.browser = self.playwright.chromium.launch(
+                headless=self.settings.HEADLESS,
+                args=["--start-maximized"],
+                channel="msedge"
+            )
+        except Exception as e:
+            error_msg = "Falha ao configurar o navegador"
+            logger.error(f"{error_msg}: {e}")
+            raise BrowserClosedError(error_msg) from e
 
     def _setup_page(self):
         """
         Configura a página e contexto do navegador.
         """
-        self.context = self.browser.new_context(
-            no_viewport=True,
-            accept_downloads=True  
-        )
-        
-        # Monitorar eventos de download
-        self.context.on("download", self._handle_download)
-        
-        self.page = self.context.new_page()
-        self.page.set_default_timeout(self.settings.TIMEOUT)
+        try:
+            self.context = self.browser.new_context(
+                no_viewport=True,
+                accept_downloads=True  
+            )
+            
+            # Monitorar eventos de download
+            self.context.on("download", self._handle_download)
+            
+            self.page = self.context.new_page()
+            self.page.set_default_timeout(self.settings.TIMEOUT)
+        except Exception as e:
+            error_msg = "Falha ao configurar a página do navegador"
+            logger.error(f"{error_msg}: {e}")
+            raise BrowserClosedError(error_msg) from e
 
     def _handle_download(self, download):
         """
@@ -86,23 +108,31 @@ class ProtheusScraper(Utils):
                 # Não salva aqui - cada classe de extração salva com seu próprio nome
             else:
                 logger.error(f"Download falhou: {download.suggested_filename}")
+                raise DownloadFailed(f"Download falhou: {download.suggested_filename}")
                 
         except Exception as e:
-            logger.error(f"Erro ao processar download: {e}")
+            error_msg = f"Erro ao processar download: {e}"
+            logger.error(error_msg)
+            raise DownloadFailed(error_msg) from e
                 
     def _definir_locators(self):
         """Define todos os locators utilizados na automação."""
-        self.locators = {
-            'iframe': self.page.locator("iframe"),
-            'botao_ok': self.page.locator('button:has-text("Ok")'),
-            'campo_usuario': self.page.frame_locator("iframe").get_by_placeholder("Ex. sp01\\nome.sobrenome"),
-            'campo_senha': self.page.frame_locator("iframe").get_by_label("Insira sua senha"),
-            'botao_entrar': self.page.frame_locator("iframe").get_by_role("button", name="Entrar"),            
-            'campo_grupo': self.page.frame_locator("iframe").get_by_label("Grupo"),
-            'campo_filial': self.page.frame_locator("iframe").get_by_label("Filial"),
-            'campo_ambiente': self.page.frame_locator("iframe").get_by_label("Ambiente"),
-            'popup_fechar': self.page.get_by_role("button", name="Fechar")
-        }
+        try:
+            self.locators = {
+                'iframe': self.page.locator("iframe"),
+                'botao_ok': self.page.locator('button:has-text("Ok")'),
+                'campo_usuario': self.page.frame_locator("iframe").get_by_placeholder("Ex. sp01\\nome.sobrenome"),
+                'campo_senha': self.page.frame_locator("iframe").get_by_label("Insira sua senha"),
+                'botao_entrar': self.page.frame_locator("iframe").get_by_role("button", name="Entrar"),            
+                'campo_grupo': self.page.frame_locator("iframe").get_by_label("Grupo"),
+                'campo_filial': self.page.frame_locator("iframe").get_by_label("Filial"),
+                'campo_ambiente': self.page.frame_locator("iframe").get_by_label("Ambiente"),
+                'popup_fechar': self.page.get_by_role("button", name="Fechar")
+            }
+        except Exception as e:
+            error_msg = "Falha ao definir locators"
+            logger.error(f"{error_msg}: {e}")
+            raise ExcecaoNaoMapeadaError(error_msg) from e
 
     def __enter__(self):
         """Implementa o protocolo context manager."""
@@ -122,17 +152,23 @@ class ProtheusScraper(Utils):
 
     def _fechar_recursos(self):
         """Fecha todos os recursos de forma segura."""
-        time.sleep(self.settings.SHUTDOWN_DELAY)
-        self.context.close()
-        self.browser.close()
-        self.playwright.stop()
+        try:
+            time.sleep(self.settings.SHUTDOWN_DELAY)
+            if self.context:
+                self.context.close()
+            if self.browser:
+                self.browser.close()
+            if self.playwright:
+                self.playwright.stop()
+        except Exception as e:
+            logger.warning(f"Erro ao fechar recursos: {e}")
 
     def start_scraper(self):
         """
         Inicia o navegador e navega para a página inicial do Protheus.
         
         Raises:
-            FormSubmitFailed: Se falhar ao iniciar o scraper
+            BrowserClosedError: Se falhar ao iniciar o scraper
         """
         try:
             logger.info(f"Navegando para: Protheus")
@@ -143,23 +179,28 @@ class ProtheusScraper(Utils):
                 self.locators['botao_ok'].click()
                 logger.info("Botão 'Ok' clicado")
             
+        except PlaywrightTimeoutError as e:
+            error_msg = "Timeout ao navegar para a página do Protheus"
+            logger.error(f"{error_msg}: {e}")
+            raise TimeoutOperacional(error_msg, "navegacao_inicial", self.settings.TIMEOUT) from e
         except Exception as e:
-            logger.error(f"Falha ao iniciar scraper: {e}")
-            raise FormSubmitFailed(f"Erro inicial: {e}")
+            error_msg = "Falha ao iniciar scraper"
+            logger.error(f"{error_msg}: {e}")
+            raise BrowserClosedError(error_msg) from e
 
     def login(self):
         """
         Realiza o login no sistema Protheus.
         
         Raises:
-            PlaywrightTimeoutError: Se timeout ao esperar elementos
-            FormSubmitFailed: Se falhar no processo de login
+            LoginProtheusError: Se falhar no processo de login
+            TimeoutOperacional: Se timeout ao esperar elementos
         """
         try:
             logger.info("Iniciando login...")
             
             # Interação com elementos do login
-            self.locators['iframe'].wait_for(state="visible")
+            self.locators['iframe'].wait_for(state="visible", timeout=self.settings.TIMEOUT)
             self.locators['campo_usuario'].fill(self.settings.USUARIO)
             self.locators['campo_senha'].fill(self.settings.SENHA)
             self.locators['botao_entrar'].click()
@@ -169,7 +210,7 @@ class ProtheusScraper(Utils):
             input_campo_filial = '0101'
             input_campo_ambiente = '34'
             
-            self.locators['campo_grupo'].wait_for(state="visible")
+            self.locators['campo_grupo'].wait_for(state="visible", timeout=self.settings.TIMEOUT)
             self.locators['campo_grupo'].click()
             self.locators['campo_grupo'].fill(input_campo_grupo)
             self.locators['campo_filial'].click()
@@ -183,12 +224,14 @@ class ProtheusScraper(Utils):
             time.sleep(3)
             logger.info("Login realizado com sucesso")
             
-        except PlaywrightTimeoutError:
-            logger.error("Tempo esgotado ao esperar elementos de login")
-            raise
+        except PlaywrightTimeoutError as e:
+            error_msg = "Tempo esgotado ao esperar elementos de login"
+            logger.error(f"{error_msg}: {e}")
+            raise TimeoutOperacional(error_msg, "login", self.settings.TIMEOUT) from e
         except Exception as e:
-            logger.error(f"Falha no login: {str(e)}")
-            raise FormSubmitFailed(f"Erro de login: {e}")
+            error_msg = "Falha no login"
+            logger.error(f"{error_msg}: {str(e)}")
+            raise LoginProtheusError(error_msg, self.settings.USUARIO) from e
 
     
     def run(self):
@@ -207,44 +250,51 @@ class ProtheusScraper(Utils):
             results.append({
                 'status': 'success',
                 'message': 'Login realizado com sucesso',
-                'etapa': 'autenticação'
+                'etapa': 'autenticação',
+                'error_code': None
             })
 
             # 1. Executar Financeiro
             try:       
                 financeiro = ExtracaoFinanceiro(self.page)
                 resultado_financeiro = financeiro.execucao()
+                resultado_financeiro['etapa'] = 'financeiro'
                 results.append(resultado_financeiro)
                 
             except Exception as e:
                 results.append({
                     'status': 'error',
                     'message': f'Falha no Financeiro: {str(e)}',
-                    'etapa': 'financeiro'
+                    'etapa': 'financeiro',
+                    'error_code': getattr(e, 'code', 'FE4') if hasattr(e, 'code') else 'FE3'
                 })
 
             # 2. Executar Modelo_1
             try:
                 modelo_1 = Modelo_1(self.page)
                 resultado_modelo = modelo_1.execucao()
+                resultado_modelo['etapa'] = 'modelo_1'
                 results.append(resultado_modelo)
             except Exception as e:
                 results.append({
                     'status': 'error',
                     'message': f'Falha no Modelo_1: {str(e)}',
-                    'etapa': 'modelo_1'
+                    'etapa': 'modelo_1',
+                    'error_code': getattr(e, 'code', 'FE4') if hasattr(e, 'code') else 'FE3'
                 })
 
-            # 3. Executar Contas x Itens e Andiamento
+            # 3. Executar Contas x Itens
             try:
                 contasxitens = Contas_x_itens(self.page)
                 resultado_contas = contasxitens.execucao()
+                resultado_contas['etapa'] = 'contas_x_itens'
                 results.append(resultado_contas)
             except Exception as e:
                 results.append({
                     'status': 'error',
                     'message': f'Falha em Contas x Itens: {str(e)}',
-                    'etapa': 'contas_x_itens'
+                    'etapa': 'contas_x_itens',
+                    'error_code': getattr(e, 'code', 'FE4') if hasattr(e, 'code') else 'FE3'
                 })
                 
         except Exception as e:
@@ -254,7 +304,8 @@ class ProtheusScraper(Utils):
             results.append({
                 'status': 'critical_error',
                 'message': error_msg,
-                'etapa': 'processo_principal'
+                'etapa': 'processo_principal',
+                'error_code': getattr(e, 'code', 'FE3') if hasattr(e, 'code') else 'FE3'
             })
 
         finally:
@@ -291,7 +342,8 @@ class ProtheusScraper(Utils):
                                 results.append({
                                     'status': 'success',
                                     'message': f'Planilha {nome} importada com sucesso',
-                                    'etapa': 'importação'
+                                    'etapa': 'importação',
+                                    'error_code': None
                                 })
                                 logger.info(f"✅ {arquivo} importado para {tabela}")
                             else:
@@ -301,7 +353,8 @@ class ProtheusScraper(Utils):
                             results.append({
                                 'status': 'error',
                                 'message': f'Falha ao importar {nome}: {str(e)}',
-                                'etapa': 'importação'
+                                'etapa': 'importação',
+                                'error_code': getattr(e, 'code', 'FE3') if hasattr(e, 'code') else 'FE3'
                             })
                             logger.error(f"❌ Erro ao importar {arquivo}: {e}")
 
@@ -314,26 +367,30 @@ class ProtheusScraper(Utils):
                                 results.append({
                                     'status': 'success',
                                     'message': f'Conciliação gerada em {output_path}',
-                                    'etapa': 'processamento'
+                                    'etapa': 'processamento',
+                                    'error_code': None
                                 })
                                 logger.info(f"✅ Planilha final gerada: {output_path}")
                             else:
                                 results.append({
                                     'status': 'error',
                                     'message': 'Falha ao gerar planilha de conciliação',
-                                    'etapa': 'processamento'
+                                    'etapa': 'processamento',
+                                    'error_code': 'DB001'
                                 })
                         else:
                             results.append({
                                 'status': 'error',
                                 'message': 'Falha no processamento dos dados',
-                                'etapa': 'processamento'
+                                'etapa': 'processamento',
+                                'error_code': 'DB002'
                             })
                     else:
                         results.append({
                             'status': 'error',
                             'message': 'Nenhum arquivo foi importado com sucesso',
-                            'etapa': 'importação'
+                            'etapa': 'importação',
+                            'error_code': 'DB003'
                         })
                         logger.error("❌ Nenhum arquivo importado, pulando processamento")
 
@@ -344,12 +401,13 @@ class ProtheusScraper(Utils):
                 results.append({
                     'status': 'critical_error',
                     'message': error_msg,
-                    'etapa': 'database'
+                    'etapa': 'database',
+                    'error_code': getattr(e, 'code', 'DB000') if hasattr(e, 'code') else 'DB000'
                 })
 
             # Verificação final dos resultados
             sucessos = sum(1 for r in results if r['status'] == 'success')
-            erros = sum(1 for r in results if r['status'] == 'error')
+            erros = sum(1 for r in results if r['status'] in ['error', 'critical_error'])
             
             if erros > 0:
                 logger.warning(f"Processo concluído com {sucessos} sucessos e {erros} erros")
