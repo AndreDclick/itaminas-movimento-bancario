@@ -55,8 +55,8 @@ class Settings:
     LOGS_DIR = BASE_DIR / "logs"          # Diretório para arquivos de log
     RESULTS_DIR = BASE_DIR / "results"    # Diretório para resultados e relatórios
     DB_PATH = DATA_DIR / "database.db"    # Caminho para o banco de dados
-    UPLOAD_DIR = Path("./uploads/")       # Diretório para uploads de arquivos
-    PARAMETERS_DIR = "parameters"         # Diretório para parâmetros do sistema
+    # UPLOAD_DIR = Path("./uploads/")       # Diretório para uploads de arquivos
+    PARAMETERS_DIR = BASE_DIR / "parameters.json"         # Diretório para parâmetros do sistema
 
     # Paths para download e resultados
     DOWNLOAD_PATH = DATA_DIR 
@@ -106,7 +106,7 @@ class Settings:
     PASSWORD = os.getenv("PASSWORD") 
     # Configurações SMTP para envio de emails
     SMTP = {
-        "enabled": False,                       # Habilitar/desabilitar envio de emails
+        "enabled": True,                       # Habilitar/desabilitar envio de emails
         "host": "smtp.gmail.com",           # Servidor SMTP
         "port": 587,                            # Porta do servidor SMTP
         "from": " suporte@dclick.com.br",                           # Remetente dos emails

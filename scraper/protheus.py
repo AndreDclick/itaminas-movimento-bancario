@@ -7,7 +7,7 @@ execução de relatórios financeiros e processamento de dados.
 from playwright.sync_api import sync_playwright, TimeoutError as PlaywrightTimeoutError
 from config.settings import Settings
 from config.logger import configure_logger
-from exceptions import (
+from .exceptions import (
     LoginProtheusError,
     BrowserClosedError,
     DownloadFailed,

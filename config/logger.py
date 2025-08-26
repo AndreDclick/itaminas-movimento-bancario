@@ -4,7 +4,7 @@ import sys
 from datetime import datetime
 from pathlib import Path
 from typing import Optional
-from config.settings import Settings
+from .settings import Settings
 
 class CustomLogger:
     """Logger personalizado com configurações alinhadas à documentação do RPA"""

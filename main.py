@@ -9,6 +9,7 @@ import os
 from datetime import datetime
 from pathlib import Path
 from dotenv import load_dotenv
+from jinja2 import Template
 
 # Importações locais para evitar dependências circulares
 from scraper.protheus import ProtheusScraper
@@ -34,8 +35,8 @@ from scraper.exceptions import (
 load_dotenv()
 
 
-def send_email_office_365(host, port, from_addr, password, subject, to_addrs, 
-                         html_content, embedded_images=None, attachments=None):
+def send_email_gmail(host, port, from_addr, password, subject, to_addrs, 
+                        html_content, embedded_images=None, attachments=None):
     """
     Função para enviar email via Office 365 (implementação real)
     
@@ -98,12 +99,13 @@ def send_email(subject, body, summary, attachments=None, email_type="success"):
     try:
         template_path = settings.BASE_DIR / settings.SMTP["template"]
         with open(template_path, 'r', encoding='utf-8') as template:
-            html_content = template.read().format(
-                subject,                    # Título do email
-                body,                       # Corpo do email
-                "<p style=\"font-family:'Courier New'\">" + "<br/>".join(summary) + "</p>",  # Resumo formatado
-                "",                         # Espaço para conteúdo adicional
-                "Conciliação de Fornecedores Itaminas"  # Rodapé
+            template_obj = Template(template.read())
+            html_content = template_obj.render(
+                subject=subject,
+                body=body,
+                summary="<p style=\"font-family:'Courier New'\">" + "<br/>".join(summary) + "</p>",
+                additional_content="",
+                footer="Conciliação de Fornecedores Itaminas"
             )
     except FileNotFoundError:
         # Template HTML simplificado se o arquivo não for encontrado
@@ -123,7 +125,7 @@ def send_email(subject, body, summary, attachments=None, email_type="success"):
     logging.info("Enviando e-mail...")
     
     # Enviar email usando a função de envio
-    send_email_office_365(
+    send_email_gmail(
         settings.SMTP["host"], 
         settings.SMTP["port"], 
         settings.SMTP["from"], 

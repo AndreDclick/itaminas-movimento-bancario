@@ -260,9 +260,10 @@ class Modelo_1(Utils):
         try:
             logger.info('Iniciando execução do Modelo 1')
             
-            # Carrega parâmetros do JSON
-            self._carregar_parametros('parameters.json', self.parametros_json)
-            
+            # Carregar os parâmetros do JSON usando o caminho correto do settings
+            parameters_path = self.settings.PARAMETERS_DIR  # Use o caminho do settings
+            self._carregar_parametros(parameters_path, self.parametros_json)
+
             # Executa o fluxo completo
             self._navegar_menu()
             time.sleep(1) 

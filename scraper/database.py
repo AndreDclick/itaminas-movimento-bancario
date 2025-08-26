@@ -8,6 +8,12 @@ import sqlite3
 from pathlib import Path
 from config.settings import Settings
 from config.logger import configure_logger
+from .exceptions import (
+    PlanilhaFormatacaoErradaError,
+    InvalidDataFormat,
+    ResultsSaveError,
+    ExcecaoNaoMapeadaError
+)
 from openpyxl.styles import Font, Alignment, Border, Side, PatternFill
 from openpyxl.utils import get_column_letter
 from difflib import get_close_matches
@@ -174,8 +180,9 @@ class DatabaseManager:
             logger.info("Banco de dados inicializado com sucesso")
             
         except Exception as e:
-            logger.error(f"Erro ao inicializar banco de dados: {e}")
-            raise
+            error_msg = f"Erro ao inicializar banco de dados: {e}"
+            logger.error(error_msg)
+            raise ExcecaoNaoMapeadaError(error_msg) from e
 
     def aplicar_sugestoes_colunas(self, df, missing_mappings):
         """
@@ -188,57 +195,62 @@ class DatabaseManager:
         Returns:
             DataFrame: DataFrame com colunas renomeadas conforme sugestões
         """
-        candidates = df.columns.tolist()
-        lower_map = {c.lower(): c for c in candidates}  # Mapa case-insensitive
+        try:
+            candidates = df.columns.tolist()
+            lower_map = {c.lower(): c for c in candidates}  # Mapa case-insensitive
 
-        # Mapeamento manual pré-definido para colunas comuns
-        manual_mapping = {
-            'Codigo-Nome do Fornecedor': 'fornecedor',
-            'Prf-Numero Parcela': 'titulo',
-            'Tp': 'tipo_titulo',
-            'Data de Emissao': 'data_emissao',
-            'Data de Vencto': 'data_vencimento',
-            'Valor Original': 'valor_original',
-            'Tit Vencidos Valor nominal': 'saldo_devedor',
-            'Natureza': 'situacao',
-            'Porta- dor': 'centro_custo'
-        }
+            # Mapeamento manual pré-definido para colunas comuns
+            manual_mapping = {
+                'Codigo-Nome do Fornecedor': 'fornecedor',
+                'Prf-Numero Parcela': 'titulo',
+                'Tp': 'tipo_titulo',
+                'Data de Emissao': 'data_emissao',
+                'Data de Vencto': 'data_vencimento',
+                'Valor Original': 'valor_original',
+                'Tit Vencidos Valor nominal': 'saldo_devedor',
+                'Natureza': 'situacao',
+                'Porta- dor': 'centro_custo'
+            }
 
-        # Aplica mapeamento manual primeiro
-        for src, dest in manual_mapping.items():
-            if src in df.columns and dest in missing_mappings:
-                df.rename(columns={src: dest}, inplace=True)
-                logger.warning(f"Mapeamento manual aplicado: '{src}' → '{dest}'")
-                missing_mappings.remove(dest)
+            # Aplica mapeamento manual primeiro
+            for src, dest in manual_mapping.items():
+                if src in df.columns and dest in missing_mappings:
+                    df.rename(columns={src: dest}, inplace=True)
+                    logger.warning(f"Mapeamento manual aplicado: '{src}' → '{dest}'")
+                    missing_mappings.remove(dest)
 
-        # Tenta encontrar correspondências automáticas para colunas restantes
-        for db_col in list(missing_mappings):
-            # Busca por correspondência case-insensitive
-            if db_col.lower() in lower_map:
-                match = lower_map[db_col.lower()]
-                logger.warning(f"Sugestão aplicada: '{match}' → '{db_col}' (case-insensitive match)")
-                df.rename(columns={match: db_col}, inplace=True)
-                missing_mappings.remove(db_col)
-                continue
+            # Tenta encontrar correspondências automáticas para colunas restantes
+            for db_col in list(missing_mappings):
+                # Busca por correspondência case-insensitive
+                if db_col.lower() in lower_map:
+                    match = lower_map[db_col.lower()]
+                    logger.warning(f"Sugestão aplicada: '{match}' → '{db_col}' (case-insensitive match)")
+                    df.rename(columns={match: db_col}, inplace=True)
+                    missing_mappings.remove(db_col)
+                    continue
 
-            # Busca por correspondência fuzzy (similaridade)
-            similar = get_close_matches(db_col, candidates, n=1, cutoff=0.6)
-            if similar:
-                match = similar[0]
-                logger.warning(f"Sugestão aplicada: '{match}' → '{db_col}'")
-                df.rename(columns={match: db_col}, inplace=True)
-                missing_mappings.remove(db_col)
-                continue
+                # Busca por correspondência fuzzy (similaridade)
+                similar = get_close_matches(db_col, candidates, n=1, cutoff=0.6)
+                if similar:
+                    match = similar[0]
+                    logger.warning(f"Sugestão aplicada: '{match}' → '{db_col}'")
+                    df.rename(columns={match: db_col}, inplace=True)
+                    missing_mappings.remove(db_col)
+                    continue
 
-            # Busca por correspondência fuzzy case-insensitive
-            similar_lower = get_close_matches(db_col.lower(), list(lower_map.keys()), n=1, cutoff=0.6)
-            if similar_lower:
-                match = lower_map[similar_lower[0]]
-                logger.warning(f"Sugestão aplicada: '{match}' → '{db_col}' (fuzzy case-insensitive)")
-                df.rename(columns={match: db_col}, inplace=True)
-                missing_mappings.remove(db_col)
+                # Busca por correspondência fuzzy case-insensitive
+                similar_lower = get_close_matches(db_col.lower(), list(lower_map.keys()), n=1, cutoff=0.6)
+                if similar_lower:
+                    match = lower_map[similar_lower[0]]
+                    logger.warning(f"Sugestão aplicada: '{match}' → '{db_col}' (fuzzy case-insensitive)")
+                    df.rename(columns={match: db_col}, inplace=True)
+                    missing_mappings.remove(db_col)
 
-        return df
+            return df
+        except Exception as e:
+            error_msg = f"Erro ao aplicar sugestões de colunas: {e}"
+            logger.error(error_msg)
+            raise PlanilhaFormatacaoErradaError(error_msg) from e
 
     def import_from_excel(self, file_path, table_name):
         """
@@ -274,8 +286,9 @@ class DatabaseManager:
                 try:
                     df = DatabaseManager.read_spreadsheetml(file_path)
                 except Exception as e:
-                    self.logger.error(f"Falha ao ler {file_path} como SpreadsheetML: {e}")
-                    return None
+                    error_msg = f"Falha ao ler {file_path} como SpreadsheetML: {e}"
+                    logger.error(error_msg)
+                    raise InvalidDataFormat(error_msg, tipo_dado="XML") from e
 
             elif ext == ".txt":
                 try:
@@ -284,7 +297,9 @@ class DatabaseManager:
                     df = pd.read_csv(file_path, sep="\t", encoding="latin1", header=1)
 
             else:
-                raise ValueError(f"Formato de arquivo não suportado: {ext}")
+                error_msg = f"Formato de arquivo não suportado: {ext}"
+                logger.error(error_msg)
+                raise InvalidDataFormat(error_msg, tipo_dado=ext)
 
             logger.info(f"Colunas originais em {file_path}: {df.columns.tolist()}")
 
@@ -319,8 +334,9 @@ class DatabaseManager:
                         remaining_missing.remove('conta_contabil')
 
                     if remaining_missing:
-                        logger.error(f"Colunas obrigatórias ausentes após tratamento: {remaining_missing}")
-                        raise ValueError(f"Colunas obrigatórias ausentes: {remaining_missing}")
+                        error_msg = f"Colunas obrigatórias ausentes após tratamento: {remaining_missing}"
+                        logger.error(error_msg)
+                        raise PlanilhaFormatacaoErradaError(error_msg, caminho_arquivo=file_path)
 
             # Limpa e prepara os dados
             df = self._clean_dataframe(df, table_name.lower())
@@ -335,9 +351,13 @@ class DatabaseManager:
             logger.info(f"Dados importados para '{table_name}' com sucesso.")
             return True
 
-        except Exception as e:
-            logger.error(f"Falha ao importar {file_path}: {e}", exc_info=True)
+        except (PlanilhaFormatacaoErradaError, InvalidDataFormat) as e:
+            logger.error(f"Falha ao importar {file_path}: {e}")
             return False
+        except Exception as e:
+            error_msg = f"Erro inesperado ao importar {file_path}: {e}"
+            logger.error(error_msg, exc_info=True)
+            raise ExcecaoNaoMapeadaError(error_msg) from e
 
     @staticmethod
     def read_spreadsheetml(path: str) -> pd.DataFrame:
@@ -353,40 +373,45 @@ class DatabaseManager:
         Raises:
             ValueError: Se não encontrar cabeçalho e dados suficientes
         """
-        ns = {"ss": "urn:schemas-microsoft-com:office:spreadsheet"}
-        tree = ET.parse(path)
-        root = tree.getroot()
+        try:
+            ns = {"ss": "urn:schemas-microsoft-com:office:spreadsheet"}
+            tree = ET.parse(path)
+            root = tree.getroot()
 
-        rows = []
-        for row in root.findall(".//ss:Row", ns):
-            values = []
-            for cell in row.findall("ss:Cell", ns):
-                data = cell.find("ss:Data", ns)
-                values.append(data.text if data is not None else None)
-            rows.append(values)
+            rows = []
+            for row in root.findall(".//ss:Row", ns):
+                values = []
+                for cell in row.findall("ss:Cell", ns):
+                    data = cell.find("ss:Data", ns)
+                    values.append(data.text if data is not None else None)
+                rows.append(values)
 
-        if not rows or len(rows) < 2:
-            raise ValueError("Não foi possível encontrar cabeçalho e dados no arquivo XML")
+            if not rows or len(rows) < 2:
+                raise ValueError("Não foi possível encontrar cabeçalho e dados no arquivo XML")
 
-        # Pula a primeira linha (título "Item Conta")
-        header = rows[1]
-        data = rows[2:]
+            # Pula a primeira linha (título "Item Conta")
+            header = rows[1]
+            data = rows[2:]
 
-        df = pd.DataFrame(data, columns=header)
+            df = pd.DataFrame(data, columns=header)
 
-        # Deduplicar nomes de colunas manualmente
-        counts = {}
-        new_columns = []
-        for col in df.columns:
-            if col not in counts:
-                counts[col] = 0
-                new_columns.append(col)
-            else:
-                counts[col] += 1
-                new_columns.append(f"{col}_{counts[col]}")
+            # Deduplicar nomes de colunas manualmente
+            counts = {}
+            new_columns = []
+            for col in df.columns:
+                if col not in counts:
+                    counts[col] = 0
+                    new_columns.append(col)
+                else:
+                    counts[col] += 1
+                    new_columns.append(f"{col}_{counts[col]}")
 
-        df.columns = new_columns
-        return df
+            df.columns = new_columns
+            return df
+        except Exception as e:
+            error_msg = f"Erro ao ler arquivo SpreadsheetML {path}: {e}"
+            logger.error(error_msg)
+            raise InvalidDataFormat(error_msg, tipo_dado="XML") from e
 
     def get_expected_columns(self, table_name):
         """
@@ -425,7 +450,9 @@ class DatabaseManager:
                 'saldo_anterior', 'debito', 'credito', 'saldo_atual'
             ]
         else:
-            raise ValueError(f"Tabela desconhecida: {table_name}")
+            error_msg = f"Tabela desconhecida: {table_name}"
+            logger.error(error_msg)
+            raise ValueError(error_msg)
         
     def _clean_dataframe(self, df, sheet_type):
         """
@@ -459,8 +486,9 @@ class DatabaseManager:
             logger.info(f"DataFrame limpo - shape final: {df.shape}")
             return df
         except Exception as e:
-            logger.error(f"Erro na limpeza dos dados ({sheet_type}): {str(e)}", exc_info=True)
-            raise
+            error_msg = f"Erro na limpeza dos dados ({sheet_type}): {str(e)}"
+            logger.error(error_msg, exc_info=True)
+            raise InvalidDataFormat(error_msg, tipo_dado=sheet_type) from e
 
     def _clean_financeiro_data(self, df):
         """
@@ -472,34 +500,39 @@ class DatabaseManager:
         Returns:
             DataFrame: DataFrame limpo
         """
-        # Remove registros de fornecedores NDF/PA
-        if 'fornecedor' in df.columns:
-            df = df[~df['fornecedor'].str.contains(r'\bNDF\b|\bPA\b', case=False, na=False)]
-        
-        # Garante que todas as colunas obrigatórias existam
-        required_cols = ['fornecedor', 'titulo', 'parcela', 'tipo_titulo', 
-                        'data_emissao', 'data_vencimento', 'valor_original',
-                        'saldo_devedor', 'situacao', 'conta_contabil', 'centro_custo']
-        
-        for col in required_cols:
-            if col not in df.columns:
-                df[col] = np.nan
-        
-        # Limpa e converte colunas numéricas
-        num_cols = ['valor_original', 'saldo_devedor']
-        for col in num_cols:
-            if col in df.columns:
-                df[col] = (df[col].astype(str)
-                            .str.replace(r'[^\d,-]', '', regex=True)  # Remove caracteres não numéricos
-                            .str.replace(',', '.')  # Padroniza decimal
-                            .replace('', '0')
-                            .astype(float))
-        
-        # Cria coluna de comparação para validação
-        if 'valor_original' in df.columns and 'saldo_devedor' in df.columns:
-            df['comparacao'] = df['valor_original'] - df['saldo_devedor']
-        
-        return df
+        try:
+            # Remove registros de fornecedores NDF/PA
+            if 'fornecedor' in df.columns:
+                df = df[~df['fornecedor'].str.contains(r'\bNDF\b|\bPA\b', case=False, na=False)]
+            
+            # Garante que todas as colunas obrigatórias existam
+            required_cols = ['fornecedor', 'titulo', 'parcela', 'tipo_titulo', 
+                            'data_emissao', 'data_vencimento', 'valor_original',
+                            'saldo_devedor', 'situacao', 'conta_contabil', 'centro_custo']
+            
+            for col in required_cols:
+                if col not in df.columns:
+                    df[col] = np.nan
+            
+            # Limpa e converte colunas numéricas
+            num_cols = ['valor_original', 'saldo_devedor']
+            for col in num_cols:
+                if col in df.columns:
+                    df[col] = (df[col].astype(str)
+                                .str.replace(r'[^\d,-]', '', regex=True)  # Remove caracteres não numéricos
+                                .str.replace(',', '.')  # Padroniza decimal
+                                .replace('', '0')
+                                .astype(float))
+            
+            # Cria coluna de comparação para validação
+            if 'valor_original' in df.columns and 'saldo_devedor' in df.columns:
+                df['comparacao'] = df['valor_original'] - df['saldo_devedor']
+            
+            return df
+        except Exception as e:
+            error_msg = f"Erro na limpeza de dados financeiros: {e}"
+            logger.error(error_msg)
+            raise InvalidDataFormat(error_msg, tipo_dado="financeiro") from e
 
     def _clean_modelo1_data(self, df):
         """
@@ -511,38 +544,43 @@ class DatabaseManager:
         Returns:
             DataFrame: DataFrame limpo
         """
-        # Classifica tipo de fornecedor baseado na descrição da conta
-        if 'descricao_conta' in df.columns:
-            df['tipo_fornecedor'] = df['descricao_conta'].apply(
-                lambda x: 'FORNECEDOR NACIONAL' if 'FORNEC' in str(x).upper() and 'NAC' in str(x).upper()
-                else 'FORNECEDOR' if 'FORNEC' in str(x).upper()
-                else 'OUTROS'
-            )
-        
-        # Preenche códigos e descrições de fornecedor
-        if 'codigo_fornecedor' not in df.columns:
-            df['codigo_fornecedor'] = None
-        if 'descricao_fornecedor' not in df.columns:
-            df['descricao_fornecedor'] = None
-        
-        # Tenta extrair código do fornecedor da descrição da conta
-        if df['codigo_fornecedor'].isna().all() and 'descricao_conta' in df.columns:
-            # Extrai possíveis códigos da descrição
-            df['codigo_fornecedor'] = df['descricao_conta'].str.extract(r'(\d{3,})', expand=False)
-            df['descricao_fornecedor'] = df['descricao_conta']
-        
-        # Limpa e converte colunas numéricas
-        num_cols = ['saldo_anterior', 'debito', 'credito', 'saldo_atual']
-        for col in num_cols:
-            if col in df.columns:
-                df[col] = pd.to_numeric(
-                    df[col].astype(str)
-                    .str.replace(r'[^\d,-]', '', regex=True)
-                    .str.replace(',', '.'),
-                    errors='coerce'
-                ).fillna(0)
-        
-        return df
+        try:
+            # Classifica tipo de fornecedor baseado na descrição da conta
+            if 'descricao_conta' in df.columns:
+                df['tipo_fornecedor'] = df['descricao_conta'].apply(
+                    lambda x: 'FORNECEDOR NACIONAL' if 'FORNEC' in str(x).upper() and 'NAC' in str(x).upper()
+                    else 'FORNECEDOR' if 'FORNEC' in str(x).upper()
+                    else 'OUTROS'
+                )
+            
+            # Preenche códigos e descrições de fornecedor
+            if 'codigo_fornecedor' not in df.columns:
+                df['codigo_fornecedor'] = None
+            if 'descricao_fornecedor' not in df.columns:
+                df['descricao_fornecedor'] = None
+            
+            # Tenta extrair código do fornecedor da descrição da conta
+            if df['codigo_fornecedor'].isna().all() and 'descricao_conta' in df.columns:
+                # Extrai possíveis códigos da descrição
+                df['codigo_fornecedor'] = df['descricao_conta'].str.extract(r'(\d{3,})', expand=False)
+                df['descricao_fornecedor'] = df['descricao_conta']
+            
+            # Limpa e converte colunas numéricas
+            num_cols = ['saldo_anterior', 'debito', 'credito', 'saldo_atual']
+            for col in num_cols:
+                if col in df.columns:
+                    df[col] = pd.to_numeric(
+                        df[col].astype(str)
+                        .str.replace(r'[^\d,-]', '', regex=True)
+                        .str.replace(',', '.'),
+                        errors='coerce'
+                    ).fillna(0)
+            
+            return df
+        except Exception as e:
+            error_msg = f"Erro na limpeza de dados do modelo1: {e}"
+            logger.error(error_msg)
+            raise InvalidDataFormat(error_msg, tipo_dado="modelo1") from e
 
     def _clean_contas_itens_data(self, df):
         """
@@ -554,24 +592,29 @@ class DatabaseManager:
         Returns:
             DataFrame: DataFrame limpo
         """
-        # Remove colunas não utilizadas nas tabelas do banco
-        columns_to_drop = ['movimento_periodo', 'Movimento do periodo']
-        for col in columns_to_drop:
-            if col in df.columns:
-                df = df.drop(col, axis=1)
-        
-        # Limpa e converte colunas numéricas
-        num_cols = ['saldo_anterior', 'debito', 'credito', 'saldo_atual']
-        for col in num_cols:
-            if col in df.columns:
-                df[col] = pd.to_numeric(
-                    df[col].astype(str)
-                    .str.replace(r'[^\d,-]', '', regex=True)
-                    .str.replace(',', '.'),
-                    errors='coerce'
-                ).fillna(0)
-        
-        return df
+        try:
+            # Remove colunas não utilizadas nas tabelas do banco
+            columns_to_drop = ['movimento_periodo', 'Movimento do periodo']
+            for col in columns_to_drop:
+                if col in df.columns:
+                    df = df.drop(col, axis=1)
+            
+            # Limpa e converte colunas numéricas
+            num_cols = ['saldo_anterior', 'debito', 'credito', 'saldo_atual']
+            for col in num_cols:
+                if col in df.columns:
+                    df[col] = pd.to_numeric(
+                        df[col].astype(str)
+                        .str.replace(r'[^\d,-]', '', regex=True)
+                        .str.replace(',', '.'),
+                        errors='coerce'
+                    ).fillna(0)
+            
+            return df
+        except Exception as e:
+            error_msg = f"Erro na limpeza de dados de contas x itens: {e}"
+            logger.error(error_msg)
+            raise InvalidDataFormat(error_msg, tipo_dado="contas_itens") from e
     
     def _get_column_mapping(self, file_path: Path):
         """
@@ -632,7 +675,9 @@ class DatabaseManager:
             return self.settings.COLUNAS_MODELO1
         
         else:
-            raise ValueError(f"Tipo de planilha não reconhecido: {file_path.name}")
+            error_msg = f"Tipo de planilha não reconhecido: {file_path.name}"
+            logger.error(error_msg)
+            raise PlanilhaFormatacaoErradaError(error_msg, caminho_arquivo=file_path)
     
     def process_data(self):
         """
@@ -682,7 +727,7 @@ class DatabaseManager:
                     detalhes = (
                         SELECT GROUP_CONCAT(COALESCE(m.tipo_fornecedor,'') || ': ' || m.saldo_atual, ' | ')
                         FROM {self.settings.TABLE_MODELO1} m
-                        WHERE m.descricao_conta LIKE '%' || {self.settings.TABLE_RESULTADO}.codigo_fornecedor || '%'
+                        WHERE m.descricao_conta LIKE '%' || {self.settings.TABLE_RESULTado}.codigo_fornecedor || '%'
                            OR m.codigo_fornecedor = {self.settings.TABLE_RESULTADO}.codigo_fornecedor
                     )
                 WHERE EXISTS (
@@ -821,9 +866,10 @@ class DatabaseManager:
             return True
             
         except Exception as e:
-            logger.error(f"Erro ao processar dados: {e}", exc_info=True)
+            error_msg = f"Erro ao processar dados: {e}"
+            logger.error(error_msg, exc_info=True)
             self.conn.rollback()  # Reverte em caso de erro
-            return False
+            raise ExcecaoNaoMapeadaError(error_msg) from e
     
     def _apply_styles(self, worksheet):
         """
@@ -832,52 +878,55 @@ class DatabaseManager:
         Args:
             worksheet: Worksheet do openpyxl a ser estilizado
         """
-        # Define estilos para cabeçalho
-        header_fill = PatternFill(start_color="4F81BD", end_color="4F81BD", fill_type="solid")
-        header_font = Font(color="FFFFFF", bold=True)
-        align_center = Alignment(horizontal="center", vertical="center")
-        thin_border = Border(
-            left=Side(style='thin'), 
-            right=Side(style='thin'), 
-            top=Side(style='thin'), 
-            bottom=Side(style='thin')
-        )
-        
-        # Aplica estilos ao cabeçalho
-        for cell in worksheet[1]:
-            cell.fill = header_fill
-            cell.font = header_font
-            cell.alignment = align_center
-            cell.border = thin_border
-        
-        # Identifica colunas numéricas para formatação
-        header = [c.value for c in worksheet[1]]
-        numeric_headers = set([
-            'Saldo Contábil','Saldo Financeiro','Diferença',
-            'Saldo Anterior','Débito','Crédito','Saldo Atual',
-            'Valor Original','Saldo Devedor','Quantidade','Valor Unitário','Valor Total'
-        ])
-        numeric_cols_idx = [i+1 for i, h in enumerate(header) if h in numeric_headers]
-
-        # Aplica bordas e formatação numérica
-        for row in worksheet.iter_rows():
-            for cell in row:
+        try:
+            # Define estilos para cabeçalho
+            header_fill = PatternFill(start_color="4F81BD", end_color="4F81BD", fill_type="solid")
+            header_font = Font(color="FFFFFF", bold=True)
+            align_center = Alignment(horizontal="center", vertical="center")
+            thin_border = Border(
+                left=Side(style='thin'), 
+                right=Side(style='thin'), 
+                top=Side(style='thin'), 
+                bottom=Side(style='thin')
+            )
+            
+            # Aplica estilos ao cabeçalho
+            for cell in worksheet[1]:
+                cell.fill = header_fill
+                cell.font = header_font
+                cell.alignment = align_center
                 cell.border = thin_border
-                if cell.row > 1 and cell.column in numeric_cols_idx:
-                    cell.number_format = '#,##0.00'  # Formato monetário
-        
-        # Ajusta largura das colunas automaticamente
-        for column in worksheet.columns:
-            max_length = 0
-            column_letter = get_column_letter(column[0].column)
-            for cell in column:
-                try:
-                    if cell.value is not None and len(str(cell.value)) > max_length:
-                        max_length = len(str(cell.value))
-                except:
-                    pass
-            adjusted_width = (max_length + 2) * 1.2
-            worksheet.column_dimensions[column_letter].width = adjusted_width
+            
+            # Identifica colunas numéricas para formatação
+            header = [c.value for c in worksheet[1]]
+            numeric_headers = set([
+                'Saldo Contábil','Saldo Financeiro','Diferença',
+                'Saldo Anterior','Débito','Crédito','Saldo Atual',
+                'Valor Original','Saldo Devedor','Quantidade','Valor Unitário','Valor Total'
+            ])
+            numeric_cols_idx = [i+1 for i, h in enumerate(header) if h in numeric_headers]
+
+            # Aplica bordas e formatação numérica
+            for row in worksheet.iter_rows():
+                for cell in row:
+                    cell.border = thin_border
+                    if cell.row > 1 and cell.column in numeric_cols_idx:
+                        cell.number_format = '#,##0.00'  # Formato monetário
+            
+            # Ajusta largura das colunas automaticamente
+            for column in worksheet.columns:
+                max_length = 0
+                column_letter = get_column_letter(column[0].column)
+                for cell in column:
+                    try:
+                        if cell.value is not None and len(str(cell.value)) > max_length:
+                            max_length = len(str(cell.value))
+                    except:
+                        pass
+                adjusted_width = (max_length + 2) * 1.2
+                worksheet.column_dimensions[column_letter].width = adjusted_width
+        except Exception as e:
+            logger.warning(f"Erro ao aplicar estilos básicos: {e}")
 
     def _apply_enhanced_styles(self, worksheet, stats):
         """
@@ -887,79 +936,82 @@ class DatabaseManager:
             worksheet: Worksheet do openpyxl a ser estilizado
             stats: Estatísticas do processamento
         """
-        # Define estilos para cabeçalho
-        header_fill = PatternFill(start_color="4F81BD", end_color="4F81BD", fill_type="solid")
-        header_font = Font(color="FFFFFF", bold=True)
-        align_center = Alignment(horizontal="center", vertical="center")
-        thin_border = Border(
-            left=Side(style='thin'), 
-            right=Side(style='thin'), 
-            top=Side(style='thin'), 
-            bottom=Side(style='thin')
-        )
-        
-        # Aplica estilos ao cabeçalho
-        for cell in worksheet[1]:
-            cell.fill = header_fill
-            cell.font = header_font
-            cell.alignment = align_center
-            cell.border = thin_border
-        
-        # Identifica índices de colunas para formatação
-        header = [c.value for c in worksheet[1]]
-        saldo_contabil_idx = header.index("Saldo Contábil") + 1 if "Saldo Contábil" in header else None
-        saldo_financeiro_idx = header.index("Saldo Financeiro") + 1 if "Saldo Financeiro" in header else None
-        diferenca_idx = header.index("Diferença (Contábil - Financeiro)") + 1 if "Diferença (Contábil - Financeiro)" in header else None
-        status_idx = header.index("Status") + 1 if "Status" in header else None
-        
-        # Cores para formatação condicional
-        red_fill = PatternFill(start_color="FFC7CE", end_color="FFC7CE", fill_type="solid")
-        green_fill = PatternFill(start_color="C6EFCE", end_color="C6EFCE", fill_type="solid")
-        yellow_fill = PatternFill(start_color="FFEB9C", end_color="FFEB9C", fill_type="solid")
-        blue_fill = PatternFill(start_color="BDD7EE", end_color="BDD7EE", fill_type="solid")
-        
-        red_font = Font(color="9C0006", bold=True)
-        green_font = Font(color="006100", bold=True)
-        
-        # Aplica formatação condicional para cada linha
-        for row in range(2, worksheet.max_row + 1):
-            # Formata valores negativos em vermelho
-            if diferenca_idx:
-                diff_cell = worksheet.cell(row=row, column=diferenca_idx)
-                if diff_cell.value is not None and diff_cell.value < 0:
-                    diff_cell.font = red_font
+        try:
+            # Define estilos para cabeçalho
+            header_fill = PatternFill(start_color="4F81BD", end_color="4F81BD", fill_type="solid")
+            header_font = Font(color="FFFFFF", bold=True)
+            align_center = Alignment(horizontal="center", vertical="center")
+            thin_border = Border(
+                left=Side(style='thin'), 
+                right=Side(style='thin'), 
+                top=Side(style='thin'), 
+                bottom=Side(style='thin')
+            )
             
-            # Formatação baseada no status
-            if status_idx:
-                status_cell = worksheet.cell(row=row, column=status_idx)
-                status_value = status_cell.value if status_cell.value else ""
+            # Aplica estilos ao cabeçalho
+            for cell in worksheet[1]:
+                cell.fill = header_fill
+                cell.font = header_font
+                cell.alignment = align_center
+                cell.border = thin_border
+            
+            # Identifica índices de colunas para formatação
+            header = [c.value for c in worksheet[1]]
+            saldo_contabil_idx = header.index("Saldo Contábil") + 1 if "Saldo Contábil" in header else None
+            saldo_financeiro_idx = header.index("Saldo Financeiro") + 1 if "Saldo Financeiro" in header else None
+            diferenca_idx = header.index("Diferença (Contábil - Financeiro)") + 1 if "Diferença (Contábil - Financeiro)" in header else None
+            status_idx = header.index("Status") + 1 if "Status" in header else None
+            
+            # Cores para formatação condicional
+            red_fill = PatternFill(start_color="FFC7CE", end_color="FFC7CE", fill_type="solid")
+            green_fill = PatternFill(start_color="C6EFCE", end_color="C6EFCE", fill_type="solid")
+            yellow_fill = PatternFill(start_color="FFEB9C", end_color="FFEB9C", fill_type="solid")
+            blue_fill = PatternFill(start_color="BDD7EE", end_color="BDD7EE", fill_type="solid")
+            
+            red_font = Font(color="9C0006", bold=True)
+            green_font = Font(color="006100", bold=True)
+            
+            # Aplica formatação condicional para cada linha
+            for row in range(2, worksheet.max_row + 1):
+                # Formata valores negativos em vermelho
+                if diferenca_idx:
+                    diff_cell = worksheet.cell(row=row, column=diferenca_idx)
+                    if diff_cell.value is not None and diff_cell.value < 0:
+                        diff_cell.font = red_font
                 
-                if status_value == 'OK':
-                    for col in range(1, worksheet.max_column + 1):
-                        worksheet.cell(row=row, column=col).fill = green_fill
-                elif status_value == 'DIVERGENTE':
-                    for col in range(1, worksheet.max_column + 1):
-                        worksheet.cell(row=row, column=col).fill = red_fill
-                elif status_value == 'PENDENTE':
-                    for col in range(1, worksheet.max_column + 1):
-                        worksheet.cell(row=row, column=col).fill = yellow_fill
+                # Formatação baseada no status
+                if status_idx:
+                    status_cell = worksheet.cell(row=row, column=status_idx)
+                    status_value = status_cell.value if status_cell.value else ""
+                    
+                    if status_value == 'OK':
+                        for col in range(1, worksheet.max_column + 1):
+                            worksheet.cell(row=row, column=col).fill = green_fill
+                    elif status_value == 'DIVERGENTE':
+                        for col in range(1, worksheet.max_column + 1):
+                            worksheet.cell(row=row, column=col).fill = red_fill
+                    elif status_value == 'PENDENTE':
+                        for col in range(1, worksheet.max_column + 1):
+                            worksheet.cell(row=row, column=col).fill = yellow_fill
+                
+                # Aplica bordas a todas as células
+                for col in range(1, worksheet.max_column + 1):
+                    worksheet.cell(row=row, column=col).border = thin_border
             
-            # Aplica bordas a todas as células
-            for col in range(1, worksheet.max_column + 1):
-                worksheet.cell(row=row, column=col).border = thin_border
-        
-        # Ajusta largura das colunas automaticamente
-        for column in worksheet.columns:
-            max_length = 0
-            column_letter = get_column_letter(column[0].column)
-            for cell in column:
-                try:
-                    if cell.value is not None and len(str(cell.value)) > max_length:
-                        max_length = len(str(cell.value))
-                except:
-                    pass
-            adjusted_width = (max_length + 2) * 1.2
-            worksheet.column_dimensions[column_letter].width = adjusted_width
+            # Ajusta largura das colunas automaticamente
+            for column in worksheet.columns:
+                max_length = 0
+                column_letter = get_column_letter(column[0].column)
+                for cell in column:
+                    try:
+                        if cell.value is not None and len(str(cell.value)) > max_length:
+                            max_length = len(str(cell.value))
+                    except:
+                        pass
+                adjusted_width = (max_length + 2) * 1.2
+                worksheet.column_dimensions[column_letter].width = adjusted_width
+        except Exception as e:
+            logger.warning(f"Erro ao aplicar estilos avançados: {e}")
 
     def _apply_metadata_styles(self, worksheet):
         """
@@ -968,47 +1020,84 @@ class DatabaseManager:
         Args:
             worksheet: Worksheet de metadados a ser estilizado
         """
-        # Define estilos
-        title_fill = PatternFill(start_color="366092", end_color="366092", fill_type="solid")
-        title_font = Font(color="FFFFFF", bold=True, size=14)
-        header_fill = PatternFill(start_color="4F81BD", end_color="4F81BD", fill_type="solid")
-        header_font = Font(color="FFFFFF", bold=True)
-        thin_border = Border(
-            left=Side(style='thin'), 
-            right=Side(style='thin'), 
-            top=Side(style='thin'), 
-            bottom=Side(style='thin')
-        )
-        
-        # Formata título
-        for cell in worksheet[1]:
-            cell.fill = title_fill
-            cell.font = title_font
-            cell.border = thin_border
-        
-        # Formata cabeçalho
-        for cell in worksheet[2]:
-            cell.fill = header_fill
-            cell.font = header_font
-            cell.border = thin_border
-        
-        # Aplica bordas a todas as células
-        for row in worksheet.iter_rows():
-            for cell in row:
+        try:
+            # Define estilos
+            title_fill = PatternFill(start_color="366092", end_color="366092", fill_type="solid")
+            title_font = Font(color="FFFFFF", bold=True, size=14)
+            header_fill = PatternFill(start_color="4F81BD", end_color="4F81BD", fill_type="solid")
+            header_font = Font(color="FFFFFF", bold=True)
+            thin_border = Border(
+                left=Side(style='thin'), 
+                right=Side(style='thin'), 
+                top=Side(style='thin'), 
+                bottom=Side(style='thin')
+            )
+            
+            # Formata título
+            for cell in worksheet[1]:
+                cell.fill = title_fill
+                cell.font = title_font
                 cell.border = thin_border
+            
+            # Formata cabeçalho
+            for cell in worksheet[2]:
+                cell.fill = header_fill
+                cell.font = header_font
+                cell.border = thin_border
+            
+            # Aplica bordas a todas as células
+            for row in worksheet.iter_rows():
+                for cell in row:
+                    cell.border = thin_border
+            
+            # Ajusta largura das colunas
+            for column in worksheet.columns:
+                max_length = 0
+                column_letter = get_column_letter(column[0].column)
+                for cell in column:
+                    try:
+                        if cell.value is not None and len(str(cell.value)) > max_length:
+                            max_length = len(str(cell.value))
+                    except:
+                        pass
+                adjusted_width = (max_length + 2) * 1.2
+                worksheet.column_dimensions[column_letter].width = adjusted_width
+        except Exception as e:
+            logger.warning(f"Erro ao aplicar estilos de metadados: {e}")
+
+    # def _get_datas_referencia(self):
+    #     """
+    #     Retorna datas de referência para o processamento da conciliação.
+    #     Executa nos dias 20 e último dia do mês, ajustando para dias úteis.
         
-        # Ajusta largura das colunas
-        for column in worksheet.columns:
-            max_length = 0
-            column_letter = get_column_letter(column[0].column)
-            for cell in column:
-                try:
-                    if cell.value is not None and len(str(cell.value)) > max_length:
-                        max_length = len(str(cell.value))
-                except:
-                    pass
-            adjusted_width = (max_length + 2) * 1.2
-            worksheet.column_dimensions[column_letter].width = adjusted_width
+    #     Returns:
+    #         tuple: (data_inicial, data_final) formatadas como strings
+    #     """
+    #     cal = Brazil()
+    #     hoje = datetime.now().date()
+        
+    #     # Verifica se é dia 20 ou último dia do mês
+    #     ultimo_dia_mes = self._ultimo_dia_mes(hoje)
+        
+    #     if hoje.day == 20 or hoje == ultimo_dia_mes:
+    #         # Ajusta para o próximo dia útil se for fim de semana/feriado
+    #         data_execucao = cal.add_working_days(hoje, 0)
+    #     else:
+    #         # Se não for dia de execução, retorna None
+    #         return None, None
+        
+    #     # Define as datas de referência baseadas no dia de execução
+    #     if data_execucao.day == 20:
+    #         # Execução no dia 20 - refere-se ao mês atual
+    #         data_inicial = data_execucao.replace(day=1)
+    #         data_final = data_execucao.replace(day=20)
+    #     else:
+    #         # Execução no último dia - refere-se ao mês anterior
+    #         mes_anterior = data_execucao.replace(day=1) - timedelta(days=1)
+    #         data_inicial = mes_anterior.replace(day=1)
+    #         data_final = self._ultimo_dia_mes(mes_anterior)
+        
+    #     return data_inicial.strftime("%d/%m/%Y"), data_final.strftime("%d/%m/%Y")
 
     def _get_datas_referencia(self):
         """
@@ -1017,13 +1106,18 @@ class DatabaseManager:
         Returns:
             tuple: (data_inicial, data_final) formatadas como strings
         """
-        cal = Brazil()
-        hoje = datetime.now().date()
-        data_inicial = hoje.replace(day=1)
-        data_inicial = cal.add_working_days(data_inicial - timedelta(days=1), 1)
-        data_final = hoje
-        logger.warning("USANDO VERSÃO TEMPORÁRIA DE _get_datas_referencia() - IGNORANDO VERIFICAÇÃO DE DIA 20/ÚLTIMO DIA")
-        return data_inicial.strftime("%d/%m/%Y"), data_final.strftime("%d/%m/%Y")
+        try:
+            cal = Brazil()
+            hoje = datetime.now().date()
+            data_inicial = hoje.replace(day=1)
+            data_inicial = cal.add_working_days(data_inicial - timedelta(days=1), 1)
+            data_final = hoje
+            logger.warning("USANDO VERSÃO TEMPORÁRIA DE _get_datas_referencia() - IGNORANDO VERIFICAÇÃO DE DIA 20/ÚLTIMO DIA")
+            return data_inicial.strftime("%d/%m/%Y"), data_final.strftime("%d/%m/%Y")
+        except Exception as e:
+            error_msg = f"Erro ao obter datas de referência: {e}"
+            logger.error(error_msg)
+            raise ExcecaoNaoMapeadaError(error_msg) from e
 
     def _ultimo_dia_mes(self, date):
         """
@@ -1080,7 +1174,8 @@ class DatabaseManager:
                 
             return True
         except Exception as e:
-            logger.error(f"Validação falhou: {e}")
+            error_msg = f"Validação falhou: {e}"
+            logger.error(error_msg)
             return False
 
     def validate_data_consistency(self):
@@ -1119,7 +1214,8 @@ class DatabaseManager:
             logger.info(f"Total Financeiro: {totals[0]} | Total Contábil: {totals[1]}")
             return True
         except Exception as e:
-            logger.error(f"Erro na validação de consistência: {e}")
+            error_msg = f"Erro na validação de consistência: {e}"
+            logger.error(error_msg)
             return False
 
     def export_to_excel(self):
@@ -1135,8 +1231,9 @@ class DatabaseManager:
         
         try:
             if not self.conn:
-                logger.error("Tentativa de exportação com conexão fechada")
-                raise RuntimeError("Conexão com o banco de dados não está aberta")
+                error_msg = "Tentativa de exportação com conexão fechada"
+                logger.error(error_msg)
+                raise ResultsSaveError(error_msg, caminho=output_path)
             
             writer = pd.ExcelWriter(output_path, engine='openpyxl')
             
@@ -1304,10 +1401,12 @@ class DatabaseManager:
             if not self.validate_output(output_path):
                 raise ValueError("A validação da planilha gerada falhou")
             
+            logger.info(f"Arquivo exportado com sucesso: {output_path}")
             return output_path
         except Exception as e:
-            logger.error(f"Erro ao exportar resultados: {e}")
-            return None
+            error_msg = f"Erro ao exportar resultados: {e}"
+            logger.error(error_msg)
+            raise ResultsSaveError(error_msg, caminho=output_path) from e
 
     def close(self):
         """Fecha a conexão com o banco de dados"""

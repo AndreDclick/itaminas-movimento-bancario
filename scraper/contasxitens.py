@@ -347,8 +347,10 @@ class Contas_x_itens(Utils):
             # Lista de contas a serem processadas
             contas = ["10106020001", "20102010001"]
             
-            # Carrega parâmetros do JSON
-            self._carregar_parametros('parameters.json', self.parametros_json)
+            # Carregar os parâmetros do JSON usando o caminho correto do settings
+            parameters_path = self.settings.PARAMETERS_DIR  # Use o caminho do settings
+            self._carregar_parametros(parameters_path, self.parametros_json)
+
             
             # Processa cada conta
             for conta in contas:
