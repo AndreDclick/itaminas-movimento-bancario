@@ -1,3 +1,10 @@
+"""
+Configurações do Sistema de Conciliação de Fornecedores
+Arquivo: settings.py
+Descrição: Configurações globais, constantes e parâmetros do sistema
+Desenvolvido por: DCLICK
+"""
+
 import os
 import json
 from pathlib import Path
@@ -5,60 +12,123 @@ from datetime import datetime, timedelta
 from dotenv import load_dotenv
 
 class Settings:
+    """
+    Classe principal de configurações do sistema.
+    Centraliza todas as constantes, paths e parâmetros de configuração.
+    """
+    
+    # =========================================================================
+    # CONFIGURAÇÕES DE DIRETÓRIOS E PATHS BASE
+    # =========================================================================
+    
+    # Diretório base do projeto (nível acima do diretório atual)
     BASE_DIR = Path(__file__).resolve().parent.parent
 
-    # Carrega o .env
+    # Carrega variáveis de ambiente do arquivo .env
     load_dotenv(BASE_DIR / ".env")
 
-    # Dados sensíveis
-    USUARIO = os.getenv("USUARIO")
-    SENHA = os.getenv("SENHA")
-    BASE_URL = os.getenv("BASE_URL")
-    CAMINHO_PLS = os.getenv("CAMINHO_PLANILHAS")
+    # =========================================================================
+    # DADOS SENSÍVEIS (carregados de variáveis de ambiente)
+    # =========================================================================
     
-    #Planilhas
-    CAMINHO_PLS = os.getenv("CAMINHO_PLANILHAS")
-    PLS_FINANCEIRO = os.getenv("PLANILHA_FINANCEIRO")
-    PLS_MODELO_1 = os.getenv("PLANILHA_MODELO_1")
-    COLUNAS_CONTAS_ITENS = os.getenv("FORNECEDOR_NACIONAL")
-    COLUNAS_ADIANTAMENTO = os.getenv("ADIANTAMENTO_NACIONAL")
+    USUARIO = os.getenv("USUARIO")              # Usuário do sistema Protheus
+    SENHA = os.getenv("SENHA")                  # Senha do sistema Protheus
+    BASE_URL = os.getenv("BASE_URL")            # URL base do sistema Protheus
+    
+    # =========================================================================
+    # CONFIGURAÇÕES DE PLANILHAS E ARQUIVOS
+    # =========================================================================
+    
+    CAMINHO_PLS = os.getenv("CAMINHO_PLANILHAS")  # Caminho para as planilhas
+    PLS_FINANCEIRO = os.getenv("PLANILHA_FINANCEIRO")  # Nome da planilha financeira
+    PLS_MODELO_1 = os.getenv("PLANILHA_MODELO_1")     # Nome da planilha modelo 1
+    
+    # Configurações de fornecedores
+    COLUNAS_CONTAS_ITENS = os.getenv("FORNECEDOR_NACIONAL")    # Fornecedor nacional
+    COLUNAS_ADIANTAMENTO = os.getenv("ADIANTAMENTO_NACIONAL")  # Adiantamento nacional
 
-    # Paths
-    DATA_DIR = BASE_DIR / "data"
-    LOGS_DIR = BASE_DIR / "logs"
-    RESULTS_DIR = BASE_DIR / "results"
-    DB_PATH = DATA_DIR / "database.db"
-    UPLOAD_DIR = Path("./uploads/")
-    PARAMETERS_DIR = "parameters"
+    # =========================================================================
+    # DIRETÓRIOS DO SISTEMA
+    # =========================================================================
+    
+    DATA_DIR = BASE_DIR / "data"          # Diretório para armazenamento de dados
+    LOGS_DIR = BASE_DIR / "logs"          # Diretório para arquivos de log
+    RESULTS_DIR = BASE_DIR / "results"    # Diretório para resultados e relatórios
+    DB_PATH = DATA_DIR / "database.db"    # Caminho para o banco de dados
+    # UPLOAD_DIR = Path("./uploads/")       # Diretório para uploads de arquivos
+    PARAMETERS_DIR = BASE_DIR / "parameters.json"         # Diretório para parâmetros do sistema
 
-    # Files
+    # Paths para download e resultados
     DOWNLOAD_PATH = DATA_DIR 
     RESULTS_PATH = RESULTS_DIR 
     
+    # Data base para processamento (formato: DD/MM/AAAA)
     DATA_BASE = datetime.now().strftime("%d/%m/%Y")
 
+    # Criar diretórios se não existirem
     DATA_DIR.mkdir(exist_ok=True)
     RESULTS_DIR.mkdir(exist_ok=True)
 
-    # Nomes das tabelas 
-    TABLE_FINANCEIRO = "financeiro"
-    TABLE_MODELO1 = "modelo1"
-    TABLE_CONTAS_ITENS = "contas_itens"
-    TABLE_ADIANTAMENTO = "adiantamento"
-    TABLE_RESULTADO = "resultado"
+    # =========================================================================
+    # CONFIGURAÇÕES DE BANCO DE DADOS (TABELAS)
+    # =========================================================================
     
-    # Timeouts
-    TIMEOUT = 30000  
-    DELAY = 0.5  
-    SHUTDOWN_DELAY = 3 
+    TABLE_FINANCEIRO = "financeiro"       # Tabela para dados financeiros
+    TABLE_MODELO1 = "modelo1"             # Tabela para dados do modelo 1
+    TABLE_CONTAS_ITENS = "contas_itens"   # Tabela para contas e itens
+    TABLE_ADIANTAMENTO = "adiantamento"   # Tabela para adiantamentos
+    TABLE_RESULTADO = "resultado"         # Tabela para resultados do processamento
     
-    # Browser
-    HEADLESS = True
+    # =========================================================================
+    # CONFIGURAÇÕES DE TEMPO E DELAYS
+    # =========================================================================
     
-    # Planilhas
+    TIMEOUT = 30000      # Timeout para operações (30 segundos)
+    DELAY = 0.5          # Delay entre operações (0.5 segundos)
+    SHUTDOWN_DELAY = 3   # Delay para desligamento (3 segundos)
+    
+    # =========================================================================
+    # CONFIGURAÇÕES DO NAVEGADOR (BROWSER)
+    # =========================================================================
+    
+    HEADLESS = True  # Executar navegador em modo headless (sem interface)
+    
+    # =========================================================================
+    # CONFIGURAÇÕES DE EMAIL
+    # =========================================================================
+    
+    # Lista de destinatários por tipo de email
+    EMAILS = {
+        "success": ["andre.rodrigues@dclick.com.br"],  # Destinatários para emails de sucesso
+        "error": ["andre.rodrigues@dclick.com.br"]     # Destinatários para emails de erro
+    }
+
+    PASSWORD = os.getenv("PASSWORD") 
+    # Configurações SMTP para envio de emails
+    SMTP = {
+        "enabled": True,                       # Habilitar/desabilitar envio de emails
+        "host": "smtp.gmail.com",           # Servidor SMTP
+        "port": 587,                            # Porta do servidor SMTP
+        "from": " suporte@dclick.com.br",                           # Remetente dos emails
+        "password": PASSWORD,                    # Senha do email remetente
+        "template": "templates/email_conciliação.html",  # Template HTML para emails
+        "logo": "templates/logo.png"            # Logo para incorporar nos emails
+    }
+
+    # =========================================================================
+    # CONFIGURAÇÕES DE PLANILHAS E PROCESSAMENTO
+    # =========================================================================
+    
+    # Fornecedores a serem excluídos do processamento
     FORNECEDORES_EXCLUIR = ['NDF', 'PA']  
+    
+    # Data de referência para processamento (último dia do mês anterior)
     DATA_REFERENCIA = (datetime.now().replace(day=1) - timedelta(days=1)).strftime("%d/%m/%Y") 
 
+    # =========================================================================
+    # MAPEAMENTO DE COLUNAS DAS PLANILHAS
+    # =========================================================================
+    
     # Planilha Financeira (finr150.xlsx)
     COLUNAS_FINANCEIRO = {
         'fornecedor': 'Codigo-Nome do Fornecedor',
@@ -112,6 +182,11 @@ class Settings:
     }
 
     def __init__(self):
+        """
+        Inicializador da classe Settings.
+        Garante que todos os diretórios necessários existam.
+        """
+        # Criar diretórios se não existirem
         os.makedirs(self.DATA_DIR, exist_ok=True)
         os.makedirs(self.LOGS_DIR, exist_ok=True)
         os.makedirs(self.RESULTS_DIR, exist_ok=True)
