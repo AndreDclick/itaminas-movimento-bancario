@@ -112,7 +112,7 @@ class Settings:
         "from": " suporte@dclick.com.br",                           # Remetente dos emails
         "password": PASSWORD,                    # Senha do email remetente
         "template": "templates/email_conciliação.html",  # Template HTML para emails
-        "logo": "templates/logo.png"            # Logo para incorporar nos emails
+        "logo": "https://www.dclick.com.br/themes/views/web/assets/logo.svg"            # Logo para incorporar nos emails
     }
 
     # =========================================================================
