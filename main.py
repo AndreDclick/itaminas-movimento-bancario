@@ -18,27 +18,28 @@ from config.settings import Settings
 from scraper.exceptions import (
     PlanilhaFormatacaoErradaError,
     LoginProtheusError,
-    ExcecaoNaoMapeadaError,
     ExtracaoRelatorioError,
-    BrowserClosedError,
-    DownloadFailed,
-    FormSubmitFailed,
-    InvalidDataFormat,
-    ResultsSaveError,
     TimeoutOperacional,
     DiferencaValoresEncontrada,
     DataInvalidaConciliação,
     FornecedorNaoEncontrado
 )
 
+#E-mail
+import smtplib
+from email.mime.multipart import MIMEMultipart
+from email.mime.text import MIMEText
+from email.mime.base import MIMEBase
+from email import encoders
+
 # Carregar variáveis de ambiente do arquivo .env
 load_dotenv()
 
 
 def send_email_gmail(host, port, from_addr, password, subject, to_addrs, 
-                        html_content, embedded_images=None, attachments=None):
+                    html_content, embedded_images=None, attachments=None):
     """
-    Função para enviar email via Office 365 (implementação real)
+    Função para enviar email via Gmail (implementação real)
     
     Args:
         host (str): Servidor SMTP
@@ -54,11 +55,63 @@ def send_email_gmail(host, port, from_addr, password, subject, to_addrs,
     Returns:
         bool: True se o email foi enviado com sucesso
     """
-    # NOTA: Esta é uma função placeholder - substitua pela implementação real
-    print(f"Simulando envio de email para: {to_addrs}")
-    print(f"Assunto: {subject}")
-    print("Conteúdo HTML gerado com sucesso")
-    return True
+    try:
+        # Criar mensagem
+        msg = MIMEMultipart('related')
+        msg['Subject'] = subject
+        msg['From'] = from_addr
+        msg['To'] = ', '.join(to_addrs)
+        
+        # Criar alternativa para texto simples (fallback)
+        msg_alternative = MIMEMultipart('alternative')
+        msg.attach(msg_alternative)
+        
+        # Criar versão HTML
+        msg_html = MIMEText(html_content, 'html', 'utf-8')
+        msg_alternative.attach(msg_html)
+        
+        # Processar imagens embedadas
+        # if embedded_images:
+        #     for img_path in embedded_images:
+        #         try:
+        #             img_name = os.path.basename(img_path)
+        #             with open(img_path, 'rb') as img_file:
+        #                 img_part = MIMEBase('application', 'octet-stream')
+        #                 img_part.set_payload(img_file.read())
+        #                 encoders.encode_base64(img_part)
+        #                 img_part.add_header('Content-Disposition', f'inline; filename="{img_name}"')
+        #                 img_part.add_header('Content-ID', f'<{img_name}>')
+        #                 msg.attach(img_part)
+        #         except Exception as e:
+        #             print(f"Erro ao anexar imagem {img_path}: {e}")
+        
+        # Processar anexos
+        if attachments:
+            for attachment_path in attachments:
+                try:
+                    attachment_name = os.path.basename(attachment_path)
+                    with open(attachment_path, 'rb') as file:
+                        part = MIMEBase('application', 'octet-stream')
+                        part.set_payload(file.read())
+                        encoders.encode_base64(part)
+                        part.add_header('Content-Disposition', 
+                                    f'attachment; filename="{attachment_name}"')
+                        msg.attach(part)
+                except Exception as e:
+                    print(f"Erro ao anexar arquivo {attachment_path}: {e}")
+        
+        # Enviar email
+        with smtplib.SMTP(host, port) as server:
+            server.starttls()  # Upgrade para conexão segura
+            server.login(from_addr, password)
+            server.send_message(msg)
+        
+        print(f"Email enviado com sucesso para: {to_addrs}")
+        return True
+        
+    except Exception as e:
+        print(f"Erro ao enviar email: {e}")
+        return False
 
 
 def send_email(subject, body, summary, attachments=None, email_type="success"):
@@ -67,8 +120,8 @@ def send_email(subject, body, summary, attachments=None, email_type="success"):
     
     Args:
         subject (str): Assunto do email
-        body (str): Corpo principal do email
-        summary (list): Lista com resumo da execução
+        body (str): Corpo principal do email (deve conter {1} e {2} para substituição)
+        summary (list): Lista com resumo da execução (substituirá {3})
         attachments (list, optional): Lista de caminhos de arquivos para anexar
         email_type (str): Tipo de email ("success" ou "error")
     """
@@ -95,37 +148,50 @@ def send_email(subject, body, summary, attachments=None, email_type="success"):
     if log_path.exists():
         attachments.append(str(log_path))
 
+    # Construir caminhos absolutos para imagens
+    # logo_path = settings.BASE_DIR / settings.SMTP["logo"]
+    template_path = settings.BASE_DIR / settings.SMTP["template"]
+    
+    # Processar o corpo para extrair {1} e {2}
+    body_parts = body.split('\n')
+    part1 = body_parts[0] if len(body_parts) > 0 else ""
+    part2 = body_parts[1] if len(body_parts) > 1 else ""
+    
+    # Formatar o resumo
+    summary_html = "<br/>".join(summary)
+    
     # Tentar carregar template HTML
     try:
-        template_path = settings.BASE_DIR / settings.SMTP["template"]
-        with open(template_path, 'r', encoding='utf-8') as template:
-            template_obj = Template(template.read())
-            html_content = template_obj.render(
-                subject=subject,
-                body=body,
-                summary="<p style=\"font-family:'Courier New'\">" + "<br/>".join(summary) + "</p>",
-                additional_content="",
-                footer="Conciliação de Fornecedores Itaminas"
-            )
+        with open(template_path, 'r', encoding='utf-8') as template_file:
+            template_content = template_file.read()
+            
+            # Substituir os placeholders manualmente
+            html_content = template_content.replace('{0}', subject)
+            html_content = html_content.replace('{1}', part1)
+            html_content = html_content.replace('{2}', part2)
+            html_content = html_content.replace('{3}', summary_html)
+            
     except FileNotFoundError:
         # Template HTML simplificado se o arquivo não for encontrado
         html_content = f"""
         <html>
         <body>
             <h2>{subject}</h2>
-            <p>{body}</p>
+            <p>{part1}</p>
+            <p>{part2}</p>
             <pre>{chr(10).join(summary)}</pre>
             <p>Esta mensagem foi gerada automaticamente pelo sistema de Conciliação de Fornecedores Itaminas.</p>
             <p>Desenvolvido por DCLICK.</p>
         </body>
         </html>
         """
+        logging.warning("Template HTML não encontrado, usando template simplificado")
     
     # Registrar tentativa de envio de email
     logging.info("Enviando e-mail...")
     
-    # Enviar email usando a função de envio
-    send_email_gmail(
+    # Enviar email usando a função de envio REAL
+    success = send_email_gmail(
         settings.SMTP["host"], 
         settings.SMTP["port"], 
         settings.SMTP["from"], 
@@ -133,10 +199,14 @@ def send_email(subject, body, summary, attachments=None, email_type="success"):
         subject, 
         recipients, 
         html_content,
-        [settings.SMTP["logo"]],  # Imagens embedadas
-        attachments              # Anexos
+        # [str(logo_path)],  # Imagens embedadas (caminho absoluto)
+        attachments        # Anexos
     )
-
+    
+    if success:
+        logging.info("Email enviado com sucesso")
+    else:
+        logging.error("Falha ao enviar email")
 
 def send_success_email(completion_time, processed_count, error_count, report_path=None):
     """
@@ -151,8 +221,8 @@ def send_success_email(completion_time, processed_count, error_count, report_pat
     # Configurar assunto do email
     subject = "[SUCESSO] BOT - Conciliação de Fornecedores Itaminas"
     
-    # Corpo principal do email
-    body = "O processo de conciliação de fornecedores foi realizado com sucesso. Todos os detalhes do processamento estão no log em anexo."
+    # Corpo principal do email (com placeholders {1} e {2})
+    body = "O processo de conciliação de fornecedores foi realizado com sucesso.\nTodos os detalhes do processamento estão no log em anexo."
     
     # Criar resumo da execução
     summary = [
@@ -185,6 +255,49 @@ def send_success_email(completion_time, processed_count, error_count, report_pat
     
     # Enviar email de sucesso
     send_email(subject, body, summary, attachments, "success")
+
+def send_error_email(error_time, error_description, affected_count=None, 
+                    error_records=None, suggested_action=None):
+    """
+    Envia email de erro conforme especificado na documentação
+    
+    Args:
+        error_time (str): Data/hora da ocorrência do erro
+        error_description (str): Descrição do erro
+        affected_count (int, optional): Quantidade de registros afetados
+        error_records (list, optional): Lista de registros com erro
+        suggested_action (str, optional): Ação sugerida para correção
+    """
+    # Configurar assunto do email
+    subject = "[FALHA] BOT - Conciliação de Fornecedores Itaminas"
+    
+    # Corpo principal do email (com placeholders {1} e {2})
+    body = "Falha na execução do processo de conciliação de fornecedores.\nVerifique os logs em anexo para mais detalhes."
+    
+    # Criar resumo do erro
+    summary = [
+        f"Status: Falha na execução",
+        f"Data/Hora da ocorrência: {error_time}",
+        f"Tipo de erro: {error_description}",
+    ]
+    
+    # Adicionar informações sobre registros afetados se disponível
+    if affected_count is not None:
+        summary.append(f"Quantidade de registros afetados: {affected_count}")
+    
+    # Adicionar identificação de registros com erro se disponível
+    if error_records:
+        records_str = ", ".join(str(record) for record in error_records[:10])  # Limitar a 10 registros
+        if len(error_records) > 10:
+            records_str += f"... (e mais {len(error_records) - 10})"
+        summary.append(f"Identificação de registros com erro: {records_str}")
+    
+    # Adicionar ação sugerida se disponível
+    if suggested_action:
+        summary.append(f"Ação sugerida para correção: {suggested_action}")
+    
+    # Enviar email de erro
+    send_email(subject, body, summary, None, "error")
 
 
 def send_error_email(error_time, error_description, affected_count=None, 
