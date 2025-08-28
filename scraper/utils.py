@@ -305,7 +305,7 @@ class Utils:
         ultimo_dia = date(ano_passado, 12, 31)
         return ultimo_dia.strftime('%d/%m/%Y')
     
-    def data_contabil(self):
+    def data_futura(self):
         """
         Define uma data contábil futura para uso em filtros e relatórios.
         

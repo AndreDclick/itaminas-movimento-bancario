@@ -32,6 +32,7 @@ MANIFEST
 *.db
 *.sql
 *.dump
+*.env
 
 # Ambiente virtual
 venv/

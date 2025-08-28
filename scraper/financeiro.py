@@ -84,7 +84,7 @@ class ExtracaoFinanceiro(Utils):
                 raise TimeoutOperacional("Timeout na operação", operacao="aguardar menu_relatorios", tempo_limite=10)
             self.locators['menu_relatorios'].click()
             logger.info("Iniciando navegação no menu...")
-            time.sleep(1)  
+            time.sleep(2)  
             if not self.locators['menu_financeiro'].is_visible():
                 self.locators['menu_relatorios'].click()
                 time.sleep(1)
