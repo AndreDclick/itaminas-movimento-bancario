@@ -8,7 +8,6 @@ from playwright.sync_api import Page
 from config.logger import configure_logger
 from .exceptions import (
     ExcecaoNaoMapeadaError,
-    TimeoutOperacional,
     FormSubmitFailed
 )
 
