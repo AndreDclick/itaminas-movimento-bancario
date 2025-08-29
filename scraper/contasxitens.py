@@ -95,7 +95,7 @@ class Contas_x_itens(Utils):
             self.locators['menu_relatorios'].wait_for(state="visible", timeout=10000)
             self.locators['menu_relatorios'].click()
             
-            time.sleep(2)  
+            time.sleep(5)  
             
             # Verifica se o submenu está visível, caso contrário clica novamente
             if not self.locators['submenu_balancetes'].is_visible():

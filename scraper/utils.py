@@ -53,7 +53,7 @@ class Utils:
         e tenta fechá-lo. Se não encontrar o popup, apenas registra um aviso.
         """
         try:
-            time.sleep(3)  # Aguarda possível aparecimento do popup
+            time.sleep(5)  # Aguarda possível aparecimento do popup
             if self.locators['popup_fechar'].is_visible():
                 self.locators['popup_fechar'].click()
                 logger.info("Popup fechado")
@@ -70,7 +70,7 @@ class Utils:
             FormSubmitFailed: Se não conseguir confirmar a operação
         """
         try:
-            time.sleep(3)  # Aguarda carregamento do botão
+            time.sleep(5)  # Aguarda carregamento do botão
             self.locators['botao_confirmar'].click()
             logger.info("Operação confirmada")
             self._fechar_popup_se_existir()  # Fecha possíveis popups pós-confirmação

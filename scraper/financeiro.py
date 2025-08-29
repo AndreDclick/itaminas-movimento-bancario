@@ -37,7 +37,8 @@ class ExtracaoFinanceiro(Utils):
         self.locators = {
             # Navegação
             'menu_relatorios': self.page.get_by_text("Relatorios (9)"),
-            'menu_financeiro': self.page.get_by_text("Financeiro (2)"),
+            # 'menu_financeiro': self.page.get_by_text("Financeiro (2)"),
+            'menu_financeiro': self.page.get_by_text("Financeiro (5)"),
             'menu_titulos_a_pagar': self.page.get_by_text("Títulos a Pagar", exact=True),
             'popup_fechar': self.page.get_by_role("button", name="Fechar"),
             'botao_confirmar': self.page.get_by_role("button", name="Confirmar"),
@@ -84,7 +85,7 @@ class ExtracaoFinanceiro(Utils):
                 raise TimeoutOperacional("Timeout na operação", operacao="aguardar menu_relatorios", tempo_limite=10)
             self.locators['menu_relatorios'].click()
             logger.info("Iniciando navegação no menu...")
-            time.sleep(2)  
+            time.sleep(5)  
             if not self.locators['menu_financeiro'].is_visible():
                 self.locators['menu_relatorios'].click()
                 time.sleep(1)
@@ -113,7 +114,7 @@ class ExtracaoFinanceiro(Utils):
 
     
     def _confirmar_moeda(self):
-        time.sleep(2)
+        time.sleep(5)
         if self.locators['confirmar_moeda'].is_visible():
                 self.locators['botao_confirmar'].click()
 
@@ -121,7 +122,7 @@ class ExtracaoFinanceiro(Utils):
     def _criar_planilha (self):
         try:
             try:
-                self.locators['planilha'].wait_for(state="visible", timeout=10000)
+                self.locators['planilha'].wait_for(state="visible", timeout=12000)
             except PlaywrightTimeoutError:
                 logger.error("Timeout ao aguardar botão de planilha")
                 raise TimeoutOperacional("Timeout na operação", operacao="aguardar botão de planilha", tempo_limite=10)

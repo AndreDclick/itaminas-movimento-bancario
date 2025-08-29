@@ -85,7 +85,7 @@ class Modelo_1(Utils):
             self.locators['menu_relatorios'].click()
             logger.info("Menu Relatórios clicado")
             
-            time.sleep(1)  
+            time.sleep(5)  
             
             # Verifica se o submenu está visível, caso contrário clica novamente
             if not self.locators['submenu_balancetes'].is_visible():
@@ -105,7 +105,7 @@ class Modelo_1(Utils):
         except TimeoutError as e:
             error_msg = "Timeout na navegação do menu Modelo 1"
             logger.error(f"{error_msg}: {e}")
-            raise TimeoutOperacional(error_msg, "navegação_menu", 10000) from e
+            raise TimeoutOperacional(error_msg, "navegação_menu", 12000) from e
         except Exception as e:
             error_msg = "Falha na navegação do menu Modelo 1"
             logger.error(f"{error_msg}: {e}")
