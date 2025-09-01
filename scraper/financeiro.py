@@ -51,6 +51,7 @@ class ExtracaoFinanceiro(Utils):
             'outras_acoes': self.page.get_by_role('button', name='Outras Ações'),
             'parametros_menu': self.page.get_by_text('Parâmetros'),
             'imprimir_btn': self.page.get_by_role('button', name='Imprimir'),
+            'botao_sim': self.page.get_by_role("button", name="Sim"),
 
             # Janela de Parâmetros
             'do_vencimento': self.page.locator('#COMP6024').get_by_role('textbox'),
@@ -85,7 +86,7 @@ class ExtracaoFinanceiro(Utils):
                 raise TimeoutOperacional("Timeout na operação", operacao="aguardar menu_relatorios", tempo_limite=10)
             self.locators['menu_relatorios'].click()
             logger.info("Iniciando navegação no menu...")
-            time.sleep(5)  
+            time.sleep(2)  
             if not self.locators['menu_financeiro'].is_visible():
                 self.locators['menu_relatorios'].click()
                 time.sleep(1)
@@ -122,7 +123,7 @@ class ExtracaoFinanceiro(Utils):
     def _criar_planilha (self):
         try:
             try:
-                self.locators['planilha'].wait_for(state="visible", timeout=12000)
+                self.locators['planilha'].wait_for(state="visible", timeout=120000)
             except PlaywrightTimeoutError:
                 logger.error("Timeout ao aguardar botão de planilha")
                 raise TimeoutOperacional("Timeout na operação", operacao="aguardar botão de planilha", tempo_limite=10)
@@ -220,10 +221,13 @@ class ExtracaoFinanceiro(Utils):
             time.sleep(2)
             
             # Esperar pelo download
-            with self.page.expect_download(timeout=120000) as download_info:
+            with self.page.expect_download(timeout=300000) as download_info:
                 self.locators['imprimir_btn'].click()
                 logger.info(f"botão download clicado")
                 time.sleep(2)
+                if 'botao_sim' in self.locators and self.locators['botao_sim'].is_visible():
+                    self.locators['botao_sim'].click()
+                    time.sleep(2)
                 self._fechar_popup_se_existir()
                 self._selecionar_filiais()
             self._confirmar_filiais()
@@ -244,7 +248,8 @@ class ExtracaoFinanceiro(Utils):
             else:
                 logger.error("Download falhou - caminho não disponível")
             
-            
+            if 'botao_sim' in self.locators and self.locators['botao_sim'].is_visible():
+                    self.locators['botao_sim'].click()
             logger.info("Processo de download concluído")
 
         except Exception as e:
@@ -271,7 +276,7 @@ class ExtracaoFinanceiro(Utils):
             self._carregar_parametros(parameters_path, self.parametros_json)
 
             self._navegar_e_configurar_planilha()            
-            self._confirmar_moeda()
+            # self._confirmar_moeda()
             self._criar_planilha()
             self._outras_acoes()
             self._preencher_parametros()

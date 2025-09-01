@@ -198,8 +198,8 @@ class Utils:
                 'primeiro_e_ultimo_dia': self.primeiro_e_ultimo_dia,
                 'obter_ultimo_dia_ano_passado': self.obter_ultimo_dia_ano_passado,
                 'data_atual': self._get_data_atual,
-                'data_contabil': self.data_contabil,
-                'datas_contas_itens': self.datas_contas_itens  # Novo método adicionado
+                'datas_contas_itens': self.datas_contas_itens,
+                'data_futura': self.data_futura
             }
             
             # Verifica se o método solicitado está disponível

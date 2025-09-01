@@ -244,7 +244,7 @@ class Contas_x_itens(Utils):
             DownloadFailed: Se falhar na geração da planilha
         """
         try: 
-            self.locators['aba_planilha'].wait_for(state="visible")
+            self.locators['aba_planilha'].wait_for(timeout=360000)
             time.sleep(1) 
             self.locators['aba_planilha'].click()
             time.sleep(1) 
@@ -252,14 +252,17 @@ class Contas_x_itens(Utils):
             if not self.locators['formato'].is_visible():
                 self.locators['aba_planilha'].click()
                 time.sleep(1)
-            
             self.locators['formato'].select_option("2")
+            # self.locators['formato'].select_option("3")
 
             # Esperar pelo download com timeout aumentado
-            with self.page.expect_download(timeout=210000) as download_info:
+            with self.page.expect_download(timeout=360000) as download_info:
                 self.locators['botao_imprimir'].click()
                 logger.info(f"Botão download clicado")
                 time.sleep(2)
+                if 'botao_imprimir' in self.locators and self.locators['botao_imprimir'].is_visible():
+                    self.locators['botao_imprimir'].click()
+                    time.sleep(2)
                 if 'botao_sim' in self.locators and self.locators['botao_sim'].is_visible():
                     self.locators['botao_sim'].click()
                     logger.info(f"Botão sim clicado")
@@ -313,6 +316,8 @@ class Contas_x_itens(Utils):
             self._navegar_menu()
             time.sleep(1) 
             self._confirmar_operacao()  
+            time.sleep(1) 
+            self._fechar_popup_se_existir()  
             time.sleep(1) 
             self._fechar_popup_se_existir()  
             self._preencher_parametros(conta)  

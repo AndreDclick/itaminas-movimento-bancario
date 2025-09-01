@@ -196,7 +196,7 @@ class Modelo_1(Utils):
         """
         try: 
             # Acessa a aba de planilha
-            self.locators['aba_planilha'].wait_for(state="visible")
+            self.locators['aba_planilha'].wait_for(timeout=360000)
             time.sleep(1) 
             self.locators['aba_planilha'].click()
             time.sleep(1) 
@@ -211,10 +211,12 @@ class Modelo_1(Utils):
             time.sleep(1) 
             
             # Espera pelo download com timeout aumentado
-            with self.page.expect_download(timeout=120000) as download_info:
+            with self.page.expect_download(timeout=360000) as download_info:
                 self.locators['botao_imprimir'].click()
                 time.sleep(2)
                 self._fechar_popup_se_existir()
+                if 'botao_sim' in self.locators and self.locators['botao_sim'].is_visible():
+                    self.locators['botao_sim'].click()
                 
             # Processa o download
             download = download_info.value

@@ -222,6 +222,8 @@ class ProtheusScraper(Utils):
             # Fecha popups se existirem
             self._fechar_popup_se_existir()
             time.sleep(3)
+            self._fechar_popup_se_existir()
+            time.sleep(3)
             logger.info("Login realizado com sucesso")
             
         except PlaywrightTimeoutError as e:
@@ -255,33 +257,33 @@ class ProtheusScraper(Utils):
             })
 
             # 1. Executar Financeiro
-            try:       
-                financeiro = ExtracaoFinanceiro(self.page)
-                resultado_financeiro = financeiro.execucao()
-                resultado_financeiro['etapa'] = 'financeiro'
-                results.append(resultado_financeiro)
+            # try:       
+            #     financeiro = ExtracaoFinanceiro(self.page)
+            #     resultado_financeiro = financeiro.execucao()
+            #     resultado_financeiro['etapa'] = 'financeiro'
+            #     results.append(resultado_financeiro)
                 
-            except Exception as e:
-                results.append({
-                    'status': 'error',
-                    'message': f'Falha no Financeiro: {str(e)}',
-                    'etapa': 'financeiro',
-                    'error_code': getattr(e, 'code', 'FE4') if hasattr(e, 'code') else 'FE3'
-                })
+            # except Exception as e:
+            #     results.append({
+            #         'status': 'error',
+            #         'message': f'Falha no Financeiro: {str(e)}',
+            #         'etapa': 'financeiro',
+            #         'error_code': getattr(e, 'code', 'FE4') if hasattr(e, 'code') else 'FE3'
+            #     })
 
-            # 2. Executar Modelo_1
-            try:
-                modelo_1 = Modelo_1(self.page)
-                resultado_modelo = modelo_1.execucao()
-                resultado_modelo['etapa'] = 'modelo_1'
-                results.append(resultado_modelo)
-            except Exception as e:
-                results.append({
-                    'status': 'error',
-                    'message': f'Falha no Modelo_1: {str(e)}',
-                    'etapa': 'modelo_1',
-                    'error_code': getattr(e, 'code', 'FE4') if hasattr(e, 'code') else 'FE3'
-                })
+            # #2. Executar Modelo_1
+            # try:
+            #     modelo_1 = Modelo_1(self.page)
+            #     resultado_modelo = modelo_1.execucao()
+            #     resultado_modelo['etapa'] = 'modelo_1'
+            #     results.append(resultado_modelo)
+            # except Exception as e:
+            #     results.append({
+            #         'status': 'error',
+            #         'message': f'Falha no Modelo_1: {str(e)}',
+            #         'etapa': 'modelo_1',
+            #         'error_code': getattr(e, 'code', 'FE4') if hasattr(e, 'code') else 'FE3'
+            #     })
 
             # 3. Executar Contas x Itens
             try:
