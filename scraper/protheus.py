@@ -173,7 +173,7 @@ class ProtheusScraper(Utils):
         try:
             logger.info(f"Navegando para: Protheus")
             self.page.goto(self.settings.BASE_URL)
-            
+            self.page.get_by_role("group", name="Ambiente no servidor").get_by_role("combobox").select_option("CEOS62_DEV")
             # Clica no botão OK se estiver visível
             if self.locators['botao_ok'].is_visible():
                 self.locators['botao_ok'].click()
@@ -247,8 +247,8 @@ class ProtheusScraper(Utils):
         
         try:
             # 0. Inicialização e login
-            self.start_scraper()
-            self.login()
+            # self.start_scraper()
+            # self.login()
             results.append({
                 'status': 'success',
                 'message': 'Login realizado com sucesso',
@@ -271,7 +271,7 @@ class ProtheusScraper(Utils):
             #         'error_code': getattr(e, 'code', 'FE4') if hasattr(e, 'code') else 'FE3'
             #     })
 
-            # #2. Executar Modelo_1
+            #2. Executar Modelo_1
             # try:
             #     modelo_1 = Modelo_1(self.page)
             #     resultado_modelo = modelo_1.execucao()
@@ -286,17 +286,17 @@ class ProtheusScraper(Utils):
             #     })
 
             # 3. Executar Contas x Itens
-            try:
-                contasxitens = Contas_x_itens(self.page)
-                resultado_contas = contasxitens.execucao()
-                results.append(resultado_contas)
-            except Exception as e:
-                results.append({
-                    'status': 'error',
-                    'message': f'Falha em Contas x Itens: {str(e)}',
-                    'etapa': 'contas_x_itens',
-                    'error_code': getattr(e, 'code', 'FE4') if hasattr(e, 'code') else 'FE3'
-                })
+            # try:
+            #     contasxitens = Contas_x_itens(self.page)
+            #     resultado_contas = contasxitens.execucao()
+            #     results.append(resultado_contas)
+            # except Exception as e:
+            #     results.append({
+            #         'status': 'error',
+            #         'message': f'Falha em Contas x Itens: {str(e)}',
+            #         'etapa': 'contas_x_itens',
+            #         'error_code': getattr(e, 'code', 'FE4') if hasattr(e, 'code') else 'FE3'
+            #     })
                 
         except Exception as e:
             # Erro crítico não tratado no processo principal
@@ -321,8 +321,8 @@ class ProtheusScraper(Utils):
                     arquivos_importar = [
                         ('financeiro', 'finr150.xlsx', db.settings.TABLE_FINANCEIRO),
                         ('modelo1', 'ctbr040.xlsx', db.settings.TABLE_MODELO1),
-                        ('contas_itens', 'ctbr140.xml', db.settings.TABLE_CONTAS_ITENS),
-                        ('adiantamento', 'ctbr100.xml', db.settings.TABLE_ADIANTAMENTO)
+                        ('contas_itens', 'ctbr140.xlsx', db.settings.TABLE_CONTAS_ITENS),
+                        ('adiantamento', 'ctbr100.xlsx', db.settings.TABLE_ADIANTAMENTO)
                     ]
                     
                     # Importar cada arquivo

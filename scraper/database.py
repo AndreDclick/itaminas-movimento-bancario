@@ -115,10 +115,12 @@ class DatabaseManager:
             
             # Cria tabela contas_itens se não existir
             cursor.execute(f"""
-                CREATE TABLE IF NOT EXISTS {self.settings.TABLE_CONTAS_ITENS}(
+                CREATE TABLE IF NOT EXISTS {self.settings.TABLE_CONTAS_ITENS} (
                     id INTEGER PRIMARY KEY AUTOINCREMENT,
                     conta_contabil TEXT,
                     descricao_item TEXT,
+                    codigo_fornecedor TEXT,
+                    descricao_fornecedor TEXT,
                     saldo_anterior REAL DEFAULT 0,
                     debito REAL DEFAULT 0,
                     credito REAL DEFAULT 0,
@@ -163,6 +165,7 @@ class DatabaseManager:
                 )
             """)
             
+            
             # Função auxiliar para garantir que colunas existam nas tabelas
             def ensure_column(table, column, type_):
                 """Garante que uma coluna exista na tabela especificada."""
@@ -172,6 +175,8 @@ class DatabaseManager:
                     cursor.execute(f"ALTER TABLE {table} ADD COLUMN {column} {type_}")
             
             # Garante que colunas importantes existam
+            ensure_column(self.settings.TABLE_CONTAS_ITENS, 'codigo_fornecedor', 'TEXT')
+            ensure_column(self.settings.TABLE_CONTAS_ITENS, 'descricao_fornecedor', 'TEXT')
             ensure_column(self.settings.TABLE_MODELO1, 'codigo_fornecedor', 'TEXT')
             ensure_column(self.settings.TABLE_MODELO1, 'descricao_fornecedor', 'TEXT')
             ensure_column(self.settings.TABLE_RESULTADO, 'ordem_importancia', 'INTEGER')
@@ -209,7 +214,11 @@ class DatabaseManager:
                 'Valor Original': 'valor_original',
                 'Tit Vencidos Valor nominal': 'saldo_devedor',
                 'Natureza': 'situacao',
-                'Porta- dor': 'centro_custo'
+                'Porta- dor': 'centro_custo',
+                'Codigo.1': 'codigo_fornecedor',
+                'Descricao.1': 'descricao_fornecedor',
+                'Conta': 'conta_contabil',
+                'Descricao': 'descricao_conta'
             }
 
             # Aplica mapeamento manual primeiro
@@ -217,7 +226,8 @@ class DatabaseManager:
                 if src in df.columns and dest in missing_mappings:
                     df.rename(columns={src: dest}, inplace=True)
                     logger.warning(f"Mapeamento manual aplicado: '{src}' → '{dest}'")
-                    missing_mappings.remove(dest)
+                    if dest in missing_mappings:
+                        missing_mappings.remove(dest)
 
             # Tenta encontrar correspondências automáticas para colunas restantes
             for db_col in list(missing_mappings):
@@ -226,7 +236,8 @@ class DatabaseManager:
                     match = lower_map[db_col.lower()]
                     logger.warning(f"Sugestão aplicada: '{match}' → '{db_col}' (case-insensitive match)")
                     df.rename(columns={match: db_col}, inplace=True)
-                    missing_mappings.remove(db_col)
+                    if db_col in missing_mappings:
+                        missing_mappings.remove(db_col)
                     continue
 
                 # Busca por correspondência fuzzy (similaridade)
@@ -235,7 +246,8 @@ class DatabaseManager:
                     match = similar[0]
                     logger.warning(f"Sugestão aplicada: '{match}' → '{db_col}'")
                     df.rename(columns={match: db_col}, inplace=True)
-                    missing_mappings.remove(db_col)
+                    if db_col in missing_mappings:
+                        missing_mappings.remove(db_col)
                     continue
 
                 # Busca por correspondência fuzzy case-insensitive
@@ -244,7 +256,8 @@ class DatabaseManager:
                     match = lower_map[similar_lower[0]]
                     logger.warning(f"Sugestão aplicada: '{match}' → '{db_col}' (fuzzy case-insensitive)")
                     df.rename(columns={match: db_col}, inplace=True)
-                    missing_mappings.remove(db_col)
+                    if db_col in missing_mappings:
+                        missing_mappings.remove(db_col)
 
             return df
         except Exception as e:
@@ -309,7 +322,15 @@ class DatabaseManager:
 
             # Aplica mapeamento de colunas
             column_mapping = self._get_column_mapping(Path(file_path))
-            df.rename(columns=column_mapping, inplace=True)
+            
+            # Verifica se column_mapping é um dicionário válido
+            if not isinstance(column_mapping, dict):
+                logger.warning(f"Mapeamento de colunas inválido para {file_path}, usando mapeamento vazio")
+                column_mapping = {}
+                
+            if column_mapping:  # Só aplica se houver mapeamento
+                df.rename(columns=column_mapping, inplace=True)
+                
             logger.info(f"Colunas após mapeamento: {df.columns.tolist()}")
 
             # Verifica colunas obrigatórias
@@ -584,37 +605,41 @@ class DatabaseManager:
 
     def _clean_contas_itens_data(self, df):
         """
-        Limpeza específica para dados de contas x itens (ctbr140 e ctbr100).
-        
-        Args:
-            df: DataFrame com dados de contas x itens
-            
-        Returns:
-            DataFrame: DataFrame limpo
+        Limpa e padroniza os dados da planilha de Contas x Itens.
         """
         try:
-            # Remove colunas não utilizadas nas tabelas do banco
-            columns_to_drop = ['movimento_periodo', 'Movimento do periodo']
-            for col in columns_to_drop:
-                if col in df.columns:
-                    df = df.drop(col, axis=1)
+            # Primeiro aplica o mapeamento reverso (valores para chaves)
+            reverse_mapping = {v: k for k, v in self.settings.COLUNAS_CONTAS_ITENS.items()}
+            df = df.rename(columns=reverse_mapping)
             
-            # Limpa e converte colunas numéricas
-            num_cols = ['saldo_anterior', 'debito', 'credito', 'saldo_atual']
-            for col in num_cols:
-                if col in df.columns:
-                    df[col] = pd.to_numeric(
-                        df[col].astype(str)
-                        .str.replace(r'[^\d,-]', '', regex=True)
-                        .str.replace(',', '.'),
-                        errors='coerce'
-                    ).fillna(0)
+            # Garante que todas as colunas do mapeamento existam
+            for col in self.settings.COLUNAS_CONTAS_ITENS.keys():
+                if col not in df.columns:
+                    df[col] = None
             
             return df
         except Exception as e:
-            error_msg = f"Erro na limpeza de dados de contas x itens: {e}"
-            logger.error(error_msg)
-            raise InvalidDataFormat(error_msg, tipo_dado="contas_itens") from e
+            logger.error(f"Erro ao limpar dados de Contas x Itens: {e}")
+            raise
+
+    def _clean_adiantamento_data(self, df):
+        """
+        Limpa e padroniza os dados da planilha de Adiantamentos.
+        """
+        try:
+            mapping = self.settings.COLUNAS_ADIANTAMENTO
+            # aplica rename
+            df = df.rename(columns={v: k for k, v in mapping.items()})
+            # garante que todas as colunas do mapping existem
+            for col in mapping.keys():
+                if col not in df.columns:
+                    df[col] = None
+            return df[list(mapping.keys())]
+        except Exception as e:
+            logger.error(f"Erro ao limpar dados de Adiantamentos: {e}")
+            raise
+
+
     
     def _get_column_mapping(self, file_path: Path):
         """
@@ -632,53 +657,35 @@ class DatabaseManager:
         filename = file_path.stem.lower()
         ext = file_path.suffix.lower()
         
-        # Mapeamento para arquivos XML (ctbr140.xml e ctbr100.xml)
-        if ext == ".xml":
-            if 'ctbr140' in filename:
-                return {
-                    'Codigo': 'conta_contabil',
-                    'Descricao': 'descricao_item',
-                    'Codigo_1': 'codigo_fornecedor',
-                    'Descricao_1': 'descricao_fornecedor',
-                    'Saldo anterior': 'saldo_anterior',
-                    'Debito': 'debito',
-                    'Credito': 'credito',
-                    'Movimento do periodo': 'movimento_periodo',
-                    'Saldo atual': 'saldo_atual'
-                }
+        # Mapeamento para arquivos XLSX
+        if ext == ".xlsx":
+            if 'finr150' in filename:
+                return getattr(self.settings, 'COLUNAS_FINANCEIRO', {})
+            elif 'ctbr040' in filename:
+                return getattr(self.settings, 'COLUNAS_MODELO1', {})
+            elif 'ctbr140' in filename:
+                return getattr(self.settings, 'COLUNAS_CONTAS_ITENS', {})
             elif 'ctbr100' in filename:
-                return {
-                    'Codigo': 'conta_contabil',
-                    'Descricao': 'descricao_item',
-                    'Codigo_1': 'codigo_fornecedor',
-                    'Descricao_1': 'descricao_fornecedor',
-                    'Saldo anterior': 'saldo_anterior',
-                    'Debito': 'debito',
-                    'Credito': 'credito',
-                    'Movimento do periodo': 'movimento_periodo',
-                    'Saldo atual': 'saldo_atual'
-                }
+                return getattr(self.settings, 'COLUNAS_ADIANTAMENTO', {})
         
-        # Mapeamento para arquivos TXT (ctbr140.txt e ctbr100.txt)
+        # Mapeamento para arquivos TXT
         elif ext == ".txt":
             if 'ctbr140' in filename:
-                return self.settings.COLUNAS_CONTAS_ITENS
+                return getattr(self.settings, 'COLUNAS_CONTAS_ITENS', {})
             elif 'ctbr100' in filename:
-                return self.settings.COLUNAS_ADIANTAMENTO
+                return getattr(self.settings, 'COLUNAS_ADIANTAMENTO', {})
         
-        # Mapeamento para arquivos financeiros (finr150.xlsx)
-        elif 'finr150' in filename:
-            return self.settings.COLUNAS_FINANCEIRO
+        # Mapeamento para arquivos XML
+        elif ext == ".xml":
+            if 'ctbr140' in filename:
+                return getattr(self.settings, 'COLUNAS_CONTAS_ITENS', {})
+            elif 'ctbr100' in filename:
+                return getattr(self.settings, 'COLUNAS_ADIANTAMENTO', {})
         
-        # Mapeamento para MODELO1 (CTBR040.xlsx)
-        elif 'ctbr040' in filename:
-            return self.settings.COLUNAS_MODELO1
+        # Se não encontrou mapeamento, retorna dicionário vazio
+        logger.warning(f"Tipo de planilha não reconhecido: {file_path.name}")
+        return {}
         
-        else:
-            error_msg = f"Tipo de planilha não reconhecido: {file_path.name}"
-            logger.error(error_msg)
-            raise PlanilhaFormatacaoErradaError(error_msg, caminho_arquivo=file_path)
-    
     def process_data(self):
         """
         Processa os dados importados e gera resultados da conciliação.
@@ -792,12 +799,19 @@ class DatabaseManager:
                 SET 
                     diferenca = ROUND(COALESCE(saldo_contabil,0) - COALESCE(saldo_financeiro,0), 2),
                     status = CASE 
-                        WHEN ABS(COALESCE(saldo_contabil,0) - COALESCE(saldo_financeiro,0)) < 0.01 THEN 'OK'
-                        WHEN COALESCE(saldo_contabil,0) = 0 AND COALESCE(saldo_financeiro,0) > 0 THEN 'PENDENTE'
-                        WHEN COALESCE(saldo_financeiro,0) = 0 AND COALESCE(saldo_contabil,0) > 0 THEN 'PENDENTE'
-                        ELSE 'DIVERGENTE'
+                        WHEN saldo_contabil IS NULL AND saldo_financeiro IS NULL THEN 'PENDENTE'
+                        ELSE
+                            CASE 
+                                WHEN ABS(COALESCE(saldo_contabil,0) - COALESCE(saldo_financeiro,0)) <= 
+                                    (0.03 * MAX(ABS(COALESCE(saldo_contabil,0)), ABS(COALESCE(saldo_financeiro,0)))) 
+                                    THEN 'OK'
+                                WHEN COALESCE(saldo_contabil,0) = 0 AND COALESCE(saldo_financeiro,0) > 0 THEN 'PENDENTE'
+                                WHEN COALESCE(saldo_financeiro,0) = 0 AND COALESCE(saldo_contabil,0) > 0 THEN 'PENDENTE'
+                                ELSE 'DIVERGENTE'
+                            END
                     END
             """
+
             cursor.execute(query_diferenca)
             
             # Para fornecedores com status DIVERGENTE, busca detalhes na tabela contas_itens
@@ -1264,12 +1278,14 @@ class DatabaseManager:
                         ELSE 'Valores Iguais'
                     END as "Tipo Diferença",
                     status as "Status",
-                    detalhes as "Detalhes"
+                    detalhes as "Detalhes",
+                    '' as "Observações"
                 FROM 
                     {self.settings.TABLE_RESULTADO}
                 ORDER BY 
-                    ordem_importancia
+                    ABS(diferenca) DESC
             """
+
             df_resumo = pd.read_sql(query_resumo, self.conn)
             df_resumo.to_excel(writer, sheet_name='Resumo', index=False)
             
@@ -1321,6 +1337,25 @@ class DatabaseManager:
             df_contabil = pd.read_sql(query_contabil, self.conn)
             df_contabil.to_excel(writer, sheet_name='Balancete', index=False)
             
+            # Query para aba Contas x Itens
+            query_contas_itens = f"""
+                SELECT 
+                    conta_contabil as "Conta Contábil",
+                    descricao_item as "Descrição Item",
+                    codigo_fornecedor as "Código Fornecedor",
+                    descricao_fornecedor as "Descrição Fornecedor",
+                    saldo_anterior as "Saldo Anterior",
+                    debito as "Débito",
+                    credito as "Crédito",
+                    saldo_atual as "Saldo Atual"
+                FROM 
+                    {self.settings.TABLE_CONTAS_ITENS}
+                ORDER BY 
+                    codigo_fornecedor
+            """
+            df_contas_itens = pd.read_sql(query_contas_itens, self.conn)
+            df_contas_itens.to_excel(writer, sheet_name='Contas x Itens', index=False)
+
             # Query para aba Adiantamentos
             query_adiantamento = f"""
                 SELECT 
@@ -1389,11 +1424,23 @@ class DatabaseManager:
                 resumo_sheet['J2'] = "Fórmula Diferença:"
                 resumo_sheet['K2'] = "Saldo Contábil - Saldo Financeiro"
             
-            # Aplica estilos às demais abas
+            # Protege todas as abas (menos Observações)
             for sheetname in workbook.sheetnames:
-                if sheetname != 'Metadados':  # Já estilizamos a Metadados separadamente
-                    sheet = workbook[sheetname]
-                    self._apply_styles(sheet)
+                sheet = workbook[sheetname]
+                sheet.protection.sheet = True
+                sheet.protection.enable()
+                # Libera apenas Observações no Resumo
+                if sheetname == 'Resumo':
+                    col_obs = None
+                    for idx, cell in enumerate(sheet[1], 1):
+                        if cell.value == "Observações":
+                            col_obs = idx
+                            break
+                    if col_obs:
+                        for row in sheet.iter_rows(min_row=2, min_col=col_obs, max_col=col_obs):
+                            for cell in row:
+                                cell.protection = openpyxl.styles.Protection(locked=False)
+
             
             workbook.save(output_path)
             

@@ -55,6 +55,8 @@ class Contas_x_itens(Utils):
             'data_final': self.page.locator("#COMP4514").get_by_role("textbox"),
             'conta_inicial': self.page.locator("#COMP4516").get_by_role("textbox"),
             'conta_final': self.page.locator("#COMP4518").get_by_role("textbox"),
+            'contabil_inicial': self.page.locator("#COMP4520").get_by_role("textbox"),
+            'contabil_final': self.page.locator("#COMP4522").get_by_role("textbox"),
             'imprime_item': self.page.locator("#COMP4524").get_by_role("combobox"),
             'saldos_zerados': self.page.locator("#COMP4528").get_by_role("combobox"),
             'moeda': self.page.locator("#COMP4530").get_by_role("textbox"),
@@ -138,7 +140,8 @@ class Contas_x_itens(Utils):
         input_desc_moeda = self.parametros.get('desc_moeda')
         input_imprime_saldo = self.parametros.get('imprime_saldo')
         input_data_lucros = self.parametros.get('data_lucros')
-        
+        input_contabil_inicial = self.parametros.get('contabil_inicial')
+        input_contabil_final = self.parametros.get('contabil_final')
         try:
             # Preenche campos de data
             self.locators['data_inicial'].wait_for(state="visible")
@@ -158,6 +161,16 @@ class Contas_x_itens(Utils):
             self.locators['conta_final'].click()
             self.locators['conta_final'].fill(conta)  
             time.sleep(0.5) 
+
+            # Preenche campos de contabil
+            self.locators['contabil_inicial'].click()
+            self.locators['contabil_inicial'].fill(input_contabil_inicial)
+            time.sleep(0.5) 
+            
+            self.locators['contabil_final'].click()
+            self.locators['contabil_final'].fill(input_contabil_final)  
+            time.sleep(0.5) 
+            
             
             # Configura opções de combobox
             self.locators['imprime_item'].click()     
@@ -252,8 +265,8 @@ class Contas_x_itens(Utils):
             if not self.locators['formato'].is_visible():
                 self.locators['aba_planilha'].click()
                 time.sleep(1)
-            self.locators['formato'].select_option("2")
-            # self.locators['formato'].select_option("3")
+            # self.locators['formato'].select_option("2")
+            self.locators['formato'].select_option("3")
 
             # Esperar pelo download com timeout aumentado
             with self.page.expect_download(timeout=360000) as download_info:
@@ -278,9 +291,11 @@ class Contas_x_itens(Utils):
             if download_path:
                 settings = Settings()
                 if conta == "10106020001":
-                    destino = Path(settings.CAMINHO_PLS) / "ctbr100.xml"
+                    # destino = Path(settings.CAMINHO_PLS) / "ctbr100.xml"
+                    destino = Path(settings.CAMINHO_PLS) / "ctbr100.xlsx"
                 else:
-                    destino = Path(settings.CAMINHO_PLS) / "ctbr140.xml"
+                    # destino = Path(settings.CAMINHO_PLS) / "ctbr140.xml"
+                    destino = Path(settings.CAMINHO_PLS) / "ctbr140.xlsx"
                                 
                 
                 destino.parent.mkdir(parents=True, exist_ok=True)

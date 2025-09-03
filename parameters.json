@@ -20,10 +20,10 @@
     },
 
     "Modelo_1": {
-        "data_inicial": "01/04/2025",
+        "data_inicial": "01/01/2000",
         "_comment_data_inicial": "Para usar o parâmetro dinâmico, use: {{primeiro_e_ultimo_dia.inicial}}",
         
-        "data_final": "30/04/2025",
+        "data_final": "30/08/2025",
         "_comment_data_final": "Para usar o parâmetro dinâmico, use: {{primeiro_e_ultimo_dia.final}}",
         
         "conta_inicial": "",
@@ -45,12 +45,8 @@
         "data_final": "30/08/2025",
         "_comment_data_final": "Para usar o parâmetro dinâmico, use: {{primeiro_e_ultimo_dia.final}}",
         
-        "conta_inicial":"01/04/2023",
-        "_comment_conta_data_inicial": "Para usar o parâmetro dinâmico, use: {{datas_contas_itens.inicial}}",
-
-        "conta_final":"30/08/2025",
-        "_comment_conta_data_final": "Para usar o parâmetro dinâmico, use: {{datas_contas_itens.final}}",
-
+        "contabil_inicial": "",
+        "contabil_final":"ZZZZZZZZZZZZZZZZZZZZ",
         "folha_inicial": "2",
         "desc_moeda": "01",
         "imprime_saldo": "1",
