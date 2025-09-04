@@ -395,38 +395,38 @@ def handle_specific_exceptions(e, logger):
     return error_description, affected_count, suggested_action
 
 
-# def excluir_arquivos_pasta(CAMINHO_PLS):
-#     """
-#     Exclui todos os arquivos de uma pasta específica.
-#     """
-#     try:
-#         pasta = Path(CAMINHO_PLS)
+def excluir_arquivos_pasta(CAMINHO_PLS):
+    """
+    Exclui todos os arquivos de uma pasta específica.
+    """
+    try:
+        pasta = Path(CAMINHO_PLS)
         
-#         if not pasta.exists():
-#             raise FileNotFoundError(f"A pasta '{CAMINHO_PLS}' não existe.")
+        if not pasta.exists():
+            raise FileNotFoundError(f"A pasta '{CAMINHO_PLS}' não existe.")
         
-#         if not pasta.is_dir():
-#             raise NotADirectoryError(f"'{CAMINHO_PLS}' não é uma pasta válida.")
+        if not pasta.is_dir():
+            raise NotADirectoryError(f"'{CAMINHO_PLS}' não é uma pasta válida.")
         
-#         arquivos_excluidos = []
-#         quantidade_excluida = 0
+        arquivos_excluidos = []
+        quantidade_excluida = 0
         
-#         for item in pasta.iterdir():
-#             if item.is_file():
-#                 try:
-#                     item.unlink()
-#                     arquivos_excluidos.append(item.name)
-#                     quantidade_excluida += 1
-#                     logging.info(f"Arquivo excluído: {item.name}")  # ← Log em vez de print
-#                 except Exception as e:
-#                     logging.error(f"Erro ao excluir {item.name}: {e}")
+        for item in pasta.iterdir():
+            if item.is_file():
+                try:
+                    item.unlink()
+                    arquivos_excluidos.append(item.name)
+                    quantidade_excluida += 1
+                    logging.info(f"Arquivo excluído: {item.name}")  # ← Log em vez de print
+                except Exception as e:
+                    logging.error(f"Erro ao excluir {item.name}: {e}")
         
-#         logging.info(f"Total de arquivos excluídos: {quantidade_excluida}")
-#         return quantidade_excluida, arquivos_excluidos
+        logging.info(f"Total de arquivos excluídos: {quantidade_excluida}")
+        return quantidade_excluida, arquivos_excluidos
         
-#     except Exception as e:
-#         logging.error(f"Erro ao excluir arquivos da pasta {CAMINHO_PLS}: {e}")
-#         return 0, []
+    except Exception as e:
+        logging.error(f"Erro ao excluir arquivos da pasta {CAMINHO_PLS}: {e}")
+        return 0, []
 # =============================================================================
 # FUNÇÃO PRINCIPAL E EXECUÇÃO DO SCRIPT
 # =============================================================================
@@ -437,7 +437,10 @@ def main():
     """
     # Configurar logger
     logger = configure_logger()
-    
+    # Limpar pasta de dados antes de começar
+    settings=Settings()
+    quantidade = excluir_arquivos_pasta(settings.CAMINHO_PLS)
+    logger.info(f"Preparando ambiente: {quantidade} arquivos antigos removidos")
     # Configurar settings personalizadas
     custom_settings = Settings()
     custom_settings.HEADLESS = False  # Executar com interface gráfica
