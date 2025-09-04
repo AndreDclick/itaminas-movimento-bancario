@@ -1307,11 +1307,12 @@ class DatabaseManager:
                     {self.settings.TABLE_FINANCEIRO}
                 WHERE 
                     excluido = 0
-                    AND data_vencimento BETWEEN '{data_inicial}' AND '{data_final}'
+                    
                     AND UPPER(tipo_titulo) NOT IN ('NDF', 'PA')  
                 ORDER BY 
                     fornecedor, titulo
             """
+            # AND data_vencimento BETWEEN '{data_inicial}' AND '{data_final}'
             df_financeiro = pd.read_sql(query_financeiro, self.conn)
             df_financeiro.to_excel(writer, sheet_name='Títulos a Pagar', index=False)
             
@@ -1440,6 +1441,11 @@ class DatabaseManager:
                         for row in sheet.iter_rows(min_row=2, min_col=col_obs, max_col=col_obs):
                             for cell in row:
                                 cell.protection = openpyxl.styles.Protection(locked=False)
+
+            for sheetname in workbook.sheetnames:
+                if sheetname not in ['Resumo', 'Metadados']:
+                    sheet = workbook[sheetname]
+                    self._apply_styles(sheet)
 
             
             workbook.save(output_path)
