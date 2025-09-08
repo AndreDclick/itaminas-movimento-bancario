@@ -34,7 +34,7 @@ class Settings:
     USUARIO = os.getenv("USUARIO")              # Usuário do sistema Protheus
     SENHA = os.getenv("SENHA")                  # Senha do sistema Protheus
     BASE_URL = os.getenv("BASE_URL")            # URL base do sistema Protheus
-    
+    WEB_AGENT_PATH = (r"C:\Users\rpa.dclick\Desktop\PROTHEUS DEV.lnk")
     # =========================================================================
     # CONFIGURAÇÕES DE PLANILHAS E ARQUIVOS
     # =========================================================================

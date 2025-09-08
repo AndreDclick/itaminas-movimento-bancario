@@ -7,3 +7,4 @@ workalendar
 xlrd
 lxml
 jinja2
+pygetwindow

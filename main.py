@@ -6,6 +6,7 @@ Desenvolvido por DCLICK
 
 import logging
 import os
+import psutil
 import shutil
 from datetime import datetime
 from pathlib import Path
@@ -32,7 +33,7 @@ from email.mime.multipart import MIMEMultipart
 from email.mime.text import MIMEText
 from email.mime.base import MIMEBase
 from email import encoders
-
+import time
 # Carregar variáveis de ambiente do arquivo .env
 load_dotenv()
 
@@ -402,12 +403,6 @@ def excluir_arquivos_pasta(CAMINHO_PLS):
     try:
         pasta = Path(CAMINHO_PLS)
         
-        if not pasta.exists():
-            raise FileNotFoundError(f"A pasta '{CAMINHO_PLS}' não existe.")
-        
-        if not pasta.is_dir():
-            raise NotADirectoryError(f"'{CAMINHO_PLS}' não é uma pasta válida.")
-        
         arquivos_excluidos = []
         quantidade_excluida = 0
         
@@ -417,7 +412,7 @@ def excluir_arquivos_pasta(CAMINHO_PLS):
                     item.unlink()
                     arquivos_excluidos.append(item.name)
                     quantidade_excluida += 1
-                    logging.info(f"Arquivo excluído: {item.name}")  # ← Log em vez de print
+                    logging.info(f"Arquivo excluído: {item.name}")  
                 except Exception as e:
                     logging.error(f"Erro ao excluir {item.name}: {e}")
         
@@ -427,6 +422,35 @@ def excluir_arquivos_pasta(CAMINHO_PLS):
     except Exception as e:
         logging.error(f"Erro ao excluir arquivos da pasta {CAMINHO_PLS}: {e}")
         return 0, []
+        
+
+
+# Fechar o Web Agent
+def fechar_web_agent(nome_processo):
+    """
+    Fecha processos do Web Agent (Edge)
+    """
+    logger = configure_logger()
+    processo_fechado = False
+    
+    for proc in psutil.process_iter(['pid', 'name', 'cmdline']):
+        try:
+            # Verifica se é o processo do Edge e se contém a URL do Protheus
+            if (nome_processo.lower() in proc.info['name'].lower() and 
+                proc.info['cmdline'] and 
+                any('protheus.cloudtotvs' in cmd for cmd in proc.info['cmdline'])):
+                
+                proc.terminate()
+                proc.wait(timeout=5)
+                logger.info(f"Processo {proc.info['name']} (PID: {proc.info['pid']}) fechado")
+                processo_fechado = True
+                
+        except (psutil.NoSuchProcess, psutil.AccessDenied, psutil.TimeoutExpired) as e:
+            logger.warning(f"Erro ao fechar processo: {e}")
+        except Exception as e:
+            logger.error(f"Erro inesperado: {e}")
+    
+    return processo_fechado
 # =============================================================================
 # FUNÇÃO PRINCIPAL E EXECUÇÃO DO SCRIPT
 # =============================================================================
@@ -437,10 +461,18 @@ def main():
     """
     # Configurar logger
     logger = configure_logger()
-    # Limpar pasta de dados antes de começar
+    
     settings=Settings()
-    quantidade = excluir_arquivos_pasta(settings.CAMINHO_PLS)
-    logger.info(f"Preparando ambiente: {quantidade} arquivos antigos removidos")
+
+    # Execução do web agent
+    # os.startfile(settings.WEB_AGENT_PATH)
+    # logger.info("Web Agent iniciado")
+
+    # time.sleep(5)
+
+    # Limpar pasta de dados antes de começar
+    # quantidade = excluir_arquivos_pasta(settings.CAMINHO_PLS)
+    # logger.info(f"Preparando ambiente: {quantidade} arquivos antigos removidos")
     # Configurar settings personalizadas
     custom_settings = Settings()
     custom_settings.HEADLESS = False  # Executar com interface gráfica

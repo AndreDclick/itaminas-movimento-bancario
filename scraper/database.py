@@ -158,7 +158,7 @@ class DatabaseManager:
                     saldo_contabil REAL DEFAULT 0,
                     saldo_financeiro REAL DEFAULT 0,
                     diferenca REAL DEFAULT 0,
-                    status TEXT CHECK(status IN ('OK', 'DIVERGENTE', 'PENDENTE')),
+                    status TEXT CHECK(status IN ('Conferido', 'Divergente', 'Pendente')),
                     detalhes TEXT,
                     ordem_importancia INTEGER,
                     data_processamento TEXT DEFAULT CURRENT_TIMESTAMP
@@ -207,7 +207,7 @@ class DatabaseManager:
             # Mapeamento manual pré-definido para colunas comuns
             manual_mapping = {
                 'Codigo-Nome do Fornecedor': 'fornecedor',
-                'Prf-Numero Parcela': 'titulo',
+                'Prf-Numero Parcela': 'titulo', 
                 'Tp': 'tipo_titulo',
                 'Data de Emissao': 'data_emissao',
                 'Data de Vencto': 'data_vencimento',
@@ -218,7 +218,9 @@ class DatabaseManager:
                 'Codigo.1': 'codigo_fornecedor',
                 'Descricao.1': 'descricao_fornecedor',
                 'Conta': 'conta_contabil',
-                'Descricao': 'descricao_conta'
+                'Descricao': 'descricao_conta',
+                'Descricao': 'descricao_item',  # Para contas_itens
+                'Codigo': 'conta_contabil'  # Para contas_itens e adiantamento
             }
 
             # Aplica mapeamento manual primeiro
@@ -350,8 +352,8 @@ class DatabaseManager:
                         remaining_missing.remove('parcela')
 
                     if 'conta_contabil' in remaining_missing:
-                        df['conta_contabil'] = 'CONTA_PADRAO'
-                        logger.warning("Coluna 'conta_contabil' preenchida com valor padrão")
+                        df['conta_contabil'] = 'CONTA_NAO_IDENTIFICADA'
+                        logger.warning("Coluna 'conta_contabil' preenchida com valor padrão para arquivo financeiro")
                         remaining_missing.remove('conta_contabil')
 
                     if remaining_missing:
@@ -522,6 +524,13 @@ class DatabaseManager:
             DataFrame: DataFrame limpo
         """
         try:
+            for date_col in ['data_emissao', 'data_vencimento']:
+                if date_col in df.columns:
+                    try:
+                        df[date_col] = pd.to_datetime(df[date_col], format='%d/%m/%Y', errors='coerce')
+                        df[date_col] = df[date_col].dt.strftime('%Y-%m-%d')
+                    except Exception:
+                        df[date_col] = None
             # Remove registros de fornecedores NDF/PA
             if 'fornecedor' in df.columns:
                 df = df[~df['fornecedor'].str.contains(r'\bNDF\b|\bPA\b', case=False, na=False)]
@@ -539,12 +548,18 @@ class DatabaseManager:
             num_cols = ['valor_original', 'saldo_devedor']
             for col in num_cols:
                 if col in df.columns:
-                    df[col] = (df[col].astype(str)
-                                .str.replace(r'[^\d,-]', '', regex=True)  # Remove caracteres não numéricos
-                                .str.replace(',', '.')  # Padroniza decimal
-                                .replace('', '0')
-                                .astype(float))
-            
+                    # 1. Mantém apenas dígitos, vírgula, ponto e sinal
+                    df[col] = df[col].astype(str).str.replace(r'[^\d,.-]', '', regex=True)
+
+                    # 2. Remove pontos de milhar
+                    df[col] = df[col].str.replace('.', '', regex=False)
+
+                    # 3. Troca vírgula por ponto (decimal BR → padrão Python)
+                    df[col] = df[col].str.replace(',', '.', regex=False)
+
+                    # 4. Converte para float
+                    df[col] = pd.to_numeric(df[col], errors="coerce").fillna(0)
+
             # Cria coluna de comparação para validação
             if 'valor_original' in df.columns and 'saldo_devedor' in df.columns:
                 df['comparacao'] = df['valor_original'] - df['saldo_devedor']
@@ -582,10 +597,9 @@ class DatabaseManager:
             
             # Tenta extrair código do fornecedor da descrição da conta
             if df['codigo_fornecedor'].isna().all() and 'descricao_conta' in df.columns:
-                # Extrai possíveis códigos da descrição
-                df['codigo_fornecedor'] = df['descricao_conta'].str.extract(r'(\d{3,})', expand=False)
+                df['codigo_fornecedor'] = df['descricao_conta'].str.extract(r'(\d{4,})', expand=False)
                 df['descricao_fornecedor'] = df['descricao_conta']
-            
+
             # Limpa e converte colunas numéricas
             num_cols = ['saldo_anterior', 'debito', 'credito', 'saldo_atual']
             for col in num_cols:
@@ -703,22 +717,25 @@ class DatabaseManager:
             cursor.execute(f"DELETE FROM {self.settings.TABLE_RESULTADO}")
             
             # Insere dados financeiros na tabela de resultados
+            data_inicial, data_final = self._get_datas_referencia()
+
             query_financeiro = f"""
                 INSERT INTO {self.settings.TABLE_RESULTADO}
                 (codigo_fornecedor, descricao_fornecedor, saldo_financeiro, status)
                 SELECT 
-                    fornecedor as codigo_fornecedor,
-                    MAX(fornecedor) as descricao_fornecedor,
-                    SUM(saldo_devedor) as saldo_financeiro,
-                    'PENDENTE' as status
+                    TRIM(fornecedor) as codigo_fornecedor,
+                    TRIM(fornecedor) as descricao_fornecedor,
+                    SUM(COALESCE(saldo_devedor, 0)) as saldo_financeiro,
+                    'Pendente' as status
                 FROM 
                     {self.settings.TABLE_FINANCEIRO}
                 WHERE 
                     excluido = 0
-                    AND data_vencimento BETWEEN '{data_inicial}' AND '{data_final}'
+                    AND UPPER(tipo_titulo) NOT IN ('NDF', 'PA')
                 GROUP BY 
-                    fornecedor
+                    TRIM(fornecedor)
             """
+            # AND (data_vencimento IS NULL OR data_vencimento BETWEEN '{data_inicial}' AND '{data_final}')
             cursor.execute(query_financeiro)
             
             # Atualiza com dados contábeis do modelo1 (ctbr040)
@@ -726,26 +743,29 @@ class DatabaseManager:
                 UPDATE {self.settings.TABLE_RESULTADO}
                 SET 
                     saldo_contabil = (
-                        SELECT COALESCE(SUM(saldo_atual),0)
+                        SELECT COALESCE(SUM(saldo_atual), 0)
                         FROM {self.settings.TABLE_MODELO1} m
-                        WHERE m.descricao_conta LIKE '%' || {self.settings.TABLE_RESULTADO}.codigo_fornecedor || '%'
-                           OR m.codigo_fornecedor = {self.settings.TABLE_RESULTADO}.codigo_fornecedor
+                        WHERE 
+                            (m.codigo_fornecedor = {self.settings.TABLE_RESULTADO}.codigo_fornecedor AND m.codigo_fornecedor IS NOT NULL AND m.codigo_fornecedor <> '')
+                            OR (m.descricao_fornecedor = {self.settings.TABLE_RESULTADO}.descricao_fornecedor)
                     ),
                     detalhes = (
-                        SELECT GROUP_CONCAT(COALESCE(m.tipo_fornecedor,'') || ': ' || m.saldo_atual, ' | ')
+                        SELECT GROUP_CONCAT(COALESCE(m.tipo_fornecedor, '') || ': ' || m.saldo_atual, ' | ')
                         FROM {self.settings.TABLE_MODELO1} m
-                        WHERE m.descricao_conta LIKE '%' || {self.settings.TABLE_RESULTADO}.codigo_fornecedor || '%'
-                           OR m.codigo_fornecedor = {self.settings.TABLE_RESULTADO}.codigo_fornecedor
+                        WHERE 
+                            (m.codigo_fornecedor = {self.settings.TABLE_RESULTADO}.codigo_fornecedor AND m.codigo_fornecedor IS NOT NULL AND m.codigo_fornecedor <> '')
+                            OR (m.descricao_fornecedor = {self.settings.TABLE_RESULTADO}.descricao_fornecedor)
                     )
                 WHERE EXISTS (
                     SELECT 1
                     FROM {self.settings.TABLE_MODELO1} m2
-                    WHERE m2.descricao_conta LIKE '%' || {self.settings.TABLE_RESULTADO}.codigo_fornecedor || '%'
-                       OR m2.codigo_fornecedor = {self.settings.TABLE_RESULTADO}.codigo_fornecedor
+                    WHERE 
+                        (m2.codigo_fornecedor = {self.settings.TABLE_RESULTADO}.codigo_fornecedor AND m2.codigo_fornecedor IS NOT NULL AND m2.codigo_fornecedor <> '')
+                        OR (m2.descricao_fornecedor = {self.settings.TABLE_RESULTADO}.descricao_fornecedor)
                 )
             """
             cursor.execute(query_contabil_update)
-            
+                        
             # Adiciona dados de adiantamentos
             query_adiantamento = f"""
                 UPDATE {self.settings.TABLE_RESULTADO}
@@ -768,28 +788,41 @@ class DatabaseManager:
                 INSERT INTO {self.settings.TABLE_RESULTADO}
                 (codigo_fornecedor, descricao_fornecedor, saldo_contabil, status, detalhes)
                 SELECT 
-                    COALESCE(NULLIF(TRIM(codigo_fornecedor), ''),
-                            CASE 
-                                WHEN INSTR(descricao_conta, ' ') > 0 THEN SUBSTR(descricao_conta, 1, INSTR(descricao_conta, ' ') - 1)
-                                ELSE descricao_conta
-                            END) as codigo_fornecedor,
-                    COALESCE(NULLIF(TRIM(descricao_fornecedor), ''), descricao_conta) as descricao_fornecedor,
-                    saldo_atual as saldo_contabil,
-                    'PENDENTE' as status,
-                    tipo_fornecedor as detalhes
+                    CASE 
+                        WHEN UPPER(m.descricao_conta) LIKE 'FORNECEDORES%' 
+                        THEN 'FORNECEDORES' 
+                        ELSE COALESCE(NULLIF(TRIM(m.codigo_fornecedor), ''), 
+                                    SUBSTR(m.descricao_conta, 1, INSTR(m.descricao_conta || ' ', ' ') - 1)) 
+                    END as codigo_fornecedor,
+                    CASE 
+                        WHEN UPPER(m.descricao_conta) LIKE 'FORNECEDORES%' 
+                        THEN 'FORNECEDORES (Consolidado)' 
+                        ELSE COALESCE(NULLIF(TRIM(m.descricao_fornecedor), ''), m.descricao_conta) 
+                    END as descricao_fornecedor,
+                    SUM(m.saldo_atual) as saldo_contabil,
+                    'Pendente' as status,
+                    m.tipo_fornecedor as detalhes
                 FROM 
                     {self.settings.TABLE_MODELO1} m
                 WHERE 
-                    (descricao_conta LIKE 'FORNEC%')
+                    m.descricao_conta LIKE 'FORNEC%'
                     AND NOT EXISTS (
                         SELECT 1
                         FROM {self.settings.TABLE_RESULTADO} r
-                        WHERE r.codigo_fornecedor = COALESCE(NULLIF(TRIM(m.codigo_fornecedor), ''),
-                                                            CASE 
-                                                                WHEN INSTR(m.descricao_conta, ' ') > 0 THEN SUBSTR(m.descricao_conta, 1, INSTR(m.descricao_conta, ' ') - 1)
-                                                                ELSE m.descricao_conta
-                                                            END)
+                        WHERE r.codigo_fornecedor = COALESCE(NULLIF(TRIM(m.codigo_fornecedor), ''), 
+                                                        SUBSTR(m.descricao_conta, 1, INSTR(m.descricao_conta || ' ', ' ') - 1))
                     )
+                GROUP BY 
+                    CASE 
+                        WHEN UPPER(m.descricao_conta) LIKE 'FORNECEDORES%' THEN 'FORNECEDORES'
+                        ELSE COALESCE(NULLIF(TRIM(m.codigo_fornecedor), ''), 
+                                    SUBSTR(m.descricao_conta, 1, INSTR(m.descricao_conta || ' ', ' ') - 1))
+                    END,
+                    CASE 
+                        WHEN UPPER(m.descricao_conta) LIKE 'FORNECEDORES%' THEN 'FORNECEDORES (Consolidado)'
+                        ELSE COALESCE(NULLIF(TRIM(m.descricao_fornecedor), ''), m.descricao_conta)
+                    END,
+                    m.tipo_fornecedor
             """
             cursor.execute(query_contabeis_sem_match)
 
@@ -797,21 +830,19 @@ class DatabaseManager:
             query_diferenca = f"""
                 UPDATE {self.settings.TABLE_RESULTADO}
                 SET 
-                    diferenca = ROUND(COALESCE(saldo_contabil,0) - COALESCE(saldo_financeiro,0), 2),
+                    diferenca = ROUND(COALESCE(saldo_financeiro,0) - COALESCE(saldo_contabil,0), 2),
                     status = CASE 
-                        WHEN saldo_contabil IS NULL AND saldo_financeiro IS NULL THEN 'PENDENTE'
-                        ELSE
-                            CASE 
-                                WHEN ABS(COALESCE(saldo_contabil,0) - COALESCE(saldo_financeiro,0)) <= 
-                                    (0.03 * MAX(ABS(COALESCE(saldo_contabil,0)), ABS(COALESCE(saldo_financeiro,0)))) 
-                                    THEN 'OK'
-                                WHEN COALESCE(saldo_contabil,0) = 0 AND COALESCE(saldo_financeiro,0) > 0 THEN 'PENDENTE'
-                                WHEN COALESCE(saldo_financeiro,0) = 0 AND COALESCE(saldo_contabil,0) > 0 THEN 'PENDENTE'
-                                ELSE 'DIVERGENTE'
-                            END
+                        WHEN saldo_contabil IS NULL AND saldo_financeiro IS NULL THEN 'Pendente'
+                        WHEN ABS(COALESCE(saldo_financeiro,0) - COALESCE(saldo_contabil,0)) <= 
+                            (0.03 * CASE 
+                                WHEN ABS(COALESCE(saldo_contabil,0)) > ABS(COALESCE(saldo_financeiro,0)) 
+                                THEN ABS(COALESCE(saldo_contabil,0)) 
+                                ELSE ABS(COALESCE(saldo_financeiro,0)) 
+                            END)
+                            THEN 'Conferido' 
+                        ELSE 'Divergente' 
                     END
             """
-
             cursor.execute(query_diferenca)
             
             # Para fornecedores com status DIVERGENTE, busca detalhes na tabela contas_itens
@@ -832,7 +863,7 @@ class DatabaseManager:
                             'Nenhum item específico encontrado'
                         )
                 )
-                WHERE status = 'DIVERGENTE'
+                WHERE status = 'Divergente'
                 AND EXISTS (
                     SELECT 1 FROM contas_itens ci2 
                     WHERE ci2.conta_contabil LIKE '%' || {self.settings.TABLE_RESULTADO}.codigo_fornecedor || '%'
@@ -845,7 +876,7 @@ class DatabaseManager:
                 UPDATE {self.settings.TABLE_RESULTADO}
                 SET detalhes = 'Divergência: R$ ' || ABS(diferenca) || 
                             '. Investigar manualmente no sistema. Nenhum item contábil específico encontrado para análise automática.'
-                WHERE status = 'DIVERGENTE' 
+                WHERE status = 'Divergente' 
                 AND (detalhes IS NULL OR detalhes = '' OR detalhes LIKE '%Conciliação%')
             """)
             
@@ -885,199 +916,6 @@ class DatabaseManager:
             self.conn.rollback()  # Reverte em caso de erro
             raise ExcecaoNaoMapeadaError(error_msg) from e
     
-    def _apply_styles(self, worksheet):
-        """
-        Aplica estilos visuais básicos à planilha Excel.
-        
-        Args:
-            worksheet: Worksheet do openpyxl a ser estilizado
-        """
-        try:
-            # Define estilos para cabeçalho
-            header_fill = PatternFill(start_color="4F81BD", end_color="4F81BD", fill_type="solid")
-            header_font = Font(color="FFFFFF", bold=True)
-            align_center = Alignment(horizontal="center", vertical="center")
-            thin_border = Border(
-                left=Side(style='thin'), 
-                right=Side(style='thin'), 
-                top=Side(style='thin'), 
-                bottom=Side(style='thin')
-            )
-            
-            # Aplica estilos ao cabeçalho
-            for cell in worksheet[1]:
-                cell.fill = header_fill
-                cell.font = header_font
-                cell.alignment = align_center
-                cell.border = thin_border
-            
-            # Identifica colunas numéricas para formatação
-            header = [c.value for c in worksheet[1]]
-            numeric_headers = set([
-                'Saldo Contábil','Saldo Financeiro','Diferença',
-                'Saldo Anterior','Débito','Crédito','Saldo Atual',
-                'Valor Original','Saldo Devedor','Quantidade','Valor Unitário','Valor Total'
-            ])
-            numeric_cols_idx = [i+1 for i, h in enumerate(header) if h in numeric_headers]
-
-            # Aplica bordas e formatação numérica
-            for row in worksheet.iter_rows():
-                for cell in row:
-                    cell.border = thin_border
-                    if cell.row > 1 and cell.column in numeric_cols_idx:
-                        cell.number_format = '#,##0.00'  # Formato monetário
-            
-            # Ajusta largura das colunas automaticamente
-            for column in worksheet.columns:
-                max_length = 0
-                column_letter = get_column_letter(column[0].column)
-                for cell in column:
-                    try:
-                        if cell.value is not None and len(str(cell.value)) > max_length:
-                            max_length = len(str(cell.value))
-                    except:
-                        pass
-                adjusted_width = (max_length + 2) * 1.2
-                worksheet.column_dimensions[column_letter].width = adjusted_width
-        except Exception as e:
-            logger.warning(f"Erro ao aplicar estilos básicos: {e}")
-
-    def _apply_enhanced_styles(self, worksheet, stats):
-        """
-        Aplica estilos visuais melhorados com formatação condicional avançada.
-        
-        Args:
-            worksheet: Worksheet do openpyxl a ser estilizado
-            stats: Estatísticas do processamento
-        """
-        try:
-            # Define estilos para cabeçalho
-            header_fill = PatternFill(start_color="4F81BD", end_color="4F81BD", fill_type="solid")
-            header_font = Font(color="FFFFFF", bold=True)
-            align_center = Alignment(horizontal="center", vertical="center")
-            thin_border = Border(
-                left=Side(style='thin'), 
-                right=Side(style='thin'), 
-                top=Side(style='thin'), 
-                bottom=Side(style='thin')
-            )
-            
-            # Aplica estilos ao cabeçalho
-            for cell in worksheet[1]:
-                cell.fill = header_fill
-                cell.font = header_font
-                cell.alignment = align_center
-                cell.border = thin_border
-            
-            # Identifica índices de colunas para formatação
-            header = [c.value for c in worksheet[1]]
-            saldo_contabil_idx = header.index("Saldo Contábil") + 1 if "Saldo Contábil" in header else None
-            saldo_financeiro_idx = header.index("Saldo Financeiro") + 1 if "Saldo Financeiro" in header else None
-            diferenca_idx = header.index("Diferença (Contábil - Financeiro)") + 1 if "Diferença (Contábil - Financeiro)" in header else None
-            status_idx = header.index("Status") + 1 if "Status" in header else None
-            
-            # Cores para formatação condicional
-            red_fill = PatternFill(start_color="FFC7CE", end_color="FFC7CE", fill_type="solid")
-            green_fill = PatternFill(start_color="C6EFCE", end_color="C6EFCE", fill_type="solid")
-            yellow_fill = PatternFill(start_color="FFEB9C", end_color="FFEB9C", fill_type="solid")
-            blue_fill = PatternFill(start_color="BDD7EE", end_color="BDD7EE", fill_type="solid")
-            
-            red_font = Font(color="9C0006", bold=True)
-            green_font = Font(color="006100", bold=True)
-            
-            # Aplica formatação condicional para cada linha
-            for row in range(2, worksheet.max_row + 1):
-                # Formata valores negativos em vermelho
-                if diferenca_idx:
-                    diff_cell = worksheet.cell(row=row, column=diferenca_idx)
-                    if diff_cell.value is not None and diff_cell.value < 0:
-                        diff_cell.font = red_font
-                
-                # Formatação baseada no status
-                if status_idx:
-                    status_cell = worksheet.cell(row=row, column=status_idx)
-                    status_value = status_cell.value if status_cell.value else ""
-                    
-                    if status_value == 'OK':
-                        for col in range(1, worksheet.max_column + 1):
-                            worksheet.cell(row=row, column=col).fill = green_fill
-                    elif status_value == 'DIVERGENTE':
-                        for col in range(1, worksheet.max_column + 1):
-                            worksheet.cell(row=row, column=col).fill = red_fill
-                    elif status_value == 'PENDENTE':
-                        for col in range(1, worksheet.max_column + 1):
-                            worksheet.cell(row=row, column=col).fill = yellow_fill
-                
-                # Aplica bordas a todas as células
-                for col in range(1, worksheet.max_column + 1):
-                    worksheet.cell(row=row, column=col).border = thin_border
-            
-            # Ajusta largura das colunas automaticamente
-            for column in worksheet.columns:
-                max_length = 0
-                column_letter = get_column_letter(column[0].column)
-                for cell in column:
-                    try:
-                        if cell.value is not None and len(str(cell.value)) > max_length:
-                            max_length = len(str(cell.value))
-                    except:
-                        pass
-                adjusted_width = (max_length + 2) * 1.2
-                worksheet.column_dimensions[column_letter].width = adjusted_width
-        except Exception as e:
-            logger.warning(f"Erro ao aplicar estilos avançados: {e}")
-
-    def _apply_metadata_styles(self, worksheet):
-        """
-        Aplica estilos à aba de metadados.
-        
-        Args:
-            worksheet: Worksheet de metadados a ser estilizado
-        """
-        try:
-            # Define estilos
-            title_fill = PatternFill(start_color="366092", end_color="366092", fill_type="solid")
-            title_font = Font(color="FFFFFF", bold=True, size=14)
-            header_fill = PatternFill(start_color="4F81BD", end_color="4F81BD", fill_type="solid")
-            header_font = Font(color="FFFFFF", bold=True)
-            thin_border = Border(
-                left=Side(style='thin'), 
-                right=Side(style='thin'), 
-                top=Side(style='thin'), 
-                bottom=Side(style='thin')
-            )
-            
-            # Formata título
-            for cell in worksheet[1]:
-                cell.fill = title_fill
-                cell.font = title_font
-                cell.border = thin_border
-            
-            # Formata cabeçalho
-            for cell in worksheet[2]:
-                cell.fill = header_fill
-                cell.font = header_font
-                cell.border = thin_border
-            
-            # Aplica bordas a todas as células
-            for row in worksheet.iter_rows():
-                for cell in row:
-                    cell.border = thin_border
-            
-            # Ajusta largura das colunas
-            for column in worksheet.columns:
-                max_length = 0
-                column_letter = get_column_letter(column[0].column)
-                for cell in column:
-                    try:
-                        if cell.value is not None and len(str(cell.value)) > max_length:
-                            max_length = len(str(cell.value))
-                    except:
-                        pass
-                adjusted_width = (max_length + 2) * 1.2
-                worksheet.column_dimensions[column_letter].width = adjusted_width
-        except Exception as e:
-            logger.warning(f"Erro ao aplicar estilos de metadados: {e}")
 
     # def _get_datas_referencia(self):
     #     """
@@ -1114,24 +952,21 @@ class DatabaseManager:
     #     return data_inicial.strftime("%d/%m/%Y"), data_final.strftime("%d/%m/%Y")
 
     def _get_datas_referencia(self):
-        """
-        Retorna datas de referência para o processamento.
-        
-        Returns:
-            tuple: (data_inicial, data_final) formatadas como strings
-        """
         try:
             cal = Brazil()
             hoje = datetime.now().date()
             data_inicial = hoje.replace(day=1)
             data_inicial = cal.add_working_days(data_inicial - timedelta(days=1), 1)
             data_final = hoje
-            logger.warning("USANDO VERSÃO TEMPORÁRIA DE _get_datas_referencia() - IGNORANDO VERIFICAÇÃO DE DIA 20/ÚLTIMO DIA")
+            # Retorna em ISO (YYYY-MM-DD) — adequado para BETWEEN no SQLite
+            # return data_inicial.strftime("01/04/2023"), data_final.strftime("0/08/2025")
             return data_inicial.strftime("%d/%m/%Y"), data_final.strftime("%d/%m/%Y")
+
         except Exception as e:
             error_msg = f"Erro ao obter datas de referência: {e}"
             logger.error(error_msg)
             raise ExcecaoNaoMapeadaError(error_msg) from e
+
 
     def _ultimo_dia_mes(self, date):
         """
@@ -1146,103 +981,293 @@ class DatabaseManager:
         next_month = date.replace(day=28) + timedelta(days=4)
         return next_month - timedelta(days=next_month.day)
 
-    def validate_output(self, output_path):
-        """
-        Valida a estrutura do arquivo Excel gerado.
-        
-        Args:
-            output_path: Caminho do arquivo Excel a ser validado
-            
-        Returns:
-            bool: True se a validação for bem sucedida, False caso contrário
-        """
-        try:
-            wb = openpyxl.load_workbook(output_path)
-            # Verifica abas obrigatórias
-            required_sheets = ['Resumo', 'Títulos a Pagar', 'Balancete', 'Metadados']
-            for sheet in required_sheets:
-                if sheet not in wb.sheetnames:
-                    raise ValueError(f"Aba '{sheet}' não encontrada no arquivo gerado")
-            
-            # Verifica colunas obrigatórias na aba Resumo
-            resumo = wb['Resumo']
-            expected_columns = [
-                'Código Fornecedor', 'Descrição Fornecedor', 
-                'Saldo Contábil', 'Saldo Financeiro', 'Diferença (Contábil - Financeiro)'
-            ]
-            header = [cell.value for cell in resumo[1]]
-            for col in expected_columns:
-                if col not in header:
-                    raise ValueError(f"Coluna '{col}' não encontrada na aba Resumo")
-            
-            # Verifica se a aba Metadados contém informações essenciais
-            metadados = wb['Metadados']
-            has_essentials = False
-            for row in metadados.iter_rows(values_only=True):
-                if 'Data e Hora do Processamento' in row or 'Fórmula de Cálculo' in row:
-                    has_essentials = True
-                    break
-                    
-            if not has_essentials:
-                raise ValueError("Aba Metadados não contém informações essenciais")
-                
-            return True
-        except Exception as e:
-            error_msg = f"Validação falhou: {e}"
-            logger.error(error_msg)
-            return False
-
     def validate_data_consistency(self):
-        """
-        Valida consistência geral dos dados importados.
-        
-        Returns:
-            bool: True se a validação for bem sucedida, False caso contrário
-        """
         try:
             cursor = self.conn.cursor()
-            # Verifica fornecedores financeiros sem correspondência contábil
-            query = f"""
-                SELECT COUNT(*) 
-                FROM {self.settings.TABLE_FINANCEIRO} f
-                WHERE NOT EXISTS (
-                    SELECT 1 FROM {self.settings.TABLE_MODELO1} m
-                    WHERE (m.codigo_fornecedor IS NOT NULL AND m.codigo_fornecedor <> '' AND m.codigo_fornecedor = f.fornecedor)
-                       OR m.descricao_conta LIKE '%' || f.fornecedor || '%'
-                )
-                AND f.excluido = 0
-            """
-            cursor.execute(query)
-            missing_suppliers = cursor.fetchone()[0]
-            if missing_suppliers > 0:
-                logger.warning(f"{missing_suppliers} fornecedores financeiros sem correspondência contábil")
             
-            # Compara totais financeiros e contábeis
+            # Verifica totais financeiros vs contábeis
             query = f"""
                 SELECT 
-                    (SELECT SUM(saldo_devedor) FROM {self.settings.TABLE_FINANCEIRO} WHERE excluido = 0) as total_financeiro,
-                    (SELECT SUM(saldo_atual) FROM {self.settings.TABLE_MODELO1} WHERE tipo_fornecedor LIKE 'FORNEC%') as total_contabil
+                    (SELECT SUM(saldo_devedor) FROM {self.settings.TABLE_FINANCEIRO} 
+                    WHERE excluido = 0 AND UPPER(tipo_titulo) NOT IN ('NDF', 'PA')) as total_financeiro,
+                    (SELECT SUM(saldo_atual) FROM {self.settings.TABLE_MODELO1} 
+                    WHERE descricao_conta LIKE 'FORNECEDOR%') as total_contabil
             """
             cursor.execute(query)
             totals = cursor.fetchone()
-            logger.info(f"Total Financeiro: {totals[0]} | Total Contábil: {totals[1]}")
+            
+            diferenca_percentual = abs(totals[0] - totals[1]) / max(totals[0], totals[1]) * 100
+            
+            if diferenca_percentual > 5:  # Tolerância de 5% para o total
+                logger.warning(f"Diferença significativa entre totais: Financeiro={totals[0]}, Contábil={totals[1]}")
+            
             return True
         except Exception as e:
             error_msg = f"Erro na validação de consistência: {e}"
             logger.error(error_msg)
             return False
 
+    def _apply_metadata_styles(self, worksheet):
+        """
+        Aplica estilos à aba de metadados de forma otimizada.
+        """
+        try:
+            # Define estilos
+            title_fill = PatternFill(start_color="366092", end_color="366092", fill_type="solid")
+            title_font = Font(color="FFFFFF", bold=True, size=14)
+            header_fill = PatternFill(start_color="4F81BD", end_color="4F81BD", fill_type="solid")
+            header_font = Font(color="FFFFFF", bold=True)
+            thin_border = Border(
+                left=Side(style='thin'), 
+                right=Side(style='thin'), 
+                top=Side(style='thin'), 
+                bottom=Side(style='thin')
+            )
+            
+            # Formata título (primeira linha)
+            for row in worksheet.iter_rows(min_row=1, max_row=1):
+                for cell in row:
+                    cell.fill = title_fill
+                    cell.font = title_font
+                    cell.border = thin_border
+            
+            # Formata cabeçalho (segunda linha)
+            for row in worksheet.iter_rows(min_row=2, max_row=2):
+                for cell in row:
+                    cell.fill = header_fill
+                    cell.font = header_font
+                    cell.border = thin_border
+            
+            # Aplica bordas a todas as células restantes
+            for row in worksheet.iter_rows(min_row=3, max_row=worksheet.max_row):
+                for cell in row:
+                    cell.border = thin_border
+            
+            # Ajusta largura das colunas
+            for column in worksheet.columns:
+                max_length = 0
+                column_letter = get_column_letter(column[0].column)
+                for cell in column:
+                    try:
+                        if cell.value is not None and len(str(cell.value)) > max_length:
+                            max_length = len(str(cell.value))
+                    except:
+                        pass
+                adjusted_width = min((max_length + 2) * 1.2, 50)  # Limita a largura máxima
+                worksheet.column_dimensions[column_letter].width = adjusted_width
+        except Exception as e:
+            logger.warning(f"Erro ao aplicar estilos de metadados: {e}")
+    def _apply_styles(self, worksheet):
+        """
+        Aplica estilos visuais básicos à planilha Excel de forma otimizada.
+        """
+        try:
+            # Define estilos
+            header_fill = PatternFill(start_color="4F81BD", end_color="4F81BD", fill_type="solid")
+            header_font = Font(color="FFFFFF", bold=True)
+            align_center = Alignment(horizontal="center", vertical="center")
+            thin_border = Border(
+                left=Side(style='thin'), 
+                right=Side(style='thin'), 
+                top=Side(style='thin'), 
+                bottom=Side(style='thin')
+            )
+            
+            # Aplica estilos ao cabeçalho em lote
+            for row in worksheet.iter_rows(min_row=1, max_row=1):
+                for cell in row:
+                    cell.fill = header_fill
+                    cell.font = header_font
+                    cell.alignment = align_center
+                    cell.border = thin_border
+            
+            # Identifica colunas monetárias
+            header = [c.value for c in worksheet[1] if c.value is not None]
+            monetary_headers = {
+                'Valor Financeiro', 'Valor Contábil', 'Diferença',
+                'Valor em Aberto', 'Valor Provisionado', 'Saldo Atual',
+                'Débito', 'Crédito', 'Valor Original', 'Saldo Devedor',
+                'Quantidade', 'Valor Unitário', 'Valor Total'
+            }
+            
+            # Aplica formatação monetária em colunas inteiras (muito mais rápido)
+            for col_idx, col_name in enumerate(header, 1):
+                if col_name in monetary_headers:
+                    col_letter = get_column_letter(col_idx)
+                    for cell in worksheet[col_letter][1:]:  # Pula o cabeçalho
+                        if cell.value is not None and isinstance(cell.value, (int, float)):
+                            cell.number_format = 'R$ #,##0.00;[Red]R$ -#,##0.00'
+            
+            # Aplica bordas a todas as células (em lote por linha)
+            for row in worksheet.iter_rows(min_row=2, max_row=worksheet.max_row):
+                for cell in row:
+                    cell.border = thin_border
+            
+            # Ajusta largura das colunas automaticamente
+            for column in worksheet.columns:
+                max_length = 0
+                column_letter = get_column_letter(column[0].column)
+                for cell in column:
+                    try:
+                        if cell.value is not None and len(str(cell.value)) > max_length:
+                            max_length = len(str(cell.value))
+                    except:
+                        pass
+                adjusted_width = min((max_length + 2) * 1.2, 50)  # Limita a largura máxima
+                worksheet.column_dimensions[column_letter].width = adjusted_width
+                
+        except Exception as e:
+            logger.warning(f"Erro ao aplicar estilos básicos: {e}")
+
+    def _apply_enhanced_styles(self, worksheet, stats):
+        """
+        Aplica estilos visuais melhorados com formatação otimizada.
+        """
+        try:
+            # Define estilos
+            header_fill = PatternFill(start_color="4F81BD", end_color="4F81BD", fill_type="solid")
+            header_font = Font(color="FFFFFF", bold=True)
+            align_center = Alignment(horizontal="center", vertical="center")
+            thin_border = Border(
+                left=Side(style='thin'), 
+                right=Side(style='thin'), 
+                top=Side(style='thin'), 
+                bottom=Side(style='thin')
+            )
+            
+            # Aplica estilos ao cabeçalho em lote
+            for row in worksheet.iter_rows(min_row=1, max_row=1):
+                for cell in row:
+                    cell.fill = header_fill
+                    cell.font = header_font
+                    cell.alignment = align_center
+                    cell.border = thin_border
+            
+            # Identifica índices de colunas para formatação monetária
+            header = [c.value for c in worksheet[1] if c.value is not None]
+            monetary_columns = [
+                'Valor Financeiro', 'Valor Contábil', 'Diferença',
+                'Valor em Aberto', 'Valor Provisionado', 'Saldo Atual',
+                'Débito', 'Crédito'
+            ]
+            
+            # Aplica formatação monetária em colunas inteiras
+            for col_idx, col_name in enumerate(header, 1):
+                if col_name in monetary_columns:
+                    col_letter = get_column_letter(col_idx)
+                    for cell in worksheet[col_letter][1:]:  # Pula o cabeçalho
+                        if cell.value is not None and isinstance(cell.value, (int, float)):
+                            cell.number_format = 'R$ #,##0.00;[Red]R$ -#,##0.00'
+            
+            # Identifica colunas de status e diferença
+            status_idx = header.index("Status") + 1 if "Status" in header else None
+            diferenca_idx = header.index("Diferença") + 1 if "Diferença" in header else None
+            
+            # Cores para formatação condicional
+            red_fill = PatternFill(start_color="FFC7CE", end_color="FFC7CE", fill_type="solid")
+            green_fill = PatternFill(start_color="C6EFCE", end_color="C6EFCE", fill_type="solid")
+            yellow_fill = PatternFill(start_color="FFEB9C", end_color="FFEB9C", fill_type="solid")
+            
+            red_font = Font(color="9C0006", bold=True)
+            
+            # Aplica formatação condicional por linhas (mais eficiente)
+            for row in worksheet.iter_rows(min_row=2, max_row=worksheet.max_row):
+                # Formata valores negativos em vermelho (apenas para coluna Diferença)
+                if diferenca_idx:
+                    diff_cell = row[diferenca_idx-1]  # -1 porque index começa em 0
+                    if diff_cell.value is not None and diff_cell.value < 0:
+                        diff_cell.font = red_font
+                
+                # Formatação baseada no status
+                if status_idx:
+                    status_cell = row[status_idx-1]  # -1 porque index começa em 0
+                    status_value = status_cell.value if status_cell.value else ""
+                    
+                    fill_color = None
+                    if status_value == 'Conferido':
+                        fill_color = green_fill
+                    elif status_value == 'Divergente':
+                        fill_color = red_fill
+                    elif status_value == 'Pendente':
+                        fill_color = yellow_fill
+                    
+                    # Aplica o preenchimento apenas se necessário
+                    if fill_color:
+                        for cell in row:
+                            cell.fill = fill_color
+                
+                # Aplica bordas a todas as células
+                for cell in row:
+                    cell.border = thin_border
+            
+            # Ajusta largura das colunas automaticamente
+            for column in worksheet.columns:
+                max_length = 0
+                column_letter = get_column_letter(column[0].column)
+                for cell in column:
+                    try:
+                        if cell.value is not None and len(str(cell.value)) > max_length:
+                            max_length = len(str(cell.value))
+                    except:
+                        pass
+                adjusted_width = min((max_length + 2) * 1.2, 50)  # Limita a largura máxima
+                worksheet.column_dimensions[column_letter].width = adjusted_width
+                
+        except Exception as e:
+            logger.warning(f"Erro ao aplicar estilos avançados: {e}")
+
+    def _optimize_worksheet_performance(self, worksheet):
+        """
+        Otimiza a planilha para melhor performance de escrita.
+        """
+        # Desativa propriedades que tornam a escrita lenta
+        worksheet.sheet_view.showGridLines = False
+        worksheet.sheet_view.showRowColHeaders = False
+
+    def _protect_sheets(self, workbook):
+        """
+        Protege todas as abas, exceto a coluna 'Observações' na aba de resumo.
+        """
+        try:
+            from openpyxl.worksheet.protection import SheetProtection
+            
+            for sheetname in workbook.sheetnames:
+                sheet = workbook[sheetname]
+                if sheet is not None:
+                    # Protege a planilha inteira
+                    sheet.protection = SheetProtection(
+                        sheet=True, 
+                        selectLockedCells=False,
+                        selectUnlockedCells=False
+                    )
+                    
+                    # Libera apenas a coluna "Observações" na aba de resumo
+                    if sheetname == 'Resumo da Conciliação':
+                        header = [cell.value for cell in sheet[1] if cell.value is not None]
+                        if "Observações" in header:
+                            obs_col_idx = header.index("Observações") + 1
+                            for row in range(2, sheet.max_row + 1):
+                                cell = sheet.cell(row=row, column=obs_col_idx)
+                                cell.protection = Protection(locked=False)
+        
+        except Exception as e:
+            logger.warning(f"")
+
     def export_to_excel(self):
         """
         Exporta resultados para arquivo Excel formatado com metadados.
-        
-        Returns:
-            Path: Caminho do arquivo gerado ou None em caso de erro
+        Seguindo exatamente a documentação fornecida.
         """
-        logger.info("Iniciando exportação para Excel...")
-        data_inicial, data_final = self._get_datas_referencia()
-        output_path = self.settings.RESULTS_DIR / f"CONCILIACAO_{data_inicial.replace('/', '-')}_a_{data_final.replace('/', '-')}.xlsx"
         
+        data_inicial_iso, data_final_iso = self._get_datas_referencia()
+        try:
+            data_inicial = datetime.strptime(data_inicial_iso, '%Y-%m-%d').strftime('%d/%m/%Y')
+            data_final = datetime.strptime(data_final_iso, '%Y-%m-%d').strftime('%d/%m/%Y')
+        except Exception:
+            data_inicial, data_final = data_inicial_iso, data_final_iso
+
+        output_path = self.settings.RESULTS_DIR / f"CONCILIACAO_{data_inicial.replace('/', '-')}_a_{data_final.replace('/', '-')}.xlsx"
+
         try:
             if not self.conn:
                 error_msg = "Tentativa de exportação com conexão fechada"
@@ -1252,103 +1277,72 @@ class DatabaseManager:
             writer = pd.ExcelWriter(output_path, engine='openpyxl')
             
             # Query para obter estatísticas de processamento
+            # Query para obter estatísticas de processamento
             query_stats = f"""
                 SELECT 
                     COUNT(*) as total_registros,
-                    SUM(CASE WHEN status = 'OK' THEN 1 ELSE 0 END) as conciliados_ok,
-                    SUM(CASE WHEN status = 'DIVERGENTE' THEN 1 ELSE 0 END) as divergentes,
-                    SUM(CASE WHEN status = 'PENDENTE' THEN 1 ELSE 0 END) as pendentes,
-                    SUM(ABS(diferenca)) as total_diferenca
+                    SUM(CASE WHEN status = 'Conferido' THEN 1 ELSE 0 END) as conciliados_ok,
+                    SUM(CASE WHEN status = 'Divergente' THEN 1 ELSE 0 END) as divergentes,
+                    SUM(CASE WHEN status = 'Pendente' THEN 1 ELSE 0 END) as pendentes,
+                    SUM(saldo_financeiro) as total_financeiro,
+                    SUM(saldo_contabil) as total_contabil,
+                    (SUM(saldo_financeiro) - SUM(saldo_contabil)) as diferenca_geral,
+                    SUM(CASE WHEN status = 'Divergente' THEN diferenca ELSE 0 END) as total_divergencia
                 FROM 
                     {self.settings.TABLE_RESULTADO}
-            """
-            stats = pd.read_sql(query_stats, self.conn).iloc[0]
-            
-            # Query para aba Resumo
-            query_resumo = f"""
-                SELECT 
-                    codigo_fornecedor as "Código Fornecedor",
-                    descricao_fornecedor as "Descrição Fornecedor",
-                    saldo_contabil as "Saldo Contábil",
-                    saldo_financeiro as "Saldo Financeiro",
-                    diferenca as "Diferença (Contábil - Financeiro)",
-                    CASE 
-                        WHEN COALESCE(saldo_contabil,0) - COALESCE(saldo_financeiro,0) > 0 THEN 'Contábil > Financeiro'
-                        WHEN COALESCE(saldo_contabil,0) - COALESCE(saldo_financeiro,0) < 0 THEN 'Financeiro > Contábil'
-                        ELSE 'Valores Iguais'
-                    END as "Tipo Diferença",
-                    status as "Status",
-                    detalhes as "Detalhes",
-                    '' as "Observações"
-                FROM 
-                    {self.settings.TABLE_RESULTADO}
-                ORDER BY 
-                    ABS(diferenca) DESC
             """
 
-            df_resumo = pd.read_sql(query_resumo, self.conn)
-            df_resumo.to_excel(writer, sheet_name='Resumo', index=False)
-            
-            # Query para aba Títulos a Pagar
+            stats = pd.read_sql(query_stats, self.conn).iloc[0]
+
+            # ABA: "Títulos a Pagar" (Dados Financeiros) -
             query_financeiro = f"""
                 SELECT 
-                    fornecedor as "Fornecedor",
-                    titulo as "Título",
-                    parcela as "Parcela",
-                    tipo_titulo as "Tipo Título",
-                    data_emissao as "Data Emissão",
-                    data_vencimento as "Data Vencimento",
-                    valor_original as "Valor Original",
-                    saldo_devedor as "Saldo Devedor",
-                    situacao as "Situação",
-                    conta_contabil as "Conta Contábil",
-                    centro_custo as "Centro Custo"
+                    fornecedor as "Código do Fornecedor",
+                    fornecedor as "Nome do Fornecedor",
+                    SUM(saldo_devedor) as "Valor em Aberto",
+                    SUM(CASE 
+                        WHEN UPPER(situacao) LIKE '%PROVIS%' OR UPPER(situacao) LIKE '%PROVISIONADO%'
+                        THEN saldo_devedor 
+                        ELSE 0 
+                    END) as "Valor Provisionado",
+                    GROUP_CONCAT(DISTINCT situacao) as "Status do Título"
                 FROM 
                     {self.settings.TABLE_FINANCEIRO}
                 WHERE 
                     excluido = 0
-                    
-                    AND UPPER(tipo_titulo) NOT IN ('NDF', 'PA')  
+                    AND UPPER(tipo_titulo) NOT IN ('NDF', 'PA')
+                GROUP BY
+                    fornecedor
                 ORDER BY 
-                    fornecedor, titulo
+                    fornecedor
             """
-            # AND data_vencimento BETWEEN '{data_inicial}' AND '{data_final}'
             df_financeiro = pd.read_sql(query_financeiro, self.conn)
             df_financeiro.to_excel(writer, sheet_name='Títulos a Pagar', index=False)
             
-            # Query para aba Balancete
+            # ABA: "Balancete" (Dados Contábeis) - EXATAMENTE como documentado
             query_contabil = f"""
                 SELECT 
                     conta_contabil as "Conta Contábil",
-                    descricao_conta as "Descrição Conta",
-                    COALESCE(codigo_fornecedor,'') as "Código Fornecedor",
-                    COALESCE(descricao_fornecedor,'') as "Descrição Fornecedor",
-                    saldo_anterior as "Saldo Anterior",
-                    debito as "Débito",
-                    credito as "Crédito",
-                    saldo_atual as "Saldo Atual",
-                    tipo_fornecedor as "Tipo Fornecedor"
+                    descricao_conta as "Descrição da Conta",
+                    saldo_atual as "Saldo Atual"
                 FROM 
                     {self.settings.TABLE_MODELO1}
                 WHERE 
-                    descricao_conta LIKE 'FORNEC%'
+                    descricao_conta LIKE '%FORNEC%'
                 ORDER BY 
-                    tipo_fornecedor, conta_contabil
+                    conta_contabil
             """
             df_contabil = pd.read_sql(query_contabil, self.conn)
             df_contabil.to_excel(writer, sheet_name='Balancete', index=False)
             
-            # Query para aba Contas x Itens
+            # ABA: "Contas x Itens" (Detalhamento Contábil) - EXATAMENTE como documentado
             query_contas_itens = f"""
                 SELECT 
-                    conta_contabil as "Conta Contábil",
-                    descricao_item as "Descrição Item",
-                    codigo_fornecedor as "Código Fornecedor",
-                    descricao_fornecedor as "Descrição Fornecedor",
-                    saldo_anterior as "Saldo Anterior",
+                    codigo_fornecedor as "Código do Item",
+                    descricao_fornecedor as "Descrição do Item",
+                    saldo_atual as "Saldo Atual",
                     debito as "Débito",
-                    credito as "Crédito",
-                    saldo_atual as "Saldo Atual"
+                    credito as "Crédito"
                 FROM 
                     {self.settings.TABLE_CONTAS_ITENS}
                 ORDER BY 
@@ -1357,24 +1351,34 @@ class DatabaseManager:
             df_contas_itens = pd.read_sql(query_contas_itens, self.conn)
             df_contas_itens.to_excel(writer, sheet_name='Contas x Itens', index=False)
 
-            # Query para aba Adiantamentos
-            query_adiantamento = f"""
+            # ABA: "Resumo da Conciliação" (Principal) 
+            query_resumo = f"""
                 SELECT 
-                    conta_contabil as "Conta Contábil",
-                    descricao_item as "Descrição Item",
-                    codigo_fornecedor as "Código Fornecedor",
-                    descricao_fornecedor as "Descrição Fornecedor",
-                    saldo_anterior as "Saldo Anterior",
-                    debito as "Débito",
-                    credito as "Crédito",
-                    saldo_atual as "Saldo Atual"
+                    codigo_fornecedor as "Código do Fornecedor",
+                    descricao_fornecedor as "Nome do Fornecedor",
+                    saldo_financeiro as "Valor Financeiro",
+                    saldo_contabil as "Valor Contábil",
+                    diferenca as "Diferença",
+                    CASE 
+                        WHEN status = 'Conferido' THEN 'Conferido'  
+                        WHEN status = 'Divergente' THEN 'Divergente'
+                        ELSE 'Pendente'
+                    END as "Status", 
+                    detalhes as "Observações"
                 FROM 
-                    {self.settings.TABLE_ADIANTAMENTO}
+                    {self.settings.TABLE_RESULTADO}
                 ORDER BY 
+                    ABS(diferenca) DESC,
                     codigo_fornecedor
             """
-            df_adiantamento = pd.read_sql(query_adiantamento, self.conn)
-            df_adiantamento.to_excel(writer, sheet_name='Adiantamentos', index=False)
+            df_resumo = pd.read_sql(query_resumo, self.conn)
+
+            # garantir que as colunas sejam float antes de exportar
+            for col in ["Valor Financeiro", "Valor Contábil", "Diferença"]:
+                if col in df_resumo.columns:
+                    df_resumo[col] = pd.to_numeric(df_resumo[col], errors="coerce").fillna(0)
+
+            df_resumo.to_excel(writer, sheet_name='Resumo da Conciliação', index=False)
 
             # Cria aba de Metadados
             metadata = {
@@ -1382,12 +1386,16 @@ class DatabaseManager:
                     'Data e Hora do Processamento',
                     'Período de Referência',
                     'Total de Fornecedores Processados',
-                    'Conciliações OK',
+                    'Conciliações Conferidas',
                     'Conciliações Divergentes',
                     'Conciliações Pendentes',
-                    'Total de Diferenças (R$)',
+                    'Total Financeiro (R$)',
+                    'Total Contábil (R$)',
+                    'Saldo Líquido da Conciliação (R$)',
+                    'Acumulado de Divergências Individuais (R$)',
                     'Fórmula de Cálculo',
-                    'Legenda de Status'
+                    'Legenda de Status',
+                    'Tolerância de Diferença'
                 ],
                 'Valor': [
                     datetime.now().strftime('%d/%m/%Y %H:%M:%S'),
@@ -1396,11 +1404,16 @@ class DatabaseManager:
                     int(stats['conciliados_ok']),
                     int(stats['divergentes']),
                     int(stats['pendentes']),
-                    f"R$ {stats['total_diferenca']:,.2f}",
-                    'Diferença = Saldo Contábil - Saldo Financeiro',
-                    'OK: Valores iguais | DIVERGENTE: Valores diferentes | PENDENTE: Sem correspondência'
+                    f"R$ {stats['total_financeiro']:,.2f}",
+                    f"R$ {stats['total_contabil']:,.2f}",
+                    f"R$ {stats['diferenca_geral']:,.2f}",
+                    f"R$ {stats['total_divergencia']:,.2f}",
+                    'Diferença = Valor Financeiro - Valor Contábil',
+                    'CONFERIDO: Diferença dentro da tolerância (até 3%) | DIVERGENTE: Diferença significativa | PENDENTE: Sem correspondência',
+                    'Até 3% de discrepância é considerada tolerável'
                 ]
             }
+
             df_metadata = pd.DataFrame(metadata)
             df_metadata.to_excel(writer, sheet_name='Metadados', index=False)
             
@@ -1414,39 +1427,22 @@ class DatabaseManager:
                 meta_sheet = workbook['Metadados']
                 self._apply_metadata_styles(meta_sheet)
             
-            # Aplica estilos melhorados à aba Resumo
-            if 'Resumo' in workbook.sheetnames:
-                resumo_sheet = workbook['Resumo']
+            # Aplica estilos melhorados à aba Resumo da Conciliação
+            if 'Resumo da Conciliação' in workbook.sheetnames:
+                resumo_sheet = workbook['Resumo da Conciliação']
                 self._apply_enhanced_styles(resumo_sheet, stats)
                 
-                # Adiciona informações de cabeçalho
-                resumo_sheet['J1'] = "Data de Referência:"
-                resumo_sheet['K1'] = f"{data_inicial} a {data_final}"
-                resumo_sheet['J2'] = "Fórmula Diferença:"
-                resumo_sheet['K2'] = "Saldo Contábil - Saldo Financeiro"
+                # Adiciona filtros automáticos
+                resumo_sheet.auto_filter.ref = resumo_sheet.dimensions
             
-            # Protege todas as abas (menos Observações)
+            # Aplica estilos básicos às outras abas
             for sheetname in workbook.sheetnames:
-                sheet = workbook[sheetname]
-                sheet.protection.sheet = True
-                sheet.protection.enable()
-                # Libera apenas Observações no Resumo
-                if sheetname == 'Resumo':
-                    col_obs = None
-                    for idx, cell in enumerate(sheet[1], 1):
-                        if cell.value == "Observações":
-                            col_obs = idx
-                            break
-                    if col_obs:
-                        for row in sheet.iter_rows(min_row=2, min_col=col_obs, max_col=col_obs):
-                            for cell in row:
-                                cell.protection = openpyxl.styles.Protection(locked=False)
-
-            for sheetname in workbook.sheetnames:
-                if sheetname not in ['Resumo', 'Metadados']:
+                if sheetname not in ['Resumo da Conciliação', 'Metadados']:
                     sheet = workbook[sheetname]
                     self._apply_styles(sheet)
-
+            
+            # Protege todas as abas (exceto coluna Observações)
+            self._protect_sheets(workbook)
             
             workbook.save(output_path)
             
@@ -1460,6 +1456,41 @@ class DatabaseManager:
             error_msg = f"Erro ao exportar resultados: {e}"
             logger.error(error_msg)
             raise ResultsSaveError(error_msg, caminho=output_path) from e
+
+    def validate_output(self, output_path):
+        """
+        Valida a estrutura do arquivo Excel gerado e a formatação monetária.
+        """
+        try:
+            wb = openpyxl.load_workbook(output_path)
+            
+            # Verifica abas obrigatórias
+            required_sheets = ['Resumo da Conciliação', 'Títulos a Pagar', 'Balancete', 'Contas x Itens', 'Metadados']
+            for sheet in required_sheets:
+                if sheet not in wb.sheetnames:
+                    raise ValueError(f"Aba '{sheet}' não encontrada no arquivo gerado")
+            
+            # Verifica formatação monetária na aba Resumo
+            resumo = wb['Resumo da Conciliação']
+            monetary_columns = ['Valor Financeiro', 'Valor Contábil', 'Diferença']
+            
+            header = [cell.value for cell in resumo[1] if cell.value is not None]
+            
+            for col_name in monetary_columns:
+                if col_name in header:
+                    col_idx = header.index(col_name) + 1
+                    # Verifica se pelo menos uma célula tem formatação monetária
+                    sample_cell = resumo.cell(row=2, column=col_idx)
+                    if sample_cell.value is not None and hasattr(sample_cell, 'number_format'):
+                        if 'R$' not in sample_cell.number_format and '#,##0.00' not in sample_cell.number_format:
+                            raise ValueError(f"Coluna '{col_name}' não está formatada como moeda brasileira")
+            
+            return True
+            
+        except Exception as e:
+            error_msg = f"Validação falhou: {e}"
+            logger.error(error_msg)
+            return False
 
     def close(self):
         """Fecha a conexão com o banco de dados"""
