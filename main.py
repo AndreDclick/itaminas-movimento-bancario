@@ -7,6 +7,7 @@ Desenvolvido por DCLICK
 import logging
 import os
 import psutil
+import win32com.client
 import shutil
 from datetime import datetime
 from pathlib import Path
@@ -425,32 +426,34 @@ def excluir_arquivos_pasta(CAMINHO_PLS):
         
 
 
-# Fechar o Web Agent
-def fechar_web_agent(nome_processo):
-    """
-    Fecha processos do Web Agent (Edge)
-    """
+def fechar_web_agent():
     logger = configure_logger()
-    processo_fechado = False
     
-    for proc in psutil.process_iter(['pid', 'name', 'cmdline']):
-        try:
-            # Verifica se é o processo do Edge e se contém a URL do Protheus
-            if (nome_processo.lower() in proc.info['name'].lower() and 
-                proc.info['cmdline'] and 
-                any('protheus.cloudtotvs' in cmd for cmd in proc.info['cmdline'])):
-                
-                proc.terminate()
-                proc.wait(timeout=5)
-                logger.info(f"Processo {proc.info['name']} (PID: {proc.info['pid']}) fechado")
-                processo_fechado = True
-                
-        except (psutil.NoSuchProcess, psutil.AccessDenied, psutil.TimeoutExpired) as e:
-            logger.warning(f"Erro ao fechar processo: {e}")
-        except Exception as e:
-            logger.error(f"Erro inesperado: {e}")
+    # Fechar o Microsoft Edge
+    processo_nome = "msedge.exe"
     
-    return processo_fechado
+    processos_fechados = 0
+    
+    for processo in psutil.process_iter(['pid', 'name']):
+        if processo.info['name'].lower() == processo_nome.lower():
+            try:
+                processo.terminate()
+                processo.wait(timeout=3)
+                logger.info(f"Microsoft Edge fechado (PID: {processo.info['pid']})")
+                processos_fechados += 1
+            except psutil.NoSuchProcess:
+                logger.warning("Processo do Edge já foi fechado")
+            except psutil.TimeoutExpired:
+                processo.kill()
+                logger.info(f"Microsoft Edge forçado a fechar (PID: {processo.info['pid']})")
+                processos_fechados += 1
+    
+    if processos_fechados > 0:
+        logger.info(f"Total de processos do Edge fechados: {processos_fechados}")
+        return True
+    else:
+        logger.warning("Microsoft Edge não encontrado em execução")
+        return False
 # =============================================================================
 # FUNÇÃO PRINCIPAL E EXECUÇÃO DO SCRIPT
 # =============================================================================
@@ -461,18 +464,19 @@ def main():
     """
     # Configurar logger
     logger = configure_logger()
-    
+
     settings=Settings()
 
     # Execução do web agent
-    # os.startfile(settings.WEB_AGENT_PATH)
-    # logger.info("Web Agent iniciado")
+    os.startfile(settings.WEB_AGENT_PATH)
+    logger.info("Web Agent iniciado")
 
-    # time.sleep(5)
+    time.sleep(5)
+
 
     # Limpar pasta de dados antes de começar
-    # quantidade = excluir_arquivos_pasta(settings.CAMINHO_PLS)
-    # logger.info(f"Preparando ambiente: {quantidade} arquivos antigos removidos")
+    quantidade = excluir_arquivos_pasta(settings.CAMINHO_PLS)
+    logger.info(f"Preparando ambiente: {quantidade} arquivos antigos removidos")
     # Configurar settings personalizadas
     custom_settings = Settings()
     custom_settings.HEADLESS = False  # Executar com interface gráfica
@@ -500,7 +504,7 @@ def main():
                 error_count=error_count,
                 report_path=report_path
             )
-            
+            fechar_web_agent()
     except Exception as e:
         # Tratar exceções específicas
         error_description, affected_count, suggested_action = handle_specific_exceptions(e, logger)
@@ -515,7 +519,7 @@ def main():
             affected_count=affected_count,
             suggested_action=suggested_action
         )
-        
+        fechar_web_agent()
         return 1  # Código de erro
     
     return 0  # Sucesso
