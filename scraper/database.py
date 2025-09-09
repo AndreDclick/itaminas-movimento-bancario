@@ -84,8 +84,8 @@ class DatabaseManager:
                     titulo TEXT,
                     parcela TEXT,
                     tipo_titulo TEXT,
-                    data_emissao TEXT,
-                    data_vencimento TEXT,
+                    data_emissao TEXT DEFAULT NULL,
+                    data_vencimento TEXT DEFAULT NULL,
                     valor_original REAL DEFAULT 0,
                     saldo_devedor REAL DEFAULT 0,
                     situacao TEXT,
@@ -210,7 +210,9 @@ class DatabaseManager:
                 'Prf-Numero Parcela': 'titulo', 
                 'Tp': 'tipo_titulo',
                 'Data de Emissao': 'data_emissao',
+                'Data Emissão': 'data_emissao',
                 'Data de Vencto': 'data_vencimento',
+                'Data Vencimento': 'data_vencimento',
                 'Valor Original': 'valor_original',
                 'Tit Vencidos Valor nominal': 'saldo_devedor',
                 'Natureza': 'situacao',
@@ -295,6 +297,12 @@ class DatabaseManager:
             
             # Lê o arquivo conforme o formato
             if ext == ".xlsx":
+                # Lê as primeiras linhas para diagnóstico
+                df_sample = pd.read_excel(file_path, nrows=5)
+                logger.info(f"Primeiras 5 linhas do arquivo {file_path}:")
+                logger.info(df_sample.to_string())
+                
+                # Lê o arquivo completo a partir da linha 2 (header=1)
                 df = pd.read_excel(file_path, header=1)
 
             elif ext == ".xml":
@@ -317,6 +325,8 @@ class DatabaseManager:
                 raise InvalidDataFormat(error_msg, tipo_dado=ext)
 
             logger.info(f"Colunas originais em {file_path}: {df.columns.tolist()}")
+            logger.info(f"Primeiras linhas dos dados:")
+            logger.info(df.head().to_string())
 
             # Limpa caracteres especiais dos nomes das colunas
             df.columns = df.columns.str.replace(r'_x000D_\n', ' ', regex=True).str.strip()
@@ -334,6 +344,8 @@ class DatabaseManager:
                 df.rename(columns=column_mapping, inplace=True)
                 
             logger.info(f"Colunas após mapeamento: {df.columns.tolist()}")
+            logger.info(f"Amostra dos dados após mapeamento:")
+            logger.info(df.head().to_string())
 
             # Verifica colunas obrigatórias
             expected_columns = self.get_expected_columns(table_name)
@@ -361,16 +373,31 @@ class DatabaseManager:
                         logger.error(error_msg)
                         raise PlanilhaFormatacaoErradaError(error_msg, caminho_arquivo=file_path)
 
-            # Limpa e prepara os dados
+            # Limpa e prepara os dados - com diagnóstico detalhado para datas
+            logger.info("Iniciando limpeza dos dados...")
             df = self._clean_dataframe(df, table_name.lower())
+            
+            # Verificação específica das colunas de data
+            for date_col in ['data_emissao', 'data_vencimento']:
+                if date_col in df.columns:
+                    logger.info(f"Coluna {date_col} - Valores únicos: {df[date_col].unique()}")
+                    logger.info(f"Coluna {date_col} - Tipos: {df[date_col].dtype}")
+                    logger.info(f"Coluna {date_col} - Não nulos: {df[date_col].notna().sum()}")
 
             # Mantém apenas colunas que existem na tabela destino
             table_columns = [col[1] for col in self.conn.execute(f"PRAGMA table_info({table_name})").fetchall()]
             keep = [col for col in df.columns if col in table_columns]
             df = df[keep]
 
+            for col in table_columns:
+                if col not in df.columns:
+                    if col == 'excluido':
+                        df[col] = 0  # Valor padrão para coluna excluido
+                    else:
+                        df[col] = None  # Valor padrão para outras colunas
+
             # Insere dados no banco
-            df.to_sql(table_name, self.conn, if_exists='append', index=False)
+            df.to_sql(table_name, self.conn, if_exists='replace', index=False)
             logger.info(f"Dados importados para '{table_name}' com sucesso.")
             return True
 
@@ -524,16 +551,63 @@ class DatabaseManager:
             DataFrame: DataFrame limpo
         """
         try:
+            # Diagnóstico inicial das colunas de data
+            logger.info("Iniciando limpeza de dados financeiros...")
+            for date_col in ['data_emissao', 'data_vencimento']:
+                if date_col in df.columns:
+                    logger.info(f"Coluna {date_col} antes da limpeza:")
+                    logger.info(f"  Tipo: {df[date_col].dtype}")
+                    logger.info(f"  Primeiros valores: {df[date_col].head().tolist()}")
+                    logger.info(f"  Valores únicos: {df[date_col].unique()[:5]}")
+
             for date_col in ['data_emissao', 'data_vencimento']:
                 if date_col in df.columns:
                     try:
-                        df[date_col] = pd.to_datetime(df[date_col], format='%d/%m/%Y', errors='coerce')
-                        df[date_col] = df[date_col].dt.strftime('%Y-%m-%d')
-                    except Exception:
+                        # Converte para string primeiro para garantir consistência
+                        df[date_col] = df[date_col].astype(str)
+                        
+                        # Remove espaços em branco
+                        df[date_col] = df[date_col].str.strip()
+                        
+                        # Substitui valores vazios por NaN
+                        df[date_col] = df[date_col].replace(['', 'nan', 'None', 'NaT'], np.nan)
+                        
+                        # Tenta converter para datetime
+                        df[date_col] = pd.to_datetime(
+                        df[date_col],
+                        dayfirst=True,   # aceita tanto 01/09/2025 quanto 2025-09-01
+                        errors='coerce'
+                    )
+
+                        
+                        # Se não conseguir com formato específico, tenta inferir
+                        if df[date_col].isna().any():
+                            df[date_col] = df[date_col].dt.strftime('%Y-%m-%d')
+
+                        
+                        # Formata para string no formato brasileiro
+                        df[date_col] = df[date_col].dt.strftime('%d/%m/%Y')
+                        
+                        # Substitui NaT por None
+                        df[date_col] = df[date_col].replace('NaT', None)
+                        
+                    except Exception as e:
+                        logger.warning(f"Erro ao converter {date_col}: {e}")
                         df[date_col] = None
+            
+            # Diagnóstico após a limpeza
+            for date_col in ['data_emissao', 'data_vencimento']:
+                if date_col in df.columns:
+                    logger.info(f"Coluna {date_col} após limpeza:")
+                    logger.info(f"  Tipo: {df[date_col].dtype}")
+                    logger.info(f"  Primeiros valores: {df[date_col].head().tolist()}")
+                    logger.info(f"  Não nulos: {df[date_col].notna().sum()}")
+            
             # Remove registros de fornecedores NDF/PA
             if 'fornecedor' in df.columns:
-                df = df[~df['fornecedor'].str.contains(r'\bNDF\b|\bPA\b', case=False, na=False)]
+                mask = df['fornecedor'].str.contains(r'\bNDF\b|\bPA\b', case=False, na=False)
+                logger.info(f"Removendo {mask.sum()} registros de NDF/PA")
+                df = df[~mask]
             
             # Garante que todas as colunas obrigatórias existam
             required_cols = ['fornecedor', 'titulo', 'parcela', 'tipo_titulo', 
@@ -548,8 +622,11 @@ class DatabaseManager:
             num_cols = ['valor_original', 'saldo_devedor']
             for col in num_cols:
                 if col in df.columns:
+                    # Converte para string primeiro
+                    df[col] = df[col].astype(str)
+                    
                     # 1. Mantém apenas dígitos, vírgula, ponto e sinal
-                    df[col] = df[col].astype(str).str.replace(r'[^\d,.-]', '', regex=True)
+                    df[col] = df[col].str.replace(r'[^\d,.-]', '', regex=True)
 
                     # 2. Remove pontos de milhar
                     df[col] = df[col].str.replace('.', '', regex=False)
@@ -560,9 +637,8 @@ class DatabaseManager:
                     # 4. Converte para float
                     df[col] = pd.to_numeric(df[col], errors="coerce").fillna(0)
 
-            # Cria coluna de comparação para validação
-            if 'valor_original' in df.columns and 'saldo_devedor' in df.columns:
-                df['comparacao'] = df['valor_original'] - df['saldo_devedor']
+            logger.info(f"DataFrame final - shape: {df.shape}")
+            logger.info(f"Colunas finais: {df.columns.tolist()}")
             
             return df
         except Exception as e:
@@ -681,6 +757,16 @@ class DatabaseManager:
                 return getattr(self.settings, 'COLUNAS_CONTAS_ITENS', {})
             elif 'ctbr100' in filename:
                 return getattr(self.settings, 'COLUNAS_ADIANTAMENTO', {})
+            
+        # Diagnóstico inicial das colunas de data antes do mapeamento
+        if 'Data Emissao' in df.columns or 'Data Emissão' in df.columns:
+            col = 'Data Emissao' if 'Data Emissao' in df.columns else 'Data Emissão'
+            logger.info(f"Valores originais da coluna {col}: {df[col].head().tolist()}")
+
+        if 'Data Vencto' in df.columns or 'Data Vencimento' in df.columns:
+            col = 'Data Vencto' if 'Data Vencto' in df.columns else 'Data Vencimento'
+            logger.info(f"Valores originais da coluna {col}: {df[col].head().tolist()}")
+
         
         # Mapeamento para arquivos TXT
         elif ext == ".txt":
@@ -959,8 +1045,8 @@ class DatabaseManager:
             data_inicial = cal.add_working_days(data_inicial - timedelta(days=1), 1)
             data_final = hoje
             # Retorna em ISO (YYYY-MM-DD) — adequado para BETWEEN no SQLite
-            # return data_inicial.strftime("01/04/2023"), data_final.strftime("0/08/2025")
-            return data_inicial.strftime("%d/%m/%Y"), data_final.strftime("%d/%m/%Y")
+            return data_inicial.strftime("01/05/2025"), data_final.strftime("01/06/2025")
+            # return data_inicial.strftime("%d/%m/%Y"), data_final.strftime("%d/%m/%Y")
 
         except Exception as e:
             error_msg = f"Erro ao obter datas de referência: {e}"
@@ -1256,7 +1342,6 @@ class DatabaseManager:
     def export_to_excel(self):
         """
         Exporta resultados para arquivo Excel formatado com metadados.
-        Seguindo exatamente a documentação fornecida.
         """
         
         data_inicial_iso, data_final_iso = self._get_datas_referencia()
@@ -1277,7 +1362,6 @@ class DatabaseManager:
             writer = pd.ExcelWriter(output_path, engine='openpyxl')
             
             # Query para obter estatísticas de processamento
-            # Query para obter estatísticas de processamento
             query_stats = f"""
                 SELECT 
                     COUNT(*) as total_registros,
@@ -1294,124 +1378,181 @@ class DatabaseManager:
 
             stats = pd.read_sql(query_stats, self.conn).iloc[0]
 
-            # ABA: "Títulos a Pagar" (Dados Financeiros) -
+            # ABA: "Títulos a Pagar" (Dados Financeiros) - VERIFICAÇÃO DE DATAS
             query_financeiro = f"""
                 SELECT 
-                    fornecedor as "Código do Fornecedor",
-                    fornecedor as "Nome do Fornecedor",
-                    SUM(saldo_devedor) as "Valor em Aberto",
-                    SUM(CASE 
-                        WHEN UPPER(situacao) LIKE '%PROVIS%' OR UPPER(situacao) LIKE '%PROVISIONADO%'
-                        THEN saldo_devedor 
-                        ELSE 0 
-                    END) as "Valor Provisionado",
-                    GROUP_CONCAT(DISTINCT situacao) as "Status do Título"
+                    fornecedor as "Fornecedor",
+                    titulo as "Título",
+                    parcela as "Parcela",
+                    tipo_titulo as "Tipo Título",
+                    CASE 
+                        WHEN data_emissao IS NULL OR data_emissao = '' THEN NULL
+                        ELSE data_emissao 
+                    END as "Data Emissão",
+                    CASE 
+                        WHEN data_vencimento IS NULL OR data_vencimento = '' THEN NULL
+                        ELSE data_vencimento 
+                    END as "Data Vencimento",
+                    valor_original as "Valor Original",
+                    saldo_devedor as "Saldo Devedor",
+                    situacao as "Situação",
+                    conta_contabil as "Conta Contábil",
+                    centro_custo as "Centro Custo"
                 FROM 
                     {self.settings.TABLE_FINANCEIRO}
                 WHERE 
                     excluido = 0
                     AND UPPER(tipo_titulo) NOT IN ('NDF', 'PA')
-                GROUP BY
-                    fornecedor
                 ORDER BY 
-                    fornecedor
+                    fornecedor, titulo, parcela
             """
             df_financeiro = pd.read_sql(query_financeiro, self.conn)
+            
+            # Verifica se há problemas com as datas
+            logger.info(f"Total de registros financeiros: {len(df_financeiro)}")
+            df_financeiro['Data Emissão'] = pd.to_datetime(df_financeiro['Data Emissão'], errors='coerce').dt.strftime('%d/%m/%Y')
+            df_financeiro['Data Vencimento'] = pd.to_datetime(df_financeiro['Data Vencimento'], errors='coerce').dt.strftime('%d/%m/%Y')
+
+            
             df_financeiro.to_excel(writer, sheet_name='Títulos a Pagar', index=False)
             
-            # ABA: "Balancete" (Dados Contábeis) - EXATAMENTE como documentado
+            # ABA: "Balancete" (Dados Contábeis) - TODOS OS CAMPOS
             query_contabil = f"""
                 SELECT 
                     conta_contabil as "Conta Contábil",
-                    descricao_conta as "Descrição da Conta",
-                    saldo_atual as "Saldo Atual"
+                    descricao_conta as "Descrição Conta",
+                    codigo_fornecedor as "Código Fornecedor",
+                    descricao_fornecedor as "Descrição Fornecedor",
+                    saldo_anterior as "Saldo Anterior",
+                    debito as "Débito",
+                    credito as "Crédito",
+                    saldo_atual as "Saldo Atual",
+                    tipo_fornecedor as "Tipo Fornecedor"
                 FROM 
                     {self.settings.TABLE_MODELO1}
                 WHERE 
                     descricao_conta LIKE '%FORNEC%'
+                    AND conta_contabil NOT LIKE '1.01.06.02%'  -- Exclui adiantamentos detalhados
                 ORDER BY 
-                    conta_contabil
+                    conta_contabil, codigo_fornecedor
             """
+
             df_contabil = pd.read_sql(query_contabil, self.conn)
             df_contabil.to_excel(writer, sheet_name='Balancete', index=False)
             
-            # ABA: "Contas x Itens" (Detalhamento Contábil) - EXATAMENTE como documentado
+            # ABA: "Adiantamento" (Dados de Adiantamentos)
+            query_adiantamento = f"""
+                SELECT 
+                    conta_contabil as "Conta Contábil",
+                    descricao_item as "Descrição Item",
+                    codigo_fornecedor as "Código Fornecedor",
+                    descricao_fornecedor as "Descrição Fornecedor",
+                    saldo_anterior as "Saldo Anterior",
+                    saldo_atual as "Saldo Atual"
+                FROM 
+                    {self.settings.TABLE_ADIANTAMENTO}
+                ORDER BY 
+                    conta_contabil, codigo_fornecedor
+            """
+            df_adiantamento = pd.read_sql(query_adiantamento, self.conn)
+            df_adiantamento.to_excel(writer, sheet_name='Adiantamento', index=False)
+            
+            # ABA: "Contas x Itens" (Detalhamento Contábil)
             query_contas_itens = f"""
                 SELECT 
-                    codigo_fornecedor as "Código do Item",
-                    descricao_fornecedor as "Descrição do Item",
-                    saldo_atual as "Saldo Atual",
-                    debito as "Débito",
-                    credito as "Crédito"
+                    conta_contabil as "Conta Contábil",
+                    descricao_item as "Descrição Item",
+                    codigo_fornecedor as "Código Fornecedor",
+                    descricao_fornecedor as "Descrição Fornecedor",
+                    saldo_anterior as "Saldo Anterior",
+                    saldo_atual as "Saldo Atual"
                 FROM 
                     {self.settings.TABLE_CONTAS_ITENS}
                 ORDER BY 
-                    codigo_fornecedor
+                    conta_contabil, codigo_fornecedor
             """
             df_contas_itens = pd.read_sql(query_contas_itens, self.conn)
             df_contas_itens.to_excel(writer, sheet_name='Contas x Itens', index=False)
 
-            # ABA: "Resumo da Conciliação" (Principal) 
+            # ABA: "Resumo da Conciliação" (Principal)
             query_resumo = f"""
                 SELECT 
-                    codigo_fornecedor as "Código do Fornecedor",
-                    descricao_fornecedor as "Nome do Fornecedor",
-                    saldo_financeiro as "Valor Financeiro",
-                    saldo_contabil as "Valor Contábil",
-                    diferenca as "Diferença",
+                    
+                    descricao_fornecedor as "Descrição Fornecedor",
+                    saldo_contabil as "Saldo Contábil",
+                    saldo_financeiro as "Saldo Financeiro",
+                    (saldo_contabil - saldo_financeiro) as "Diferença (Contábil - Financeiro)",
+                    CASE 
+                        WHEN (saldo_contabil - saldo_financeiro) > 0 THEN 'Contábil > Financeiro'
+                        WHEN (saldo_contabil - saldo_financeiro) < 0 THEN 'Financeiro > Contábil'
+                        ELSE 'Igual'
+                    END as "Tipo Diferença",
                     CASE 
                         WHEN status = 'Conferido' THEN 'Conferido'  
                         WHEN status = 'Divergente' THEN 'Divergente'
                         ELSE 'Pendente'
                     END as "Status", 
-                    detalhes as "Observações"
+                    detalhes as "Detalhes",
+                    '{data_inicial} a {data_final}' as "Data de Referência"
                 FROM 
                     {self.settings.TABLE_RESULTADO}
                 ORDER BY 
-                    ABS(diferenca) DESC,
+                    ABS(saldo_contabil - saldo_financeiro) DESC,
                     codigo_fornecedor
             """
             df_resumo = pd.read_sql(query_resumo, self.conn)
 
-            # garantir que as colunas sejam float antes de exportar
-            for col in ["Valor Financeiro", "Valor Contábil", "Diferença"]:
+            # Garantir que as colunas sejam float antes de exportar
+            for col in ["Saldo Contábil", "Saldo Financeiro", "Diferença (Contábil - Financeiro)"]:
                 if col in df_resumo.columns:
                     df_resumo[col] = pd.to_numeric(df_resumo[col], errors="coerce").fillna(0)
 
             df_resumo.to_excel(writer, sheet_name='Resumo da Conciliação', index=False)
 
             # Cria aba de Metadados
+            metadata_items = [
+                'Data e Hora do Processamento',
+                'Período de Referência',
+                'Total de Fornecedores Processados',
+                'Conciliações Conferidas',
+                'Conciliações Divergentes',
+                'Conciliações Pendentes',
+                'Total Financeiro (R$)',
+                'Total Contábil (R$)',
+                'Saldo Líquido da Conciliação (R$)',
+                'Acumulado de Divergências Individuais (R$)',
+                'Fórmula de Cálculo',
+                'Legenda de Status',
+                'Tolerância de Diferença'
+            ]
+
+            metadata_values = [
+                datetime.now().strftime('%d/%m/%Y %H:%M:%S'),
+                f'{data_inicial} a {data_final}',
+                int(stats['total_registros']),
+                int(stats['conciliados_ok']),
+                int(stats['divergentes']),
+                int(stats['pendentes']),
+                f"R$ {stats['total_financeiro']:,.2f}",
+                f"R$ {stats['total_contabil']:,.2f}",
+                f"R$ {stats['diferenca_geral']:,.2f}",
+                f"R$ {stats['total_divergencia']:,.2f}",
+                'Diferença = Saldo Contábil - Saldo Financeiro',
+                'CONFERIDO: Diferença dentro da tolerância (até 3%) | DIVERGENTE: Diferença significativa | PENDENTE: Sem correspondência',
+                'Até 3% de discrepância é considerada tolerável'
+            ]
+
+            # VERIFICAÇÃO DE COMPRIMENTO - adicione esta validação
+            if len(metadata_items) != len(metadata_values):
+                logger.error(f"Metadados incompatíveis: {len(metadata_items)} itens vs {len(metadata_values)} valores")
+                # Ajusta para ter o mesmo comprimento
+                min_length = min(len(metadata_items), len(metadata_values))
+                metadata_items = metadata_items[:min_length]
+                metadata_values = metadata_values[:min_length]
+
             metadata = {
-                'Item': [
-                    'Data e Hora do Processamento',
-                    'Período de Referência',
-                    'Total de Fornecedores Processados',
-                    'Conciliações Conferidas',
-                    'Conciliações Divergentes',
-                    'Conciliações Pendentes',
-                    'Total Financeiro (R$)',
-                    'Total Contábil (R$)',
-                    'Saldo Líquido da Conciliação (R$)',
-                    'Acumulado de Divergências Individuais (R$)',
-                    'Fórmula de Cálculo',
-                    'Legenda de Status',
-                    'Tolerância de Diferença'
-                ],
-                'Valor': [
-                    datetime.now().strftime('%d/%m/%Y %H:%M:%S'),
-                    f'{data_inicial} a {data_final}',
-                    int(stats['total_registros']),
-                    int(stats['conciliados_ok']),
-                    int(stats['divergentes']),
-                    int(stats['pendentes']),
-                    f"R$ {stats['total_financeiro']:,.2f}",
-                    f"R$ {stats['total_contabil']:,.2f}",
-                    f"R$ {stats['diferenca_geral']:,.2f}",
-                    f"R$ {stats['total_divergencia']:,.2f}",
-                    'Diferença = Valor Financeiro - Valor Contábil',
-                    'CONFERIDO: Diferença dentro da tolerância (até 3%) | DIVERGENTE: Diferença significativa | PENDENTE: Sem correspondência',
-                    'Até 3% de discrepância é considerada tolerável'
-                ]
+                'Item': metadata_items,
+                'Valor': metadata_values
             }
 
             df_metadata = pd.DataFrame(metadata)
@@ -1440,6 +1581,7 @@ class DatabaseManager:
                 if sheetname not in ['Resumo da Conciliação', 'Metadados']:
                     sheet = workbook[sheetname]
                     self._apply_styles(sheet)
+            
             
             # Protege todas as abas (exceto coluna Observações)
             self._protect_sheets(workbook)

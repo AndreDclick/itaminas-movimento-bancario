@@ -271,7 +271,7 @@ class ProtheusScraper(Utils):
             #         'error_code': getattr(e, 'code', 'FE4') if hasattr(e, 'code') else 'FE3'
             #     })
 
-            # # 2. Executar Modelo_1
+            # 2. Executar Modelo_1
             # try:
             #     modelo_1 = Modelo_1(self.page)
             #     resultado_modelo = modelo_1.execucao()
