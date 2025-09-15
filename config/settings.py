@@ -78,7 +78,7 @@ class Settings:
     TABLE_CONTAS_ITENS = "contas_itens"   # Tabela para contas e itens
     TABLE_ADIANTAMENTO = "adiantamento"   # Tabela para adiantamentos
     TABLE_RESULTADO = "resultado"         # Tabela para resultados do processamento
-    
+    TABLE_RESULTADO_ADIANTAMENTO = "resultado_adiantamento"  # NOVA: Tabela para resultados de adiantamentos
     # =========================================================================
     # CONFIGURAÇÕES DE TEMPO E DELAYS
     # =========================================================================
@@ -131,17 +131,17 @@ class Settings:
     
     # Planilha Financeira (finr150.xlsx)
     COLUNAS_FINANCEIRO = {
-        'fornecedor': 'Codigo-Nome do Fornecedor',
-        'titulo': 'Prf-Numero Parcela',  
-        'tipo_titulo': 'Tp',
-        'data_emissao': 'Data de Emissao',
-        'data_vencimento': 'Data de Vencto',
-        "vencto_real": "VenctoReal",
-        'valor_original': 'Valor Original',
-        'saldo_devedor': 'Tit Vencidos Valor nominal',
-        'situacao': 'Natureza',
-        'conta_contabil': 'Natureza',
-        'centro_custo': 'Porta- dor'
+    'fornecedor': 'Codigo-Nome do Fornecedor',
+    'titulo': 'Prf-Numero Parcela',  
+    'tipo_titulo': 'Tp',
+    'data_emissao': 'Data de Emissao',
+    'data_vencimento': 'Data de Vencto',
+    'valor_original': 'Valor Original',
+    'saldo_devedor': 'Tit Vencidos Valor nominal',  # J - Títulos Vencidos
+    'titulos_vencer': 'Titulos a vencer Valor nominal',  # K - Títulos a Vencer (NOVO)
+    'situacao': 'Natureza',
+    'conta_contabil': 'Natureza',
+    'centro_custo': 'Porta- dor'
     }
 
     # Planilha Modelo 1 (ctbr040.xlsx)

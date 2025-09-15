@@ -468,15 +468,15 @@ def main():
     settings=Settings()
 
     # Execução do web agent
-    os.startfile(settings.WEB_AGENT_PATH)
-    logger.info("Web Agent iniciado")
+    # os.startfile(settings.WEB_AGENT_PATH)
+    # logger.info("Web Agent iniciado")
 
-    time.sleep(5)
+    # time.sleep(7)
 
 
     # Limpar pasta de dados antes de começar
-    quantidade = excluir_arquivos_pasta(settings.CAMINHO_PLS)
-    logger.info(f"Preparando ambiente: {quantidade} arquivos antigos removidos")
+    # quantidade = excluir_arquivos_pasta(settings.CAMINHO_PLS)
+    # logger.info(f"Preparando ambiente: {quantidade} arquivos antigos removidos")
     # Configurar settings personalizadas
     custom_settings = Settings()
     custom_settings.HEADLESS = False  # Executar com interface gráfica
@@ -504,7 +504,7 @@ def main():
                 error_count=error_count,
                 report_path=report_path
             )
-            fechar_web_agent()
+            # fechar_web_agent()
     except Exception as e:
         # Tratar exceções específicas
         error_description, affected_count, suggested_action = handle_specific_exceptions(e, logger)
@@ -519,7 +519,7 @@ def main():
             affected_count=affected_count,
             suggested_action=suggested_action
         )
-        fechar_web_agent()
+        # fechar_web_agent()
         return 1  # Código de erro
     
     return 0  # Sucesso

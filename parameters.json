@@ -12,7 +12,7 @@
 
         "da_data_contabil": "01/01/2000",
         
-        "ate_a_data_contabil": "{{ultimo_dia_mes_anterior}}",
+        "ate_a_data_contabil": "01/07/2025",
         "_comment_ate_a_data_contabil": "Para usar o parâmetro dinâmico, use: {{ultimo_dia_mes_anterior}}",
 
         "data_base": "{{obter_ultimo_dia_ano_passado}}",

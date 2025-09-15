@@ -149,6 +149,21 @@ class DatabaseManager:
                 )
             """)
 
+            # Cria tabela Adiantamento financeiro se não existir
+            cursor.execute(f"""
+                CREATE TABLE IF NOT EXISTS {self.settings.TABLE_RESULTADO_ADIANTAMENTO} (
+                    id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    codigo_fornecedor TEXT,
+                    descricao_fornecedor TEXT,
+                    total_financeiro REAL DEFAULT 0,
+                    total_contabil REAL DEFAULT 0,
+                    diferenca REAL DEFAULT 0,
+                    status TEXT CHECK(status IN ('Conferido', 'Divergente', 'Pendente')),
+                    detalhes TEXT,
+                    data_processamento TEXT DEFAULT CURRENT_TIMESTAMP
+                )
+            """)
+
             # Cria tabela resultado (concatenação) se não existir
             cursor.execute(f"""
                 CREATE TABLE IF NOT EXISTS {self.settings.TABLE_RESULTADO} (
@@ -604,10 +619,10 @@ class DatabaseManager:
                     logger.info(f"  Não nulos: {df[date_col].notna().sum()}")
             
             # Remove registros de fornecedores NDF/PA
-            if 'fornecedor' in df.columns:
-                mask = df['fornecedor'].str.contains(r'\bNDF\b|\bPA\b', case=False, na=False)
-                logger.info(f"Removendo {mask.sum()} registros de NDF/PA")
-                df = df[~mask]
+            # if 'fornecedor' in df.columns:
+            #     mask = df['fornecedor'].str.contains(r'\bNDF\b|\bPA\b', case=False, na=False)
+            #     logger.info(f"Removendo {mask.sum()} registros de NDF/PA/BOL/EMP/TX/INS/ISS/TXA/IRF")
+            #     df = df[~mask]
             
             # Garante que todas as colunas obrigatórias existam
             required_cols = ['fornecedor', 'titulo', 'parcela', 'tipo_titulo', 
@@ -619,7 +634,7 @@ class DatabaseManager:
                     df[col] = np.nan
             
             # Limpa e converte colunas numéricas
-            num_cols = ['valor_original', 'saldo_devedor']
+            num_cols = ['valor_original', 'saldo_devedor', 'titulos_vencer']  # ADICIONADO titulos_vencer
             for col in num_cols:
                 if col in df.columns:
                     # Converte para string primeiro
@@ -755,7 +770,7 @@ class DatabaseManager:
                 return getattr(self.settings, 'COLUNAS_MODELO1', {})
             elif 'ctbr140' in filename:
                 return getattr(self.settings, 'COLUNAS_CONTAS_ITENS', {})
-            elif 'ctbr100' in filename:
+            elif 'ctbr100' in filename:  
                 return getattr(self.settings, 'COLUNAS_ADIANTAMENTO', {})
             
         # Diagnóstico inicial das colunas de data antes do mapeamento
@@ -801,9 +816,7 @@ class DatabaseManager:
             data_inicial, data_final = self._get_datas_referencia()
             # Limpa tabela de resultados anterior
             cursor.execute(f"DELETE FROM {self.settings.TABLE_RESULTADO}")
-            
-            # Insere dados financeiros na tabela de resultados
-            data_inicial, data_final = self._get_datas_referencia()
+            cursor.execute(f"DELETE FROM {self.settings.TABLE_RESULTADO_ADIANTAMENTO}")
 
             query_financeiro = f"""
                 INSERT INTO {self.settings.TABLE_RESULTADO}
@@ -817,10 +830,17 @@ class DatabaseManager:
                     {self.settings.TABLE_FINANCEIRO}
                 WHERE 
                     excluido = 0
-                    AND UPPER(tipo_titulo) NOT IN ('NDF', 'PA')
+                    
                 GROUP BY 
                     TRIM(fornecedor)
             """
+            
+            # WHERE 
+            #         excluido = 0
+            #         AND UPPER(tipo_titulo) NOT IN ('NDF', 'PA', 'BOL', 'EMP', 'TX', 'INS', 'ISS', 'TXA', 'IRF')
+            #     GROUP BY 
+            #         TRIM(fornecedor)
+
             # AND (data_vencimento IS NULL OR data_vencimento BETWEEN '{data_inicial}' AND '{data_final}')
             cursor.execute(query_financeiro)
             
@@ -991,7 +1011,10 @@ class DatabaseManager:
                         ELSE detalhes  -- Mantém os detalhes da investigação para divergências
                     END
             """)
-            
+
+            # NOVO: Processamento específico para adiantamentos
+            self._process_adiantamentos()
+
             self.conn.commit()  # Confirma transação
             logger.info("Processamento de dados concluído com sucesso")
             return True
@@ -1075,7 +1098,7 @@ class DatabaseManager:
             query = f"""
                 SELECT 
                     (SELECT SUM(saldo_devedor) FROM {self.settings.TABLE_FINANCEIRO} 
-                    WHERE excluido = 0 AND UPPER(tipo_titulo) NOT IN ('NDF', 'PA')) as total_financeiro,
+                    WHERE excluido = 0 AND UPPER(tipo_titulo) NOT IN ('NDF', 'PA', 'BOL', 'EMP', 'TX', 'INS', 'ISS', 'TXA', 'IRF')) as total_financeiro,
                     (SELECT SUM(saldo_atual) FROM {self.settings.TABLE_MODELO1} 
                     WHERE descricao_conta LIKE 'FORNECEDOR%') as total_contabil
             """
@@ -1176,7 +1199,7 @@ class DatabaseManager:
                 'Quantidade', 'Valor Unitário', 'Valor Total'
             }
             
-            # Aplica formatação monetária em colunas inteiras (muito mais rápido)
+            # Aplica formatação monetária em colunas inteiras 
             for col_idx, col_name in enumerate(header, 1):
                 if col_name in monetary_headers:
                     col_letter = get_column_letter(col_idx)
@@ -1339,6 +1362,155 @@ class DatabaseManager:
         except Exception as e:
             logger.warning(f"")
 
+    def _process_adiantamentos(self):
+        """Processa especificamente a conciliação de adiantamentos"""
+        try:
+            cursor = self.conn.cursor()
+            
+            # Verifica se a tabela existe e tem as colunas corretas
+            cursor.execute(f"PRAGMA table_info({self.settings.TABLE_RESULTADO_ADIANTAMENTO})")
+            columns = [col[1] for col in cursor.fetchall()]
+            
+            # Se não tem as colunas necessárias, recria a tabela
+            if 'total_financeiro' not in columns:
+                self._recreate_adiantamento_table()
+            
+            # Calcula totais financeiros de adiantamentos (NDF e PA)
+            query_adiantamento_financeiro = f"""
+                INSERT INTO {self.settings.TABLE_RESULTADO_ADIANTAMENTO}
+                (codigo_fornecedor, descricao_fornecedor, total_financeiro, status)
+                SELECT 
+                    TRIM(fornecedor) as codigo_fornecedor,
+                    TRIM(fornecedor) as descricao_fornecedor,
+                    SUM(COALESCE(saldo_devedor, 0)) as total_financeiro, 
+                    'Pendente' as status
+                FROM 
+                    {self.settings.TABLE_FINANCEIRO}
+                WHERE 
+                    excluido = 0
+                    AND UPPER(tipo_titulo) IN ('NDF', 'PA')
+                GROUP BY 
+                    TRIM(fornecedor)
+            """
+            cursor.execute(query_adiantamento_financeiro)
+            
+            # Soma de Títulos Vencidos + Títulos a Vencer (J + K)
+            query_soma_valores = f"""
+                UPDATE {self.settings.TABLE_RESULTADO_ADIANTAMENTO}
+                SET total_financeiro = (
+                    SELECT COALESCE(SUM(
+                        COALESCE(saldo_devedor, 0) + COALESCE("Titulos a vencer Valor nominal", 0)  
+                    ), 0)
+                    FROM {self.settings.TABLE_FINANCEIRO} f
+                    WHERE f.fornecedor = {self.settings.TABLE_RESULTADO_ADIANTAMENTO}.codigo_fornecedor
+                    AND f.excluido = 0
+                    AND UPPER(f.tipo_titulo) IN ('NDF', 'PA')
+                )
+                WHERE codigo_fornecedor IN (
+                    SELECT DISTINCT fornecedor 
+                    FROM {self.settings.TABLE_FINANCEIRO} 
+                    WHERE UPPER(tipo_titulo) IN ('NDF', 'PA')
+                )
+            """
+            cursor.execute(query_soma_valores)
+            
+            # Atualiza com dados contábeis de adiantamento
+            query_contabil_update = f"""
+                UPDATE {self.settings.TABLE_RESULTADO_ADIANTAMENTO}
+                SET 
+                    total_contabil = (
+                        SELECT COALESCE(SUM(saldo_atual), 0)
+                        FROM {self.settings.TABLE_ADIANTAMENTO} a
+                        WHERE a.codigo_fornecedor = {self.settings.TABLE_RESULTADO_ADIANTAMENTO}.codigo_fornecedor
+                    ),
+                    detalhes = 'Adiantamento: ' || COALESCE((
+                        SELECT GROUP_CONCAT(descricao_fornecedor || ': R$ ' || saldo_atual, ' | ')
+                        FROM {self.settings.TABLE_ADIANTAMENTO} a2
+                        WHERE a2.codigo_fornecedor = {self.settings.TABLE_RESULTADO_ADIANTAMENTO}.codigo_fornecedor
+                    ), 'Nenhum registro contábil')
+                WHERE EXISTS (
+                    SELECT 1
+                    FROM {self.settings.TABLE_ADIANTAMENTO} a3
+                    WHERE a3.codigo_fornecedor = {self.settings.TABLE_RESULTADO_ADIANTAMENTO}.codigo_fornecedor
+                )
+            """
+            cursor.execute(query_contabil_update)
+            
+            # Insere adiantamentos contábeis que não tiveram match financeiro
+            query_contabeis_sem_match = f"""
+                INSERT INTO {self.settings.TABLE_RESULTADO_ADIANTAMENTO}
+                (codigo_fornecedor, descricao_fornecedor, total_contabil, status, detalhes)
+                SELECT 
+                    codigo_fornecedor,
+                    descricao_fornecedor,
+                    SUM(saldo_atual) as total_contabil,
+                    'Pendente' as status,
+                    'Adiantamento contábil sem correspondência financeira' as detalhes
+                FROM 
+                    {self.settings.TABLE_ADIANTAMENTO}
+                WHERE 
+                    codigo_fornecedor IS NOT NULL 
+                    AND codigo_fornecedor <> ''
+                    AND NOT EXISTS (
+                        SELECT 1
+                        FROM {self.settings.TABLE_RESULTADO_ADIANTAMENTO} r
+                        WHERE r.codigo_fornecedor = {self.settings.TABLE_ADIANTAMENTO}.codigo_fornecedor
+                    )
+                GROUP BY 
+                    codigo_fornecedor, descricao_fornecedor
+            """
+            cursor.execute(query_contabeis_sem_match)
+            
+            # Calcula diferenças e define status
+            query_diferenca = f"""
+                UPDATE {self.settings.TABLE_RESULTADO_ADIANTAMENTO}
+                SET 
+                    diferenca = ROUND(COALESCE(total_financeiro, 0) - COALESCE(total_contabil, 0), 2),
+                    status = CASE 
+                        WHEN total_contabil IS NULL AND total_financeiro IS NULL THEN 'Pendente'
+                        WHEN ABS(COALESCE(total_financeiro, 0) - COALESCE(total_contabil, 0)) <= 
+                            (0.03 * CASE 
+                                WHEN ABS(COALESCE(total_contabil, 0)) > ABS(COALESCE(total_financeiro, 0)) 
+                                THEN ABS(COALESCE(total_contabil, 0)) 
+                                ELSE ABS(COALESCE(total_financeiro, 0)) 
+                            END)
+                            THEN 'Conferido' 
+                        ELSE 'Divergente' 
+                    END
+            """
+            cursor.execute(query_diferenca)
+            
+        except Exception as e:
+            error_msg = f"Erro no processamento de adiantamentos: {e}"
+            logger.error(error_msg)
+            raise
+
+    def _recreate_adiantamento_table(self):
+        """Recria a tabela de resultado_adiantamento com estrutura correta"""
+        try:
+            cursor = self.conn.cursor()
+            cursor.execute(f"DROP TABLE IF EXISTS {self.settings.TABLE_RESULTADO_ADIANTAMENTO}")
+            
+            cursor.execute(f"""
+                CREATE TABLE {self.settings.TABLE_RESULTADO_ADIANTAMENTO} (
+                    id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    codigo_fornecedor TEXT,
+                    descricao_fornecedor TEXT,
+                    total_financeiro REAL DEFAULT 0,
+                    total_contabil REAL DEFAULT 0,
+                    diferenca REAL DEFAULT 0,
+                    status TEXT CHECK(status IN ('Conferido', 'Divergente', 'Pendente')),
+                    detalhes TEXT,
+                    data_processamento TEXT DEFAULT CURRENT_TIMESTAMP
+                )
+            """)
+            self.conn.commit()
+            logger.info("Tabela resultado_adiantamento recriada com estrutura correta")
+        except Exception as e:
+            error_msg = f"Erro ao recriar tabela resultado_adiantamento: {e}"
+            logger.error(error_msg)
+            raise
+
     def export_to_excel(self):
         """
         Exporta resultados para arquivo Excel formatado com metadados.
@@ -1402,7 +1574,7 @@ class DatabaseManager:
                     {self.settings.TABLE_FINANCEIRO}
                 WHERE 
                     excluido = 0
-                    AND UPPER(tipo_titulo) NOT IN ('NDF', 'PA')
+                    AND UPPER(tipo_titulo) NOT IN ('NDF', 'PA', 'BOL', 'EMP', 'TX', 'INS', 'ISS', 'TXA', 'IRF')
                 ORDER BY 
                     fornecedor, titulo, parcela
             """
@@ -1415,6 +1587,44 @@ class DatabaseManager:
 
             
             df_financeiro.to_excel(writer, sheet_name='Títulos a Pagar', index=False)
+
+            # NOVA ABA: "Adiantamentos de Títulos a Pagar" (Dados Financeiros) - VERIFICAÇÃO DE DATAS
+            query_adi_financeiro = f"""
+                SELECT 
+                    fornecedor as "Fornecedor",
+                    titulo as "Título",
+                    parcela as "Parcela",
+                    tipo_titulo as "Tipo Título",
+                    CASE 
+                        WHEN data_emissao IS NULL OR data_emissao = '' THEN NULL
+                        ELSE data_emissao 
+                    END as "Data Emissão",
+                    CASE 
+                        WHEN data_vencimento IS NULL OR data_vencimento = '' THEN NULL
+                        ELSE data_vencimento 
+                    END as "Data Vencimento",
+                    valor_original as "Valor Original",
+                    saldo_devedor as "Saldo Devedor",
+                    situacao as "Situação",
+                    conta_contabil as "Conta Contábil",
+                    centro_custo as "Centro Custo"
+                FROM 
+                    {self.settings.TABLE_FINANCEIRO}
+                WHERE 
+                    excluido = 0
+                    AND UPPER(tipo_titulo) NOT IN ('NF', 'FT', 'BOL', 'EMP', 'TX', 'INS', 'ISS', 'TXA', 'IRF')
+                ORDER BY 
+                    fornecedor, titulo, parcela
+            """
+            df_adi_financeiro = pd.read_sql(query_adi_financeiro, self.conn)
+            
+            # Verifica se há problemas com as datas
+            logger.info(f"Total de registros financeiros: {len(df_adi_financeiro)}")
+            df_adi_financeiro['Data Emissão'] = pd.to_datetime(df_adi_financeiro['Data Emissão'], errors='coerce').dt.strftime('%d/%m/%Y')
+            df_adi_financeiro['Data Vencimento'] = pd.to_datetime(df_adi_financeiro['Data Vencimento'], errors='coerce').dt.strftime('%d/%m/%Y')
+
+            
+            df_adi_financeiro.to_excel(writer, sheet_name='Adiantamento TAP', index=False)
             
             # ABA: "Balancete" (Dados Contábeis) - TODOS OS CAMPOS
             query_contabil = f"""
@@ -1474,6 +1684,25 @@ class DatabaseManager:
             df_contas_itens = pd.read_sql(query_contas_itens, self.conn)
             df_contas_itens.to_excel(writer, sheet_name='Contas x Itens', index=False)
 
+            # NOVA ABA: "Resumo Adiantamentos"
+            query_resumo_adiantamento = f"""
+                SELECT 
+                    codigo_fornecedor as "Código Fornecedor",
+                    descricao_fornecedor as "Descrição Fornecedor",
+                    total_financeiro as "Total Financeiro",
+                    total_contabil as "Total Contábil",
+                    diferenca as "Diferença",
+                    status as "Status",
+                    detalhes as "Detalhes"
+                FROM 
+                    {self.settings.TABLE_RESULTADO_ADIANTAMENTO}
+                ORDER BY 
+                    ABS(diferenca) DESC,
+                    codigo_fornecedor
+            """
+            df_resumo_adiantamento = pd.read_sql(query_resumo_adiantamento, self.conn)
+            df_resumo_adiantamento.to_excel(writer, sheet_name='Resumo Adiantamentos', index=False)
+
             # ABA: "Resumo da Conciliação" (Principal)
             query_resumo = f"""
                 SELECT 
@@ -1520,8 +1749,6 @@ class DatabaseManager:
                 'Total Financeiro (R$)',
                 'Total Contábil (R$)',
                 'Saldo Líquido da Conciliação (R$)',
-                'Acumulado de Divergências Individuais (R$)',
-                'Fórmula de Cálculo',
                 'Legenda de Status',
                 'Tolerância de Diferença'
             ]
@@ -1569,6 +1796,13 @@ class DatabaseManager:
                 self._apply_metadata_styles(meta_sheet)
             
             # Aplica estilos melhorados à aba Resumo da Conciliação
+            if 'Resumo da Conciliação' in workbook.sheetnames:
+                resumo_sheet = workbook['Resumo da Conciliação']
+                self._apply_enhanced_styles(resumo_sheet, stats)
+                
+                # Adiciona filtros automáticos
+                resumo_sheet.auto_filter.ref = resumo_sheet.dimensions
+            
             if 'Resumo da Conciliação' in workbook.sheetnames:
                 resumo_sheet = workbook['Resumo da Conciliação']
                 self._apply_enhanced_styles(resumo_sheet, stats)
