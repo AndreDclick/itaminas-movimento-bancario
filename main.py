@@ -454,6 +454,16 @@ def fechar_web_agent():
     else:
         logger.warning("Microsoft Edge não encontrado em execução")
         return False
+    
+def get_latest_file(folder: Path, prefix="CONCILIACAO_", extension=".xlsx"):
+    """
+    Retorna o caminho do arquivo mais recente na pasta `folder`
+    que começa com `prefix` e termina com `extension`.
+    """
+    files = [f for f in folder.glob(f"{prefix}*{extension}") if f.is_file()]
+    if not files:
+        return None
+    return max(files, key=lambda f: f.stat().st_mtime)
 # =============================================================================
 # FUNÇÃO PRINCIPAL E EXECUÇÃO DO SCRIPT
 # =============================================================================
@@ -495,15 +505,15 @@ def main():
             
             # Preparar dados para email de sucesso
             completion_time = datetime.now().strftime("%d/%m/%Y %H:%M:%S")
-            report_path = str(custom_settings.RESULTS_DIR / "relatorio_conciliacao.xlsx")
-            
-            # Enviar email de sucesso
+            latest_report = get_latest_file(custom_settings.RESULTS_DIR)
+
             send_success_email(
                 completion_time=completion_time,
                 processed_count=len(results),
                 error_count=error_count,
-                report_path=report_path
+                report_path=str(latest_report) if latest_report else None
             )
+
             # fechar_web_agent()
     except Exception as e:
         # Tratar exceções específicas

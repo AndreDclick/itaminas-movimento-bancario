@@ -912,6 +912,7 @@ class DatabaseManager:
                     {self.settings.TABLE_MODELO1} m
                 WHERE 
                     m.descricao_conta LIKE 'FORNEC%'
+                    AND m.descricao_conta NOT IN ('FORNECEDORES', 'IFORNECEDORES')
                     AND NOT EXISTS (
                         SELECT 1
                         FROM {self.settings.TABLE_RESULTADO} r
@@ -1164,8 +1165,17 @@ class DatabaseManager:
                         pass
                 adjusted_width = min((max_length + 2) * 1.2, 50)  # Limita a largura máxima
                 worksheet.column_dimensions[column_letter].width = adjusted_width
+
+            for row_idx, (item, value) in enumerate(zip(metadata_items, metadata_values), 1):
+                if '---' in str(item) or '---' in str(value):
+                    # Aplica fundo cinza para separadores
+                    for col in range(1, 3):
+                        cell = worksheet.cell(row=row_idx, column=col)
+                        cell.fill = PatternFill(start_color="D9D9D9", end_color="D9D9D9", fill_type="solid")
+                        
         except Exception as e:
             logger.warning(f"Erro ao aplicar estilos de metadados: {e}")
+            
     def _apply_styles(self, worksheet):
         """
         Aplica estilos visuais básicos à planilha Excel de forma otimizada.
@@ -1738,6 +1748,22 @@ class DatabaseManager:
 
             df_resumo.to_excel(writer, sheet_name='Resumo da Conciliação', index=False)
 
+            # Query para estatísticas de adiantamentos
+            query_adiantamento_stats = f"""
+                SELECT 
+                    COUNT(*) as total_adiantamentos,
+                    SUM(CASE WHEN status = 'Conferido' THEN 1 ELSE 0 END) as adiantamentos_ok,
+                    SUM(CASE WHEN status = 'Divergente' THEN 1 ELSE 0 END) as adiantamentos_divergentes,
+                    SUM(CASE WHEN status = 'Pendente' THEN 1 ELSE 0 END) as adiantamentos_pendentes,
+                    SUM(total_financeiro) as total_financeiro_adiantamento,
+                    SUM(total_contabil) as total_contabil_adiantamento,
+                    (SUM(total_financeiro) - SUM(total_contabil)) as diferenca_adiantamento
+                FROM 
+                    {self.settings.TABLE_RESULTADO_ADIANTAMENTO}
+            """
+
+            adiantamento_stats = pd.read_sql(query_adiantamento_stats, self.conn).iloc[0]
+
             # Cria aba de Metadados
             metadata_items = [
                 'Data e Hora do Processamento',
@@ -1749,6 +1775,15 @@ class DatabaseManager:
                 'Total Financeiro (R$)',
                 'Total Contábil (R$)',
                 'Saldo Líquido da Conciliação (R$)',
+                '--- ADIANTAMENTOS ---',
+                'Total de Adiantamentos Processados',
+                'Adiantamentos Conferidos',
+                'Adiantamentos Divergentes', 
+                'Adiantamentos Pendentes',
+                'Total Financeiro Adiantamentos (R$)',
+                'Total Contábil Adiantamentos (R$)',
+                'Saldo Líquido Adiantamentos (R$)',
+                '--- CONFIGURAÇÕES ---',
                 'Legenda de Status',
                 'Tolerância de Diferença'
             ]
@@ -1763,20 +1798,27 @@ class DatabaseManager:
                 f"R$ {stats['total_financeiro']:,.2f}",
                 f"R$ {stats['total_contabil']:,.2f}",
                 f"R$ {stats['diferenca_geral']:,.2f}",
-                f"R$ {stats['total_divergencia']:,.2f}",
-                'Diferença = Saldo Contábil - Saldo Financeiro',
+                '---',  # Separador
+                int(adiantamento_stats['total_adiantamentos']),
+                int(adiantamento_stats['adiantamentos_ok']),
+                int(adiantamento_stats['adiantamentos_divergentes']),
+                int(adiantamento_stats['adiantamentos_pendentes']),
+                f"R$ {adiantamento_stats['total_financeiro_adiantamento']:,.2f}",
+                f"R$ {adiantamento_stats['total_contabil_adiantamento']:,.2f}",
+                f"R$ {adiantamento_stats['diferenca_adiantamento']:,.2f}",
+                '---',  # Separador
                 'CONFERIDO: Diferença dentro da tolerância (até 3%) | DIVERGENTE: Diferença significativa | PENDENTE: Sem correspondência',
                 'Até 3% de discrepância é considerada tolerável'
             ]
 
-            # VERIFICAÇÃO DE COMPRIMENTO - adicione esta validação
+            # VERIFICAÇÃO DE COMPRIMENTO
             if len(metadata_items) != len(metadata_values):
                 logger.error(f"Metadados incompatíveis: {len(metadata_items)} itens vs {len(metadata_values)} valores")
                 # Ajusta para ter o mesmo comprimento
                 min_length = min(len(metadata_items), len(metadata_values))
                 metadata_items = metadata_items[:min_length]
                 metadata_values = metadata_values[:min_length]
-
+                
             metadata = {
                 'Item': metadata_items,
                 'Valor': metadata_values
@@ -1784,7 +1826,6 @@ class DatabaseManager:
 
             df_metadata = pd.DataFrame(metadata)
             df_metadata.to_excel(writer, sheet_name='Metadados', index=False)
-            
             writer.close()
             
             # Aplica estilos ao arquivo gerado

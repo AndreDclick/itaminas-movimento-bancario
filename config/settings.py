@@ -109,7 +109,7 @@ class Settings:
         "enabled": True,                       # Habilitar/desabilitar envio de emails
         "host": "smtp.gmail.com",           # Servidor SMTP
         "port": 587,                            # Porta do servidor SMTP
-        "from": " suporte@dclick.com.br",                           # Remetente dos emails
+        "from": "suporte@dclick.com.br",                           # Remetente dos emails
         "password": PASSWORD,                    # Senha do email remetente
         "template": "templates/email_conciliação.html",  # Template HTML para emails
         "logo": "https://www.dclick.com.br/themes/views/web/assets/logo.svg"            # Logo para incorporar nos emails
