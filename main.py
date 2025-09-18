@@ -247,30 +247,11 @@ def send_success_email(completion_time, processed_count, error_count, report_pat
     # Configurações
     settings = Settings()
     
-    # Adicionar planilhas geradas como anexos
-    planilha_financeiro = settings.DATA_DIR / settings.PLS_FINANCEIRO
-    planilha_modelo = settings.DATA_DIR / settings.PLS_MODELO_1
-    
-    if planilha_financeiro.exists():
-        attachments.append(str(planilha_financeiro))
-    if planilha_modelo.exists():
-        attachments.append(str(planilha_modelo))
-    
     # Enviar email de sucesso
     send_email(subject, body, summary, attachments, "success")
 
 def send_error_email(error_time, error_description, affected_count=None, 
                     error_records=None, suggested_action=None):
-    """
-    Envia email de erro conforme especificado na documentação
-    
-    Args:
-        error_time (str): Data/hora da ocorrência do erro
-        error_description (str): Descrição do erro
-        affected_count (int, optional): Quantidade de registros afetados
-        error_records (list, optional): Lista de registros com erro
-        suggested_action (str, optional): Ação sugerida para correção
-    """
     # Configurar assunto do email
     subject = "[FALHA] BOT - Conciliação de Fornecedores Itaminas"
     

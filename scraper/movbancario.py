@@ -13,7 +13,6 @@ from .exceptions import DownloadFailed, TimeoutOperacional
 from datetime import datetime, timedelta
 from pathlib import Path
 
-
 import calendar
 import time
 import os
@@ -22,24 +21,24 @@ from pathlib import Path
 logger = configure_logger()
 
 # Automação e extração dos dados financeiros no sistema protheus (navegação e download).
-class ExtracaoFinanceiro(Utils):
+class MovBancaria(Utils):
     # Inicialização e seleção dos seletores da interface, para carregas as configurações.
     def __init__(self, page):
         self.page = page
         self._definir_locators()
         self.settings = Settings()
-        self.parametros_json = 'Financeiro' 
-        logger.info("Financeiro inicializada")
+        self.parametros_json = 'MovBancaria' 
+        logger.info("Movimentação bancária inicializada")
 
     # armazenamento dos seletores utilizados na automação para facilitar caso haja mudanças.
     def _definir_locators(self):
         """Centraliza os locators específicos da extração financeira"""
         self.locators = {
             # Navegação
-            'menu_relatorios': self.page.get_by_text("Relatorios (9)"),
+            'menu_relatorios': self.page.get_by_text("Relatorios (13)"),
             # 'menu_financeiro': self.page.get_by_text("Financeiro (2)"),
-            'menu_financeiro': self.page.get_by_text("Financeiro (5)"),
-            'menu_titulos_a_pagar': self.page.get_by_text("Títulos a Pagar", exact=True),
+            'menu_movbancario': self.page.get_by_text("Movimento Bancario (25)"),
+            'menu_extrato': self.page.get_by_text("Extrato Bancário"),
             'popup_fechar': self.page.get_by_role("button", name="Fechar"),
             'botao_confirmar': self.page.get_by_role("button", name="Confirmar"),
             'botao_marcar_filiais': self.page.get_by_role("button", name="Marca Todos - <F4>"),
@@ -87,18 +86,18 @@ class ExtracaoFinanceiro(Utils):
             self.locators['menu_relatorios'].click()
             logger.info("Iniciando navegação no menu...")
             time.sleep(2)  
-            if not self.locators['menu_financeiro'].is_visible():
+            if not self.locators['menu_movbancario'].is_visible():
                 self.locators['menu_relatorios'].click()
                 time.sleep(1)
-            self.locators['menu_financeiro'].click()
+            self.locators['menu_movbancario'].click()
             time.sleep(1)
             try:
-                self.locators['menu_titulos_a_pagar'].wait_for(state="visible", timeout=10000)
+                self.locators['menu_extrato'].wait_for(state="visible", timeout=10000)
             except PlaywrightTimeoutError:
-                logger.error("Timeout ao aguardar menu_titulos_a_pagar")
+                logger.error("Timeout ao aguardar menu_extrato")
                 # Exception TimeoutOperacional
-                raise TimeoutOperacional("Timeout na operação", operacao="aguardar menu_titulos_a_pagar", tempo_limite=10)
-            self.locators['menu_titulos_a_pagar'].click()    
+                raise TimeoutOperacional("Timeout na operação", operacao="aguardar menu_extrato", tempo_limite=10)
+            self.locators['menu_extrato'].click()    
             self._confirmar_operacao()
             time.sleep(2)
             self._fechar_popup_se_existir()
@@ -236,21 +235,21 @@ class ExtracaoFinanceiro(Utils):
             logger.info(f"Download iniciado: {download.suggested_filename}")
             
             # Aguardar conclusão do download
-            download_path = download.path()
-            if download_path:
-                settings = Settings()
-                destino = Path(settings.CAMINHO_PLS) / settings.PLS_FINANCEIRO
-                destino.parent.mkdir(parents=True, exist_ok=True)
+            # download_path = download.path()
+            # if download_path:
+            #     settings = Settings()
+            #     destino = Path(settings.CAMINHO_PLS) / settings.PLS_FINANCEIRO
+            #     destino.parent.mkdir(parents=True, exist_ok=True)
                 
-                # Salvar o arquivo
-                download.save_as(destino)
-                logger.info(f"Arquivo Financeiro salvo em: {destino}")
-            else:
-                logger.error("Download falhou - caminho não disponível")
+            #     # Salvar o arquivo
+            #     download.save_as(destino)
+            #     logger.info(f"Arquivo Financeiro salvo em: {destino}")
+            # else:
+            #     logger.error("Download falhou - caminho não disponível")
             
-            if 'botao_sim' in self.locators and self.locators['botao_sim'].is_visible():
-                    self.locators['botao_sim'].click()
-            logger.info("Processo de download concluído")
+            # if 'botao_sim' in self.locators and self.locators['botao_sim'].is_visible():
+            #         self.locators['botao_sim'].click()
+            # logger.info("Processo de download concluído")
 
         except Exception as e:
             logger.error(f"Falha na impressão/baixar da planilha: {e}")

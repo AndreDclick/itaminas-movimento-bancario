@@ -39,9 +39,9 @@ class Settings:
     # CONFIGURAÇÕES DE PLANILHAS E ARQUIVOS
     # =========================================================================
     
-    CAMINHO_PLS = os.getenv("CAMINHO_PLANILHAS")  # Caminho para as planilhas
-    PLS_FINANCEIRO = os.getenv("PLANILHA_FINANCEIRO")  # Nome da planilha financeira
-    PLS_MODELO_1 = os.getenv("PLANILHA_MODELO_1")     # Nome da planilha modelo 1
+    # CAMINHO_PLS = os.getenv("CAMINHO_PLANILHAS")  # Caminho para as planilhas
+    # PLS_FINANCEIRO = os.getenv("PLANILHA_FINANCEIRO")  # Nome da planilha financeira
+    # PLS_MODELO_1 = os.getenv("PLANILHA_MODELO_1")     # Nome da planilha modelo 1
     
     # Configurações de fornecedores
     COLUNAS_CONTAS_ITENS = os.getenv("FORNECEDOR_NACIONAL")    # Fornecedor nacional
@@ -54,7 +54,7 @@ class Settings:
     DATA_DIR = BASE_DIR / "data"          # Diretório para armazenamento de dados
     LOGS_DIR = BASE_DIR / "logs"          # Diretório para arquivos de log
     RESULTS_DIR = BASE_DIR / "results"    # Diretório para resultados e relatórios
-    DB_PATH = DATA_DIR / "database.db"    # Caminho para o banco de dados
+    # DB_PATH = DATA_DIR / "database.db"    # Caminho para o banco de dados
     # UPLOAD_DIR = Path("./uploads/")       # Diretório para uploads de arquivos
     PARAMETERS_DIR = BASE_DIR / "parameters.json"         # Diretório para parâmetros do sistema
 
@@ -73,12 +73,12 @@ class Settings:
     # CONFIGURAÇÕES DE BANCO DE DADOS (TABELAS)
     # =========================================================================
     
-    TABLE_FINANCEIRO = "financeiro"       # Tabela para dados financeiros
-    TABLE_MODELO1 = "modelo1"             # Tabela para dados do modelo 1
-    TABLE_CONTAS_ITENS = "contas_itens"   # Tabela para contas e itens
-    TABLE_ADIANTAMENTO = "adiantamento"   # Tabela para adiantamentos
-    TABLE_RESULTADO = "resultado"         # Tabela para resultados do processamento
-    TABLE_RESULTADO_ADIANTAMENTO = "resultado_adiantamento"  # NOVA: Tabela para resultados de adiantamentos
+    # TABLE_FINANCEIRO = "financeiro"       # Tabela para dados financeiros
+    # TABLE_MODELO1 = "modelo1"             # Tabela para dados do modelo 1
+    # TABLE_CONTAS_ITENS = "contas_itens"   # Tabela para contas e itens
+    # TABLE_ADIANTAMENTO = "adiantamento"   # Tabela para adiantamentos
+    # TABLE_RESULTADO = "resultado"         # Tabela para resultados do processamento
+    # TABLE_RESULTADO_ADIANTAMENTO = "resultado_adiantamento"  # NOVA: Tabela para resultados de adiantamentos
     # =========================================================================
     # CONFIGURAÇÕES DE TEMPO E DELAYS
     # =========================================================================
@@ -120,7 +120,7 @@ class Settings:
     # =========================================================================
     
     # Fornecedores a serem excluídos do processamento
-    FORNECEDORES_EXCLUIR = ['NDF', 'PA']  
+    # FORNECEDORES_EXCLUIR = ['NDF', 'PA']  
     
     # Data de referência para processamento (último dia do mês anterior)
     DATA_REFERENCIA = (datetime.now().replace(day=1) - timedelta(days=1)).strftime("%d/%m/%Y") 
@@ -130,56 +130,56 @@ class Settings:
     # =========================================================================
     
     # Planilha Financeira (finr150.xlsx)
-    COLUNAS_FINANCEIRO = {
-    'fornecedor': 'Codigo-Nome do Fornecedor',
-    'titulo': 'Prf-Numero Parcela',  
-    'tipo_titulo': 'Tp',
-    'data_emissao': 'Data de Emissao',
-    'data_vencimento': 'Data de Vencto',
-    'valor_original': 'Valor Original',
-    'saldo_devedor': 'Tit Vencidos Valor nominal',  # J - Títulos Vencidos
-    'titulos_vencer': 'Titulos a vencer Valor nominal',  # K - Títulos a Vencer (NOVO)
-    'situacao': 'Natureza',
-    'conta_contabil': 'Natureza',
-    'centro_custo': 'Porta- dor'
-    }
+    # COLUNAS_FINANCEIRO = {
+    # 'fornecedor': 'Codigo-Nome do Fornecedor',
+    # 'titulo': 'Prf-Numero Parcela',  
+    # 'tipo_titulo': 'Tp',
+    # 'data_emissao': 'Data de Emissao',
+    # 'data_vencimento': 'Data de Vencto',
+    # 'valor_original': 'Valor Original',
+    # 'saldo_devedor': 'Tit Vencidos Valor nominal',  # J - Títulos Vencidos
+    # 'titulos_vencer': 'Titulos a vencer Valor nominal',  # K - Títulos a Vencer (NOVO)
+    # 'situacao': 'Natureza',
+    # 'conta_contabil': 'Natureza',
+    # 'centro_custo': 'Porta- dor'
+    # }
 
-    # Planilha Modelo 1 (ctbr040.xlsx)
-    COLUNAS_MODELO1 = {
-        'conta_contabil': 'Conta',
-        'descricao_conta': 'Descricao',
-        'saldo_anterior': 'Saldo anterior',
-        'debito': 'Debito',
-        'credito': 'Credito',
-        'movimento_periodo': 'Mov  periodo',
-        'saldo_atual': 'Saldo atual'
-    }
+    # # Planilha Modelo 1 (ctbr040.xlsx)
+    # COLUNAS_MODELO1 = {
+    #     'conta_contabil': 'Conta',
+    #     'descricao_conta': 'Descricao',
+    #     'saldo_anterior': 'Saldo anterior',
+    #     'debito': 'Debito',
+    #     'credito': 'Credito',
+    #     'movimento_periodo': 'Mov  periodo',
+    #     'saldo_atual': 'Saldo atual'
+    # }
 
-    # Planilha Fornecedor Nacional (ctbr140.txt)
-    COLUNAS_CONTAS_ITENS = {
-        'conta_contabil': 'Codigo',
-        'descricao_item': 'Descricao',
-        'codigo_fornecedor': 'Codigo.1',
-        'descricao_fornecedor': 'Descricao.1',
-        'saldo_anterior': 'Saldo anterior',
-        'debito': 'Debito',
-        'credito': 'Credito',
-        'movimento_periodo': 'Movimento do periodo',
-        'saldo_atual': 'Saldo atual'
-    }
+    # # Planilha Fornecedor Nacional (ctbr140.txt)
+    # COLUNAS_CONTAS_ITENS = {
+    #     'conta_contabil': 'Codigo',
+    #     'descricao_item': 'Descricao',
+    #     'codigo_fornecedor': 'Codigo.1',
+    #     'descricao_fornecedor': 'Descricao.1',
+    #     'saldo_anterior': 'Saldo anterior',
+    #     'debito': 'Debito',
+    #     'credito': 'Credito',
+    #     'movimento_periodo': 'Movimento do periodo',
+    #     'saldo_atual': 'Saldo atual'
+    # }
 
-    # Planilha Adiantamento Nacional (ctbr100.txt)
-    COLUNAS_ADIANTAMENTO = {
-        'conta_contabil': 'Codigo',
-        'descricao_item': 'Descricao',
-        'codigo_fornecedor': 'Codigo.1',
-        'descricao_fornecedor': 'Descricao.1',
-        'saldo_anterior': 'Saldo anterior',
-        'debito': 'Debito',
-        'credito': 'Credito',
-        'movimento_periodo': 'Movimento do periodo',
-        'saldo_atual': 'Saldo atual'
-    }
+    # # Planilha Adiantamento Nacional (ctbr100.txt)
+    # COLUNAS_ADIANTAMENTO = {
+    #     'conta_contabil': 'Codigo',
+    #     'descricao_item': 'Descricao',
+    #     'codigo_fornecedor': 'Codigo.1',
+    #     'descricao_fornecedor': 'Descricao.1',
+    #     'saldo_anterior': 'Saldo anterior',
+    #     'debito': 'Debito',
+    #     'credito': 'Credito',
+    #     'movimento_periodo': 'Movimento do periodo',
+    #     'saldo_atual': 'Saldo atual'
+    # }
 
     def __init__(self):
         """
@@ -187,6 +187,6 @@ class Settings:
         Garante que todos os diretórios necessários existam.
         """
         # Criar diretórios se não existirem
-        os.makedirs(self.DATA_DIR, exist_ok=True)
+        # os.makedirs(self.DATA_DIR, exist_ok=True)
         os.makedirs(self.LOGS_DIR, exist_ok=True)
         os.makedirs(self.RESULTS_DIR, exist_ok=True)
