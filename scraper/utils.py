@@ -10,7 +10,7 @@ from .exceptions import (
     ExcecaoNaoMapeadaError,
     FormSubmitFailed
 )
-
+from config.settings import Settings
 from datetime import datetime, date
 from pathlib import Path
 import time

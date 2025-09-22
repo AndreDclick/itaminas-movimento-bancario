@@ -1,8 +1,5 @@
 """
-Arquivo financeiro.py
-
-Automação de extração de dados financeiros do sistema Protheus, executando a navegação,  o preenchimento dos parâmetros, o download de planilhas e  o tratamento de exceções específicas do processo.
-Este módulo foi estruturado para tornar mais clara a manutenção e o entendimento do fluxo de extração, permitindo a sustentação de forma ágil e segura.
+Arquivo movbancario.py
 """
 
 from playwright.sync_api import sync_playwright, TimeoutError as PlaywrightTimeoutError
@@ -24,8 +21,7 @@ logger = configure_logger()
 class MovBancaria(Utils):
     # Inicialização e seleção dos seletores da interface, para carregas as configurações.
     def __init__(self, page):
-        self.page = page
-        self._definir_locators()
+        super().__init__(page)  
         self.settings = Settings()
         self.parametros_json = 'MovBancaria' 
         logger.info("Movimentação bancária inicializada")
@@ -43,6 +39,21 @@ class MovBancaria(Utils):
             'botao_confirmar': self.page.get_by_role("button", name="Confirmar"),
             'botao_marcar_filiais': self.page.get_by_role("button", name="Marca Todos - <F4>"),
             'confirmar_moeda': self.page.get_by_text("Moedas"),
+
+            'menu_pdf': self.page.get_by_role("button", name="PDF"),
+            'text_paisagem': self.page.get_by_text("Paisagem"),
+            'opcao_novo': self.page.locator("#COMP4560").get_by_role("combobox"),
+            'outras_acoes': self.page.get_by_role("button", name="Outras Ações"),
+            'parametros': self.page.get_by_text("Parâmetros"),
+            
+            # Locators do extrato bancário (não comentados)
+            'do_bancos': self.page.locator("#COMP6012").get_by_role("textbox"),
+            'agencia_banco': self.page.locator("#COMP6014").get_by_role("textbox"),
+            'c_corrente_banco': self.page.locator("#COMP6016").get_by_role("textbox"),
+            'da_data': self.page.locator("#COMP6018").get_by_role("textbox"),
+            'ate_a_data': self.page.locator("#COMP6020").get_by_role("textbox"),
+            'botao_ok': self.page.get_by_role("button", name="OK"),
+            'botao_imprimir': self.page.get_by_role("button", name="Imprimir"),
 
             # Janela "Posição dos Títulos a Pagar"
             'planilha': self.page.get_by_role("button", name="Planilha"),
@@ -114,32 +125,37 @@ class MovBancaria(Utils):
 
     
     def _confirmar_moeda(self):
-        time.sleep(5)
+        time.sleep(3)
         if self.locators['confirmar_moeda'].is_visible():
                 self.locators['botao_confirmar'].click()
 
     # navegação para escolha do tipo de planilha que deve ser criada.
-    def _criar_planilha (self):
+    def _criar_planilha(self):
         try:
-            try:
-                self.locators['planilha'].wait_for(state="visible", timeout=120000)
-            except PlaywrightTimeoutError:
-                logger.error("Timeout ao aguardar botão de planilha")
-                raise TimeoutOperacional("Timeout na operação", operacao="aguardar botão de planilha", tempo_limite=10)
-            time.sleep(1)
-            self.locators['planilha'].click()
-            time.sleep(1)
-            if not self.locators['tipo_de_planilha'].is_visible():
-                self.locators['planilha'].click()
-                time.sleep(1)
-            self.locators['tipo_de_planilha'].select_option("3")
-            time.sleep(1)
-        # Exception TimeoutOperacional    
-        except TimeoutOperacional as e:
-            logger.error(f"Timeout operacional: {e}")
-            raise
+            # Aguarda o botão PDF estar visível
+            self.locators['menu_pdf'].wait_for(state="visible", timeout=120000)
+            logger.info("Botão 'PDF' visível")
+
+            # Clica no botão PDF para abrir as opções de impressão
+            self.locators['menu_pdf'].click()
+            logger.info("Botão 'PDF' clicado")
+
+            if not self.locators['text_paisagem'].is_visible():
+                self.locators['menu_pdf'].click()
+            time.sleep(0.5)
+            # Usa o método correto para marcar a checkbox
+            self.locators['text_paisagem'].click()
+            time.sleep(0.5)
+            # Usa o método correto para marcar a checkbox
+            self.locators['text_paisagem'].click()
+            logger.info("Botão paisagem clicado")
+
+            
+        except PlaywrightTimeoutError:
+            logger.error("Timeout ao aguardar elemento de relatório")
+            raise TimeoutOperacional("Timeout na operação", operacao="aguardar botão/checkbox", tempo_limite=10)
         except Exception as e:
-            logger.error(f"Falha na escolha impressão de planilha {e}")
+            logger.error(f"Falha na escolha de impressão: {e}")
             raise
 
     # Define a data de fechamento do mês anterior (considerando dia útil)
@@ -275,7 +291,7 @@ class MovBancaria(Utils):
             self._carregar_parametros(parameters_path, self.parametros_json)
 
             self._navegar_e_configurar_planilha()            
-            # self._confirmar_moeda()
+            self._confirmar_moeda()
             self._criar_planilha()
             self._outras_acoes()
             self._preencher_parametros()

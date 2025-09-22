@@ -83,7 +83,7 @@ class Settings:
     # CONFIGURAÇÕES DE TEMPO E DELAYS
     # =========================================================================
     
-    TIMEOUT = 30000      # Timeout para operações (30 segundos)
+    TIMEOUT = 60000      # Timeout para operações (30 segundos)
     DELAY = 0.5          # Delay entre operações (0.5 segundos)
     SHUTDOWN_DELAY = 3   # Delay para desligamento (3 segundos)
     
