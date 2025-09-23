@@ -139,9 +139,9 @@ class MovBancaria(Utils):
             # Clica no botão PDF para abrir as opções de impressão
             self.locators['menu_pdf'].click()
             logger.info("Botão 'PDF' clicado")
+            time.sleep(0.5)
+            self.locators['menu_pdf'].click()
 
-            if not self.locators['text_paisagem'].is_visible():
-                self.locators['menu_pdf'].click()
             time.sleep(0.5)
             # Usa o método correto para marcar a checkbox
             self.locators['text_paisagem'].click()
@@ -149,8 +149,14 @@ class MovBancaria(Utils):
             # Usa o método correto para marcar a checkbox
             self.locators['text_paisagem'].click()
             logger.info("Botão paisagem clicado")
+            time.sleep(0.5)
+            self.locators['opcao_novo'].click()
+            self.locators['opcao_novo'].select_option("1")
+            time.sleep(0.5)
+            self.locators['outras_acoes'].click()
+            time.sleep(0.5)
+            self.locators['parametros_menu'].click()
 
-            
         except PlaywrightTimeoutError:
             logger.error("Timeout ao aguardar elemento de relatório")
             raise TimeoutOperacional("Timeout na operação", operacao="aguardar botão/checkbox", tempo_limite=10)
@@ -158,74 +164,52 @@ class MovBancaria(Utils):
             logger.error(f"Falha na escolha de impressão: {e}")
             raise
 
-    # Define a data de fechamento do mês anterior (considerando dia útil)
-    def _outras_acoes(self):
-        """Método para lidar com outras ações."""
-        try:
-            logger.info("Acessando outras ações")
-            # Na opção "Outras Ações", selecionar "Parâmetros" 
-            self.locators['outras_acoes'].click()
-            self.locators['parametros_menu'].click()
-            self.locators['imprimir_btn'].click()
-            time.sleep(5)
-        except Exception as e:
-            logger.error(f"Falha ao acessar outras ações: {e}")
-            raise
-
-    def fechamento_mes(self):
-        hoje = datetime.today()
-        mes_passado = hoje.month - 1 if hoje.month > 1 else 12
-        ano_mes_passado = hoje.year if hoje.month > 1 else hoje.year - 1
-        ultimo_dia = calendar.monthrange(ano_mes_passado, mes_passado)[1]
-        data_formatada = datetime(ano_mes_passado, mes_passado, ultimo_dia).strftime("%d/%m/%Y")
-        return data_formatada
-
-    
-
-    # Carrega os parâmetros definidos no JSON (parameters.json)
-    def _preencher_parametros(self):
+    def _preencher_parametros(self, banco):
         try:
             logger.info(f"Usando chave JSON: {self.parametros_json}")
+            #   Extrair dados do banco passado como parâmetro
+            do_banco = banco.get('do_banco')
+            da_agencia = banco.get('da_agencia')
+            da_conta = banco.get('da_conta')
 
-            # Valores carregados do JSON
-            input_do_vencimento = self.parametros.get('do_vencimento')
-            input_ate_o_vencimento = self.parametros.get('ate_o_vencimento')
-            input_da_emissao = self.parametros.get('da_emissao')
-            input_ate_a_emissao = self.parametros.get('ate_a_emissao')
-            input_da_data_contabil = self.parametros.get('da_data_contabil')
-            input_ate_a_data_contabil = self.parametros.get('ate_a_data_contabil')
-            input_data_base = self.parametros.get('data_base')
+            # Valores carregados do JSON (novo schema)
+            input_da_data = self.parametros.get('da_data')
+            input_ate_a_data = self.parametros.get('ate_a_data')
 
-            # parâmetros
-            self.locators['do_vencimento'].wait_for(state="visible")
-            self.locators['do_vencimento'].click()
-            self.locators['do_vencimento'].fill(input_do_vencimento)
+            logger.info(f"Preenchendo parâmetros - Banco: {do_banco}, Agência: {da_agencia}, Conta: {da_conta}")
+
+            self.locators['do_bancos'].wait_for(state="visible")
+            self.locators['do_bancos'].click()
+            self.locators['do_bancos'].fill(do_banco)
+            time.sleep(0.5) 
+            
+            self.locators['agencia_banco'].click()
+            self.locators['agencia_banco'].fill(da_agencia)
+            time.sleep(0.5) 
+            
+            self.locators['c_corrente_banco'].click()
+            self.locators['c_corrente_banco'].fill(da_conta)
             time.sleep(0.5)
-            self.locators['ate_o_vencimento'].click()
-            self.locators['ate_o_vencimento'].fill(input_ate_o_vencimento)
+
+            self.locators['da_data'].click()
+            self.locators['da_data'].fill(input_da_data)
             time.sleep(0.5)
-            self.locators['da_emissao'].click()
-            self.locators['da_emissao'].fill(input_da_emissao)
+
+            self.locators['ate_a_data'].click()
+            self.locators['ate_a_data'].fill(input_ate_a_data)
             time.sleep(0.5)
-            self.locators['ate_a_emissao'].click()
-            self.locators['ate_a_emissao'].fill(input_ate_a_emissao)
-            time.sleep(0.5)
-            self.locators['da_data_contabil'].click()
-            self.locators['da_data_contabil'].fill(input_da_data_contabil)
-            time.sleep(0.5)
-            self.locators['ate_a_data_contabil'].click()
-            self.locators['ate_a_data_contabil'].fill(input_ate_a_data_contabil)
-            time.sleep(0.5)
-            self.locators['data_base'].click()
-            self.locators['data_base'].fill(input_data_base)
-            time.sleep(0.5)
-            self.locators['ok_btn'].click()
-            logger.info("Parâmetros preenchidos com sucesso")
+            try:
+                self.locators['ok_btn'].click()
+            except Exception:
+                try:
+                    self.page.get_by_role('button', name='OK').click()
+                except Exception:
+                    self.page.get_by_text('OK').click()
+
+            logger.info("Parâmetros preenchidos com sucesso (novo schema)")
 
         except Exception as e:
             logger.error(f"Falha no preenchimento de parâmetros {e}")
-            raise
-
 
     # processo de impressão e download da planilha, salvando-a no local determinado. Tratando possíveis falhas no download.
     def _imprimir_e_baixar(self):
@@ -250,23 +234,6 @@ class MovBancaria(Utils):
             download = download_info.value
             logger.info(f"Download iniciado: {download.suggested_filename}")
             
-            # Aguardar conclusão do download
-            # download_path = download.path()
-            # if download_path:
-            #     settings = Settings()
-            #     destino = Path(settings.CAMINHO_PLS) / settings.PLS_FINANCEIRO
-            #     destino.parent.mkdir(parents=True, exist_ok=True)
-                
-            #     # Salvar o arquivo
-            #     download.save_as(destino)
-            #     logger.info(f"Arquivo Financeiro salvo em: {destino}")
-            # else:
-            #     logger.error("Download falhou - caminho não disponível")
-            
-            # if 'botao_sim' in self.locators and self.locators['botao_sim'].is_visible():
-            #         self.locators['botao_sim'].click()
-            # logger.info("Processo de download concluído")
-
         except Exception as e:
             logger.error(f"Falha na impressão/baixar da planilha: {e}")
             raise
@@ -282,24 +249,68 @@ class MovBancaria(Utils):
         except Exception as e:
             logger.error(f"Falha ao clicar no botão 'Não': {e}")
 
+    def _processar_conta(self, banco):
+        """
+        Processa uma conta bancária individual completa.
+        Args:
+            banco (dict): Dicionário com os dados do banco (conta, banco, agência)
+        """
+        try:
+            logger.info(f'Processando banco: {banco["do_banco"]}, agência: {banco["da_agencia"]}, conta: {banco["da_conta"]}')
+            
+            # Atribuir os valores às variáveis que serão usadas no preenchimento
+            self.do_banco = banco["do_banco"]
+            self.da_agencia = banco["da_agencia"] 
+            self.da_conta = banco["da_conta"]
+            
+            self._navegar_e_configurar_planilha()            
+            self._confirmar_moeda()
+            self._criar_planilha()
+            self._preencher_parametros(banco)
+            self._imprimir_e_baixar()
+            logger.info("Extração da planilha financeira executada com sucesso")
+            self._gerar_planilha(banco)
+            logger.info(f"✅ Banco {banco['do_banco']} processado com sucesso")
+            
+        except Exception as e:
+            error_msg = f"Falha no processamento do banco {banco.get('do_banco', 'N/A')}"
+            logger.error(f"{error_msg}: {str(e)}")
+
     # fluxo principal de execução da extração financeira, iniciando da navegação até o download da planilha.
     def execucao(self):
         """Fluxo principal de extração de planilha financeira."""
         try:
-            # Carregar os parâmetros do JSON usando o caminho correto do settings
-            parameters_path = self.settings.PARAMETERS_DIR  
+            # Definir os bancos como dicionário com os dados reais
+            bancos = {
+                'banco_bloqueio_judicial': {
+                    'da_conta': '000000',
+                    'do_banco': '000',
+                    'da_agencia': '0000'
+                },
+                'bradesco_sa': {
+                    'da_conta': '105169',
+                    'do_banco': '237',
+                    'da_agencia': '0895'
+                },
+                'banco_bmg': {
+                    'da_conta': '17003248',
+                    'do_banco': '318',
+                    'da_agencia': '0005'
+                }
+            }
+            
+            # Carregar os parâmetros do JSON
+            parameters_path = self.settings.PARAMETERS_DIR
             self._carregar_parametros(parameters_path, self.parametros_json)
-
-            self._navegar_e_configurar_planilha()            
-            self._confirmar_moeda()
-            self._criar_planilha()
-            self._outras_acoes()
-            self._preencher_parametros()
-            self._imprimir_e_baixar()
-            logger.info("Extração da planilha financeira executada com sucesso")
+            
+            # Iterar sobre os bancos
+            for nome_banco, dados_banco in bancos.items():
+                logger.info(f"Processando banco: {nome_banco}")
+                self._processar_conta(dados_banco)
+            
             return {
                 'status': 'success',
-                'message': 'Financeiro completo'
+                'message': f'Todas as {len(bancos)} contas processadas com sucesso'
             }
             
         except Exception as e:
