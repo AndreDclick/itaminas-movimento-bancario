@@ -59,7 +59,8 @@ class Settings:
     PARAMETERS_DIR = BASE_DIR / "parameters.json"         # Diretório para parâmetros do sistema
 
     # Paths para download e resultados
-    DOWNLOAD_PATH = DATA_DIR 
+    DOWNLOADS_DIR = BASE_DIR / "downloads"
+    DOWNLOADS_DIR.mkdir(exist_ok=True)
     RESULTS_PATH = RESULTS_DIR 
     
     # Data base para processamento (formato: DD/MM/AAAA)

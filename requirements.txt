@@ -8,3 +8,5 @@ xlrd
 lxml
 jinja2
 pygetwindow
+pymupdf
+psutil

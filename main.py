@@ -7,7 +7,7 @@ Desenvolvido por DCLICK
 import logging
 import os
 import psutil
-import win32com.client
+
 import shutil
 from datetime import datetime
 from pathlib import Path
@@ -456,26 +456,17 @@ def main():
     # Configurar logger
     logger = configure_logger()
 
-    settings=Settings()
-
-    # Execução do web agent
-    # os.startfile(settings.WEB_AGENT_PATH)
-    # logger.info("Web Agent iniciado")
-
-    # time.sleep(7)
-
-
-    # Limpar pasta de dados antes de começar
-    # quantidade = excluir_arquivos_pasta(settings.CAMINHO_PLS)
-    # logger.info(f"Preparando ambiente: {quantidade} arquivos antigos removidos")
-    # Configurar settings personalizadas
     custom_settings = Settings()
-    custom_settings.HEADLESS = False  # Executar com interface gráfica
+    custom_settings.HEADLESS = False
     
     try:
         # Executar o scraper do Protheus
         with ProtheusScraper(settings=custom_settings) as scraper:
             results = scraper.run() or []  
+            
+            # Encontrar resultado da conciliação
+            resultado_conciliacao = next((r for r in results if r.get('etapa') == 'conciliacao'), {})
+            planilha_path = resultado_conciliacao.get('planilha_gerada')
             
             # Contar sucessos e erros
             success_count = len([r for r in results if r.get('status') == 'success'])
@@ -486,16 +477,14 @@ def main():
             
             # Preparar dados para email de sucesso
             completion_time = datetime.now().strftime("%d/%m/%Y %H:%M:%S")
-            latest_report = get_latest_file(custom_settings.RESULTS_DIR)
 
             send_success_email(
                 completion_time=completion_time,
                 processed_count=len(results),
                 error_count=error_count,
-                report_path=str(latest_report) if latest_report else None
+                report_path=planilha_path
             )
 
-            # fechar_web_agent()
     except Exception as e:
         # Tratar exceções específicas
         error_description, affected_count, suggested_action = handle_specific_exceptions(e, logger)
@@ -510,11 +499,9 @@ def main():
             affected_count=affected_count,
             suggested_action=suggested_action
         )
-        # fechar_web_agent()
-        return 1  # Código de erro
+        return 1
     
-    return 0  # Sucesso
-
+    return 0
 
 # Ponto de entrada do script
 if __name__ == "__main__":
