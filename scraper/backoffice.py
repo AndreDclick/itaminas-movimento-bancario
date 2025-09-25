@@ -41,20 +41,20 @@ class BackOffice(Utils):
 
             # NAVEGAÇÃO CONCILIADOR
             'frame_conciliador': self.page.get_by_role("menuitem", name="Conciliador"),
-            'btn_include': "page.get_by_role('button', name='incluir')",
-            'frame_conciliacao': "role=row >> nth=1",
-            'editar_conciliacao': "page.get_by_role('button', name='Alterar [F3]')",
-            'alterar_item': "page.get_by_role('cell', name='000000000109972', exact=True)",
-            'btn_ver_mais': "page.get_by_role('cell', name='*').locator('span')",
-            'linha_conciliacao': "page.get_by_role('cell', name='-R$ 4.356,85', exact=True)",
-            'btn_alterar': "role=cell >> text=/Alterar|Editar/",
+            'btn_include': self.page.get_by_role('button', name='incluir'),
+            'frame_conciliacao': self.page.locator('[role="row"]').nth(1),
+            'editar_conciliacao': self.page.get_by_role('button', name='Alterar [F3]'),
+            'alterar_item': self.page.get_by_role('cell', name='000000000109972', exact=True),
+            'btn_ver_mais': self.page.get_by_role('cell', name='*').locator('span'),
+            'linha_conciliacao': self.page.get_by_role('cell', name='-R$ 4.356,85', exact=True),
+            'btn_alterar': self.page.locator('[role="cell"]:has-text("Alterar"), [role="cell"]:has-text("Editar")'),
 
             # FORM DE PREENCHIMENTO
-            'texto_descricao': "page.get_by_text('CONCILIACAO OUTUBRO')",
-            'check_item': "page.locator('[id=\"01TRB_C09_0010\"]')",
-            'campo_descricao': "page.locator('[id=\"aCols\\[colsCA7\\]\\[nAt\\]\\[1\\]\"]')",
-            'btn_salvar': "page.get_by_role('button', name='Gravar')",
-            'btn_cancelar': "page.get_by_role('button', name='Cancelar')",
+            'texto_descricao': self.page.get_by_text('CONCILIACAO OUTUBRO'),
+            'check_item': self.page.locator('[id="\01TRB_C09_0010\"]'),
+            'campo_descricao': self.page.locator('[id=\aCols\\[colsCA7\\]\\[nAt\\]\\[1\\]\]'),
+            'btn_salvar': self.page.get_by_role('button', name='Gravar'),
+            'btn_cancelar': self.page.get_by_role('button', name='Cancelar'),
 
             # DADOS DA TELA
             'data_conciliacao': "page.get_by_role('cell', name='20/10/2024', exact=True)",
