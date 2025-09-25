@@ -211,6 +211,18 @@ class MovBancaria(Utils):
             nome_arquivo = f"EXTRATO_{nome_banco.upper()}_{data_atual}.pdf"
             caminho_arquivo = download_dir / nome_arquivo
             
+            # Verificar se o banco é inválido ANTES de tentar o download
+            time.sleep(2)  # Aguardar um pouco para popup aparecer
+            if self._verificar_banco_invalido():
+                logger.info(f'Banco: {banco["do_banco"]}, agência: {banco["da_agencia"]}, conta: {banco["da_conta"]} é inválido')
+                self.conciliacao.registrar_banco_invalido(
+                    nome_banco,  # CORRIGIDO: passar nome_banco primeiro
+                    banco["do_banco"], 
+                    banco["da_agencia"], 
+                    banco["da_conta"]
+                )
+                return None  # Retorna None para indicar banco inválido
+            
             # Esperar pelo download e salvar com nome personalizado
             with self.page.expect_download(timeout=300000) as download_info:
                 self.locators['imprimir_btn'].click()
@@ -224,10 +236,16 @@ class MovBancaria(Utils):
                 
                 time.sleep(3)
                 
-                if 'banco_inv' in self.locators and self.locators['banco_inv'].is_visible():
+                # Verificar novamente se o banco é inválido APÓS clicar
+                if self._verificar_banco_invalido():
                     logger.info(f'Banco: {banco["do_banco"]}, agência: {banco["da_agencia"]}, conta: {banco["da_conta"]} é inválido')
-                    self.conciliacao.registrar_banco_invalido(banco["do_banco"], banco["da_agencia"], banco["da_conta"])
-                    return
+                    self.conciliacao.registrar_banco_invalido(
+                        nome_banco,  # CORRIGIDO: passar nome_banco primeiro
+                        banco["do_banco"], 
+                        banco["da_agencia"], 
+                        banco["da_conta"]
+                    )
+                    return None  # Retorna None para indicar banco inválido
                 
                 time.sleep(1)
                 self._fechar_popup_se_existir()
@@ -246,7 +264,35 @@ class MovBancaria(Utils):
             
         except Exception as e:
             logger.error(f"Falha na impressão/download do pdf: {e}")
-            raise
+            # Em caso de erro, registrar como inválido
+            self.conciliacao.registrar_banco_invalido(
+                nome_banco,
+                banco["do_banco"],
+                banco["da_agencia"],
+                banco["da_conta"]
+            )
+            return None
+
+    def _verificar_banco_invalido(self):
+        """Verifica se aparece mensagem de banco inválido"""
+        try:
+            # Tentar diferentes seletores para mensagem de banco inválido
+            selectors = [
+                'text=Help: BCONOEXIST',
+                'text=Problema:',
+                'text=inválido',
+                'text=não existe',
+                'text=banco não'
+            ]
+            
+            for selector in selectors:
+                if self.page.is_visible(selector):
+                    return True
+                    
+            return False
+        except Exception as e:
+            logger.warning(f"Erro ao verificar banco inválido: {e}")
+            return False
 
     def _processar_conta(self, banco, nome_banco):
         """Processa uma conta bancária individual completa."""
@@ -259,7 +305,7 @@ class MovBancaria(Utils):
             self._preencher_parametros(banco)
             caminho_arquivo = self._imprimir_e_baixar(banco, nome_banco)
             
-            if caminho_arquivo:
+            if caminho_arquivo:  # Só processa se não for banco inválido (caminho_arquivo não é None)
                 logger.info(f"✅ Banco {nome_banco} processado com sucesso - Arquivo: {caminho_arquivo.name}")
                 status, si, sa, dif = self.conciliacao._processar_pdf(
                     Path(caminho_arquivo),
@@ -271,20 +317,21 @@ class MovBancaria(Utils):
                 logger.info(f"Conciliação [{nome_banco}] - Status: {status}, Inicial: {si}, Atual: {sa}, Diferença: {dif}")
                 return caminho_arquivo
             else:
-                logger.warning(f"⚠️ Banco {nome_banco} não gerou arquivo (possivelmente inválido)")
-                # Registrar como inválido
-                self.conciliacao.registrar_banco_invalido(
-                    nome_banco,
-                    banco["do_banco"],
-                    banco["da_agencia"],
-                    banco["da_conta"]
-                )
-                return None
-                
+                logger.warning(f"⚠️ Banco {nome_banco} identificado como inválido")
+                return None  # Banco inválido, não retorna arquivo
+                    
         except Exception as e:
             error_msg = f"Falha no processamento do banco {nome_banco}"
             logger.error(f"{error_msg}: {str(e)}")
+            # Registrar como inválido em caso de erro
+            self.conciliacao.registrar_banco_invalido(
+                nome_banco,
+                banco["do_banco"],
+                banco["da_agencia"],
+                banco["da_conta"]
+            )
             return None
+        
     def execucao(self):
         """Fluxo principal de extração dos pdf."""
         try:

@@ -3,7 +3,7 @@ import re
 import sqlite3
 import pandas as pd
 from pathlib import Path
-from datetime import datetime
+from datetime import datetime, timedelta
 from typing import Optional, List, Tuple
 from config.settings import Settings
 from config.logger import configure_logger
@@ -78,9 +78,17 @@ class Conciliacao:
 
     def _processar_pdf(self, arquivo_pdf: Path, nome_banco: str, banco: str, agencia: str, conta: str):
         try:
+            # Verificar se o banco é inválido (arquivo não existe ou é vazio)
+            if not arquivo_pdf.exists() or arquivo_pdf.stat().st_size == 0:
+                status = "invalido"
+                saldo_inicial = saldo_atual = diferenca = None
+                self._salvar_resultado(nome_banco, banco, agencia, conta,
+                                    saldo_inicial, saldo_atual, diferenca, status)
+                return status, saldo_inicial, saldo_atual, diferenca
+                
             doc = pymupdf.open(arquivo_pdf)
             if doc.page_count == 0:
-                status = "pdf_vazio"
+                status = "invalido"  # Alterado de "pdf_vazio" para "invalido"
                 saldo_inicial = saldo_atual = diferenca = None
             else:
                 pagina = doc.load_page(0)
@@ -109,9 +117,15 @@ class Conciliacao:
 
         except Exception as e:
             logger.error(f"Erro ao processar {arquivo_pdf}: {e}")
+            # Verificar se é um banco inválido
+            if "invalido" in str(e).lower() or not arquivo_pdf.exists():
+                status = "invalido"
+            else:
+                status = "erro_processamento"
+                
             self._salvar_resultado(nome_banco, banco, agencia, conta,
-                                None, None, None, "erro_processamento")
-            return "erro_processamento", None, None, None
+                                None, None, None, status)
+            return status, None, None, None
 
     def _salvar_resultado(self, nome_banco, banco, agencia, conta,
                         saldo_inicial, saldo_atual, diferenca, status):
@@ -135,11 +149,13 @@ class Conciliacao:
                             None, None, None, "invalido")
 
     def _gerar_planilha_resultados(self):
-        """Gera planilha XLSX com os resultados do banco de dados"""
+        """Gera planilha XLSX com os resultados do banco de dados - APENAS EXECUÇÃO ATUAL"""
         try:
             conn = sqlite3.connect(self.DB_PATH)
             
-            # Consulta para obter os dados formatados em moeda brasileira
+            # Consulta para obter apenas os resultados da execução atual (últimos 10 minutos)
+            timestamp_limite = (datetime.now() - timedelta(minutes=10)).strftime("%Y-%m-%d %H:%M:%S")
+            
             query = """
             SELECT 
                 nome_banco,
@@ -155,14 +171,31 @@ class Conciliacao:
                 CASE WHEN diferenca IS NOT NULL 
                     THEN 'R$ ' || replace(printf('%.2f', diferenca), '.', ',') 
                     ELSE 'N/A' END as diferenca,
-                status,
+                CASE 
+                    WHEN status = 'invalido' THEN 'Banco Inválido'
+                    WHEN status = 'conciliar' THEN 'Conciliar'
+                    WHEN status = 'diferenca' THEN 'Diferença'
+                    WHEN status = 'erro_extracao' THEN 'Erro Extração'
+                    WHEN status = 'erro_processamento' THEN 'Erro Processamento'
+                    WHEN status = 'sem_arquivo' THEN 'Sem Arquivo'
+                    ELSE status 
+                END as status,
                 data_processamento
-            FROM resultados_conciliacao
+            FROM resultados_conciliacao 
+            WHERE data_processamento > ?
             ORDER BY data_processamento DESC
             """
             
-            df = pd.read_sql_query(query, conn)
+            df = pd.read_sql_query(query, conn, params=(timestamp_limite,))
             conn.close()
+            
+            if df.empty:
+                logger.warning("Nenhum resultado encontrado para a execução atual")
+                # Criar DataFrame vazio com as colunas corretas
+                df = pd.DataFrame(columns=[
+                    'nome_banco', 'banco', 'agencia', 'conta', 
+                    'saldo_inicial', 'saldo_atual', 'diferenca', 'status', 'data_processamento'
+                ])
             
             # Gerar nome do arquivo com timestamp
             timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
@@ -184,7 +217,7 @@ class Conciliacao:
                     'E': 20,  # saldo_inicial
                     'F': 20,  # saldo_atual
                     'G': 20,  # diferenca
-                    'H': 15,  # status
+                    'H': 20,  # status
                     'I': 20   # data_processamento
                 }
                 
@@ -192,38 +225,62 @@ class Conciliacao:
                     worksheet.column_dimensions[col].width = width
                 
                 # Estilizar cabeçalho profissional
-                from openpyxl.styles import Font, PatternFill, Alignment
+                from openpyxl.styles import Font, PatternFill, Alignment, Border, Side
+                
+                # Definir bordas
+                thin_border = Border(
+                    left=Side(style='thin'),
+                    right=Side(style='thin'),
+                    top=Side(style='thin'),
+                    bottom=Side(style='thin')
+                )
                 
                 # Cabeçalho azul com texto branco
                 header_fill = PatternFill(start_color="366092", end_color="366092", fill_type="solid")
                 header_font = Font(color="FFFFFF", bold=True)
                 header_alignment = Alignment(horizontal="center", vertical="center")
                 
-                # Aplicar estilo ao cabeçalho
-                for cell in worksheet[1]:
+                # Aplicar estilo ao cabeçalho (linha 1)
+                for col in range(1, len(df.columns) + 1):
+                    cell = worksheet.cell(row=1, column=col)
                     cell.fill = header_fill
                     cell.font = header_font
                     cell.alignment = header_alignment
+                    cell.border = thin_border
                 
-                # Formatação numérica para colunas monetárias (alinhamento à direita)
-                monetary_columns = ['E', 'F', 'G']
-                for col in monetary_columns:
-                    for row in range(2, len(df) + 2):
-                        cell = worksheet[f'{col}{row}']
-                        cell.alignment = Alignment(horizontal="right")
+                # Aplicar bordas e formatação a todas as células de dados
+                for row in range(2, len(df) + 2):  # Começa na linha 2 (após cabeçalho)
+                    for col in range(1, len(df.columns) + 1):
+                        cell = worksheet.cell(row=row, column=col)
+                        cell.border = thin_border
+                        
+                        # Formatação específica por tipo de coluna
+                        if col in [5, 6, 7]:  # Colunas monetárias (E, F, G)
+                            cell.alignment = Alignment(horizontal="right")
+                        else:
+                            cell.alignment = Alignment(horizontal="left")
+                        
+                        # Colorir células de status
+                        if col == 8:  # Coluna status (H)
+                            status_value = cell.value
+                            if status_value == 'Banco Inválido':
+                                cell.fill = PatternFill(start_color="FFCCCB", end_color="FFCCCB", fill_type="solid")  # Vermelho claro
+                                cell.font = Font(color="FF0000", bold=True)  # Texto vermelho
+                            elif status_value == 'Conciliar':
+                                cell.fill = PatternFill(start_color="90EE90", end_color="90EE90", fill_type="solid")  # Verde claro
+                            elif status_value == 'Diferença':
+                                cell.fill = PatternFill(start_color="FFFFE0", end_color="FFFFE0", fill_type="solid")  # Amarelo claro
+                            elif 'Erro' in str(status_value):
+                                cell.fill = PatternFill(start_color="FFD580", end_color="FFD580", fill_type="solid")  # Laranja claro
                 
-                # Alinhamento geral das outras colunas
-                for col in ['A', 'B', 'C', 'D', 'H', 'I']:
-                    for row in range(2, len(df) + 2):
-                        cell = worksheet[f'{col}{row}']
-                        cell.alignment = Alignment(horizontal="left")
+                # Congelar painel (cabeçalho fixo) se houver dados
+                if len(df) > 0:
+                    worksheet.freeze_panes = worksheet['A2']
                 
-                # Congelar painel (cabeçalho fixo)
-                worksheet.freeze_panes = worksheet['A2']
+                # Adicionar filtros se houver dados
+                if len(df) > 0:
+                    worksheet.auto_filter.ref = worksheet.dimensions
                 
-                # Adicionar filtros
-                worksheet.auto_filter.ref = worksheet.dimensions
-            
             logger.info(f"Planilha gerada: {caminho_arquivo}")
             return caminho_arquivo
             
@@ -264,7 +321,14 @@ class Conciliacao:
                     "diferenca": dif
                 })
             else:
-                resultados.append({"nome": nome_banco, "status": "sem_arquivo"})
+                # Se o arquivo não existe, registrar como inválido
+                self.registrar_banco_invalido(
+                    nome_banco,
+                    banco["do_banco"],
+                    banco["da_agencia"],
+                    banco["da_conta"]
+                )
+                resultados.append({"nome": nome_banco, "status": "invalido"})
 
         # Gerar planilha com resultados
         planilha_path = self._gerar_planilha_resultados()
