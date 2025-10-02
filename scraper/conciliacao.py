@@ -80,7 +80,7 @@ class Conciliacao:
         try:
             # Verificar se o banco é inválido (arquivo não existe ou é vazio)
             if not arquivo_pdf.exists() or arquivo_pdf.stat().st_size == 0:
-                status = "invalido"
+                status = "Erro Na extração"
                 saldo_inicial = saldo_atual = diferenca = None
                 self._salvar_resultado(nome_banco, banco, agencia, conta,
                                     saldo_inicial, saldo_atual, diferenca, status)
@@ -88,7 +88,7 @@ class Conciliacao:
                 
             doc = pymupdf.open(arquivo_pdf)
             if doc.page_count == 0:
-                status = "invalido"  # Alterado de "pdf_vazio" para "invalido"
+                status = "Erro Na extração"  # Alterado de "pdf_vazio" para "invalido"
                 saldo_inicial = saldo_atual = diferenca = None
             else:
                 pagina = doc.load_page(0)
@@ -320,14 +320,6 @@ class Conciliacao:
                     "saldo_atual": sa, 
                     "diferenca": dif
                 })
-            else:
-                # Se o arquivo não existe, registrar como inválido
-                self.registrar_banco_invalido(
-                    nome_banco,
-                    banco["do_banco"],
-                    banco["da_agencia"],
-                    banco["da_conta"]
-                )
                 resultados.append({"nome": nome_banco, "status": "invalido"})
 
         # Gerar planilha com resultados

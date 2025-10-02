@@ -29,7 +29,7 @@ class BackOffice(Utils):
     
     def _definir_locators(self):
         
-        logger.info("Definindo seletores...")
+        logger.info("Definindo seletores Backoffice...")
         self.locators = {
             
             # NAVEGAÇÃO MENU LATERAL
@@ -41,75 +41,53 @@ class BackOffice(Utils):
 
             # NAVEGAÇÃO CONCILIADOR
             'frame_conciliador': self.page.get_by_role("menuitem", name="Conciliador"),
-            'btn_include': self.page.get_by_role('button', name='incluir'),
-            'frame_conciliacao': self.page.locator('[role="row"]').nth(1),
-            'editar_conciliacao': self.page.get_by_role('button', name='Alterar [F3]'),
-            'alterar_item': self.page.get_by_role('cell', name='000000000109972', exact=True),
-            'btn_ver_mais': self.page.get_by_role('cell', name='*').locator('span'),
-            'linha_conciliacao': self.page.get_by_role('cell', name='-R$ 4.356,85', exact=True),
-            'btn_alterar': self.page.locator('[role="cell"]:has-text("Alterar"), [role="cell"]:has-text("Editar")'),
-
-            # FORM DE PREENCHIMENTO
-            'texto_descricao': self.page.get_by_text('CONCILIACAO OUTUBRO'),
-            'check_item': self.page.locator('[id="\01TRB_C09_0010\"]'),
-            'campo_descricao': self.page.locator('[id=\aCols\\[colsCA7\\]\\[nAt\\]\\[1\\]\]'),
-            'btn_salvar': self.page.get_by_role('button', name='Gravar'),
-            'btn_cancelar': self.page.get_by_role('button', name='Cancelar'),
-
-            # DADOS DA TELA
-            'data_conciliacao': "page.get_by_role('cell', name='20/10/2024', exact=True)",
-            'historico_conciliacao': "page.get_by_role('cell', name='CONC. BANC. OUT/24')",
-            'acao_linha': "page.get_by_role('row', name='09/10/2024 CONC. BANC. OUT/24 010010020001000007').get_by_role('cell', name='').locator('span')",
-            'celula_valor': "page.get_by_role('cell', name='-R$ 4.356,85', exact=True).click()",
-
-            # SELETORES FORM
-            'campo_conciliacao': "page.locator('[name=\"aCols[colsCA7][nAt][8]\"]')",
-            'campo_observacao': "page.locator('[name=\"aCols[colsCA7][nAt][11]\"]')",
-            'campo_natureza': "page.locator('[name=\"aCols[colsCA7][nAt][1]\"]')",
-            'menu_conta': "page.locator('[name=\"aCols[colsCA7][nAt][2]\"]')",
-            'menu_item_conta': "page.locator('[name=\"aCols[colsCA7][nAt][3]\"]')",
-            'menu_classe_valor': "page.locator('[name=\"aCols[colsCA7][nAt][4]\"]')",
-            'campo_historico': "page.locator('[name=\"aCols[colsCA7][nAt][5]\"]')",
-            'campo_data_conciliacao': "page.locator('[name=\"aCols[colsCA7][nAt][6]\"]')",
-            'campo_valor': "page.locator('[name=\"aCols[colsCA7][nAt][7]\"]')",
-            'campo_data_base': "page.locator('[name=\"aCols[colsCA7][nAt][9]\"]')",
-            'campo_numeracao': "page.locator('[name=\"aCols[colsCA7][nAt][10]\"]')",
+            'selecione': self.page.get_by_placeholder("Selecione uma configuração de"),
+            'label_conciliacao': self.page.get_by_label("-Conciliação Bancária Manual"),
+            'filtros': self.page.get_by_role("button", name="Ver Filtros"),
+            'data_de': self.page.get_by_label("Data Dispon. de"),
+            'data_ate': self.page.get_by_label("Data Dispon. até"),
+            'label_banco': self.page.get_by_label("Banco igual a", exact=True),
+            'label_agencia': self.page.get_by_label("Agencia igual a"),
+            'label_conta': self.page.get_by_label("Conta Banco igual a"),
+            'btn_aplicar': self.page.get_by_role("button", name="Aplicar"),
             
+            # aba “Dados não Encontrados”
+            'btn_n_encontrados': self.page.get_by_text("Dados não Encontrados"),
+
             # JANELA CONFIRMAÇÃO
-            'confirmar_inclusao_linha': "page.get_by_role('button', name='Confirmar')",
-            'cancelar_inclusao_linha': "page.get_by_role('button', name='Cancelar')",
+            'confirmar_inclusao_linha': self.page.get_by_role('button', name='Confirmar'),
+            'cancelar_inclusao_linha':self.page.get_by_role('button', name='Cancelar'),
 
             # BOTÕES PRINCIPAIS
-            'btn_gravar': "page.get_by_role('button', name='Gravar')",
-            'btn_incluir': "page.get_by_role('button', name='incluir')",
+            'btn_gravar': self.page.get_by_role('button', name='Gravar'),
+            'btn_incluir': self.page.get_by_role('button', name='incluir'),
 
             # NAVEGAÇÃO ENTRE PÁGINAS
-            'proxima_pagina': "page.locator('[title=\"Próxima página\"]')",
-            'primeira_pagina': "page.locator('[title=\"Primeira página\"]')",
-            'pagina_anterior': "page.locator('[title=\"Página anterior\"]')",
-            'ultima_pagina': "page.locator('[title=\"Última página\"]')",
+            'proxima_pagina': self.page.locator('[title=\"Próxima página\"]'),
+            'primeira_pagina': self.page.locator('[title=\"Primeira página\"]'),
+            'pagina_anterior': self.page.locator('[title=\"Página anterior\"]'),
+            'ultima_pagina': self.page.locator('[title=\"Última página\"]'),
 
             # FILTROS
-            'filtro_banco': "page.locator('[id=\"CA8_BANCO\"]')",
-            'filtro_agencia': "page.locator('[id=\"CA8_AGENC\"]')",
-            'filtro_conta': "page.locator('[id=\"CA8_NUMCON\"]')",
-            'filtro_data_inicio': "page.locator('[id=\"CA8_DATCNC\"]')",
-            'filtro_data_fim': "page.locator('[id=\"CA8_DATCN2\"]')",
-            'aplicar_filtro': "page.get_by_role('button', name='Filtrar')",
-            'limpar_filtro': "page.get_by_role('button', name='Limpar')",
+            'filtro_banco': self.page.locator('[id=\"CA8_BANCO\"]'),
+            'filtro_agencia': self.page.locator('[id=\"CA8_AGENC\"]'),
+            'filtro_conta': self.page.locator('[id=\"CA8_NUMCON\"]'),
+            'filtro_data_inicio': self.page.locator('[id=\"CA8_DATCNC\"]'),
+            'filtro_data_fim': self.page.locator('[id=\"CA8_DATCN2\"]'),
+            'aplicar_filtro': self.page.get_by_role('button', name='Filtrar'),
+            'limpar_filtro': self.page.get_by_role('button', name='Limpar'),
 
             # OUTROS CONTROLES
-            'fechar_janela': "page.get_by_role('button', name='Fechar')",
-            'maximizar_janela': "page.get_by_role('button', name='Maximizar')",
+            'fechar_janela': self.page.get_by_role('button', name='Fechar'),
+            'maximizar_janela': self.page.get_by_role('button', name='Maximizar'),
         }
         
-        logger.info("Seletores para conciliação manual definidos")
+        logger.info("Seletores para conciliação manual definidos")
     def _navegar_menu(self):
         
         try:
             
             self.locators['atualizacoes'].wait_for(state="visible", timeout=18000)
-            
             
             if not self.locators['mov_bancario'].is_visible():
                 self.locators['atualizacoes'].click()
@@ -135,6 +113,45 @@ class BackOffice(Utils):
             logger.error("Falha na navegação")
             raise
 
+    def _extraxao(self, banco, nome_banco):
+        self.locators['frame_conciliador'].wait_for(state="visible", timeout=1000)
+        time.sleep(0.5)
+        self.locators['frame_conciliador'].click()
+        time.sleep(1)
+        self.locators['selecione'].click()
+        time.sleep(1)
+        self.locators['selecione'].fill("0024-Conciliação Bancária Manual")
+        time.sleep(0.5)
+        self.locators['label_conciliacao'].click()
+        time.sleep(1)
+        self.locators['filtros'].click()
+        time.sleep(3)
+        self.locators['data_de'].click()
+        time.sleep(0.5)
+        self.locators['data_de'].fill("15/09/2025")
+        time.sleep(0.5)
+        self.locators['data_ate'].click()
+        time.sleep(0.5)
+        self.locators['data_ate'].fill("15/09/2025")
+        time.sleep(0.5)
+        self.locators['label_banco'].click()
+        time.sleep(0.5)
+        self.locators['label_banco'].fill("15/09/2025")
+        time.sleep(0.5)
+        self.locators['label_agencia'].click()
+        time.sleep(0.5)
+        self.locators['label_agencia'].fill("15/09/2025")
+        time.sleep(0.5)
+        self.locators['label_conta'].click()
+        time.sleep(0.5)
+        self.locators['label_conta'].fill("15/09/2025")
+
+        # aba “Dados não Encontrados”
+
+        self.locators['btn_n_encontrados'].wait_for(state="visible", timeout=1000)
+        time.sleep(0.5)
+        self.locators['btn_n_encontrados'].click()
+        
     def _processar_conta(self, banco, nome_banco):
         """
         Processa uma conta bancária individual completa.
@@ -175,10 +192,10 @@ class BackOffice(Utils):
         try:
             # Definir os bancos
             bancos = {
-                'banco_do_brasil': {
-                    'da_conta': '118091',
-                    'do_banco': '000',
-                    'da_agencia': '0001'
+                'sicoob_itaminas': {
+                    'da_conta': '31413',
+                    'do_banco': '756',
+                    'da_agencia': '4101'
                 },
                 'bradesco_sa': {
                     'da_conta': '105169',
@@ -218,45 +235,4 @@ class BackOffice(Utils):
                 'message': error_msg,
                 'arquivos_gerados': []
             }
-def extrair_dados_extrato(caminho_pdf):
-    """
-    Extrai dados do extrato PDF usando PyMuPDF
-    Args:
-        caminho_pdf (str): Caminho para o arquivo PDF
-    
-    Returns:
-        dict: Dicionário com os dados extraídos ou None em caso de erro
-    """
-    
-    
-    try:                    
-        doc = pymupdf.open(caminho_pdf)                                       
-        pagina = doc.load_page(0)
-        texto_pagina = pagina.get_text("text")                    
-        
-        padroes = {
-            'saldo_inicial': r"SALDO INICIAL:\s*([\d\.,]+)",
-            'saldo_inicial_tabela': r"SALDO INICIAL\.\.\.\.\.\.\.\.\.\s*([\d\.,]+)",
-            'saldo_atual': r"SALDO ATUAL\s*([\d\.,]+)",
-            'saldo_atual_tabela': r"SALDO ATUAL\s*([\d\.,]+)"
-        }
-
-        dados_extraidos = {}
-        for chave, padrao in padroes.items():
-            match = re.search(padrao, texto_pagina)
-            if match:
-                valor_str = match.group(1).replace('.', '').replace(',', '.')
-                dados_extraidos[chave] = float(valor_str)
-            else:
-                dados_extraidos[chave] = None
-        
-        doc.close()
-        return dados_extraidos
-
-    except FileNotFoundError:
-        logger.error(f"Arquivo não encontrado: {caminho_pdf}")
-        return None
-    except Exception as e:
-        logger.error(f"Erro ao processar PDF: {e}")
-        return None
 

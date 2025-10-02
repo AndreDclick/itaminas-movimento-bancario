@@ -216,12 +216,12 @@ class MovBancaria(Utils):
             if self._verificar_banco_invalido():
                 logger.info(f'Banco: {banco["do_banco"]}, agência: {banco["da_agencia"]}, conta: {banco["da_conta"]} é inválido')
                 self.conciliacao.registrar_banco_invalido(
-                    nome_banco,  # CORRIGIDO: passar nome_banco primeiro
+                    nome_banco,  
                     banco["do_banco"], 
                     banco["da_agencia"], 
                     banco["da_conta"]
                 )
-                return None  # Retorna None para indicar banco inválido
+                return None
             
             # Esperar pelo download e salvar com nome personalizado
             with self.page.expect_download(timeout=300000) as download_info:
@@ -278,11 +278,7 @@ class MovBancaria(Utils):
         try:
             # Tentar diferentes seletores para mensagem de banco inválido
             selectors = [
-                'text=Help: BCONOEXIST',
-                'text=Problema:',
-                'text=inválido',
-                'text=não existe',
-                'text=banco não'
+                'Help: BCONOEXISTProblema:'
             ]
             
             for selector in selectors:
@@ -291,7 +287,7 @@ class MovBancaria(Utils):
                     
             return False
         except Exception as e:
-            logger.warning(f"Erro ao verificar banco inválido: {e}")
+            logger.warning(f"Banco inválido: {e}")
             return False
 
     def _processar_conta(self, banco, nome_banco):
