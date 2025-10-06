@@ -242,39 +242,18 @@ class ProtheusScraper(Utils):
             })
 
             # 1. Executar 
-            # try:
-            #     movbancaria = MovBancaria(self.page)
-            #     resultado_movbancaria = movbancaria.execucao()
-            #     resultado_movbancaria['etapa'] = 'movbancaria'
-            #     results.append(resultado_movbancaria)
-
-            #     # Executar conciliação após movimentações
-            #     from scraper.conciliacao import Conciliacao
-            #     conciliacao = Conciliacao()
-            #     resultado_conciliacao = conciliacao.execucao(resultado_movbancaria.get("bancos", []))
-            #     resultado_conciliacao["etapa"] = "conciliacao"
-            #     results.append(resultado_conciliacao)
-
-            # except Exception as e:
-            #     results.append({
-            #         'status': 'error',
-            #         'message': f'Falha no Financeiro: {str(e)}',
-            #         'etapa': 'financeiro',
-            #         'error_code': getattr(e, 'code', 'FE4') if hasattr(e, 'code') else 'FE3'
-            #     })
-
             try:
-                backoffice = BackOffice(self.page)
-                resultado_backoffice = backoffice.execucao()
-                resultado_backoffice['etapa'] = 'backoffice'
-                results.append(resultado_backoffice)
+                movbancaria = MovBancaria(self.page)
+                resultado_movbancaria = movbancaria.execucao()
+                resultado_movbancaria['etapa'] = 'movbancaria'
+                results.append(resultado_movbancaria)
 
                 # Executar conciliação após movimentações
-                # from scraper.conciliacao import Conciliacao
-                # conciliacao = Conciliacao()
-                # resultado_conciliacao = conciliacao.execucao(resultado_movbancaria.get("bancos", []))
-                # resultado_conciliacao["etapa"] = "conciliacao"
-                # results.append(resultado_conciliacao)
+                from scraper.conciliacao import Conciliacao
+                conciliacao = Conciliacao()
+                resultado_conciliacao = conciliacao.execucao(resultado_movbancaria.get("bancos", []))
+                resultado_conciliacao["etapa"] = "conciliacao"
+                results.append(resultado_conciliacao)
 
             except Exception as e:
                 results.append({
@@ -283,6 +262,27 @@ class ProtheusScraper(Utils):
                     'etapa': 'financeiro',
                     'error_code': getattr(e, 'code', 'FE4') if hasattr(e, 'code') else 'FE3'
                 })
+
+            # try:
+            #     # backoffice = BackOffice(self.page)
+            #     # resultado_backoffice = backoffice.execucao()
+            #     # resultado_backoffice['etapa'] = 'backoffice'
+            #     # results.append(resultado_backoffice)
+
+            #     # Executar conciliação após movimentações
+            #     # from scraper.conciliacao import Conciliacao
+            #     # conciliacao = Conciliacao()
+            #     # resultado_conciliacao = conciliacao.execucao(resultado_movbancaria.get("bancos", []))
+            #     # resultado_conciliacao["etapa"] = "conciliacao"
+            #     # results.append(resultado_conciliacao)
+
+            # except Exception as e:
+            #     results.append({
+            #         'status': 'error',
+            #         'message': f'Falha no Financeiro: {str(e)}',
+            #         'etapa': 'financeiro',
+            #         'error_code': getattr(e, 'code', 'FE4') if hasattr(e, 'code') else 'FE3'
+            #     })
         except Exception as e:
             # Erro crítico não tratado no processo principal
             error_msg = f"Erro crítico não tratado: {str(e)}"
