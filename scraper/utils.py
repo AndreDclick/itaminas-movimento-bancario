@@ -11,7 +11,7 @@ from .exceptions import (
     FormSubmitFailed
 )
 from config.settings import Settings
-from datetime import datetime, date
+from datetime import datetime, date, timedelta
 from pathlib import Path
 import time
 import os
@@ -70,10 +70,10 @@ class Utils:
             FormSubmitFailed: Se não conseguir confirmar a operação
         """
         try:
-            time.sleep(5)  # Aguarda carregamento do botão
+            time.sleep(5) 
             self.locators['botao_confirmar'].click()
             logger.info("Operação confirmada")
-            self._fechar_popup_se_existir()  # Fecha possíveis popups pós-confirmação
+            self._fechar_popup_se_existir()  
         except Exception as e:
             error_msg = "Falha na confirmação da operação"
             logger.error(f"{error_msg}: {e}")
@@ -89,16 +89,26 @@ class Utils:
             FormSubmitFailed: Se não conseguir selecionar as filiais
         """
         try: 
-            time.sleep(3)  # Aguarda carregamento do botão
+            time.sleep(3)  
             if self.locators['botao_marcar_filiais'].is_visible():
                 self.locators['botao_marcar_filiais'].click()
-                time.sleep(1)  # Pequena pausa após seleção
-                self.locators['botao_confirmar'].click()  # Confirma a seleção
+                time.sleep(1)  
+                self.locators['botao_confirmar'].click() 
                 logger.info("Filial selecionada")
         except Exception as e:
             error_msg = "Falha na seleção de filiais"
             logger.error(f"{error_msg}: {e}")
             raise FormSubmitFailed(error_msg) from e
+        
+    def obter_data_dia_anterior(self) -> str:
+        """
+        Calcula e retorna a data de ontem no formato DD/MM/YYYY.
+        
+        Returns:
+            str: Data do dia anterior.
+        """
+        data_ontem = date.today() - timedelta(days=1)
+        return data_ontem.strftime('%d/%m/%Y')
     
     def _calcular_datas_contas_itens(self, data_referencia=None):
         """
@@ -119,19 +129,18 @@ class Utils:
         mes = data_referencia.month
         ano = data_referencia.year
         
-        # Verifica se é o último dia do mês
+        
         ultimo_dia_mes = calendar.monthrange(ano, mes)[1]
         eh_ultimo_dia = dia == ultimo_dia_mes
         
         if eh_ultimo_dia:
-            # Regra para último dia do mês
-            # Data Inicial: primeiro dia do mês anterior
+            
             if mes == 1:
                 data_inicial = datetime(ano - 1, 12, 1)
             else:
                 data_inicial = datetime(ano, mes - 1, 1)
             
-            # Data Final: último dia do mês anterior
+            
             if mes == 1:
                 ultimo_dia_anterior = calendar.monthrange(ano - 1, 12)[1]
                 data_final = datetime(ano - 1, 12, ultimo_dia_anterior)
@@ -140,20 +149,15 @@ class Utils:
                 data_final = datetime(ano, mes - 1, ultimo_dia_anterior)
         
         elif dia == 20:
-            # Regra para dia 20
-            # Data Inicial: primeiro dia do mês atual
+            
             data_inicial = datetime(ano, mes, 1)
             
-            # Data Final: dia 20 do mês atual
+            
             data_final = datetime(ano, mes, 20)
         
         else:
-            # Para outros dias, use as regras padrão ou defina um comportamento alternativo
-            # Aqui estou usando o mesmo comportamento do dia 20 como padrão
             data_inicial = datetime(ano, mes, 1)
-            data_final = datetime(ano, mes, min(dia, 20))  # Usa o menor entre o dia atual e 20
-        
-        # Formata as datas para o padrão DD/MM/YYYY
+            data_final = datetime(ano, mes, min(dia, 20))  
         data_inicial_str = data_inicial.strftime('%d/%m/%Y')
         data_final_str = data_final.strftime('%d/%m/%Y')
         
@@ -239,7 +243,7 @@ class Utils:
             JSONDecodeError: Se o arquivo JSON estiver mal formatado
         """
         try:
-            caminho_arquivo = Path(__file__).parent.parent / 'config' / arquivo_json
+            caminho_arquivo = Path(_file_).parent.parent / 'config' / arquivo_json
             
             with open(caminho_arquivo, 'r', encoding='utf-8') as file:
                 dados = json.load(file)

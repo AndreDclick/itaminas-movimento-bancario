@@ -202,15 +202,13 @@ class ProtheusScraper(Utils):
             self.locators['campo_filial'].click()
             self.locators['campo_filial'].fill(input_campo_filial)
             self.locators['campo_ambiente'].click()
+            time.sleep(1)
             self.locators['campo_ambiente'].fill(input_campo_ambiente)
             time.sleep(1)
-            self.locators['botao_entrar'].click()
-            
+            self.locators['botao_entrar'].click()            
             # Fecha popups se existirem
+            time.sleep(1)
             self._fechar_popup_se_existir()
-            time.sleep(3)
-            self._fechar_popup_se_existir()
-            time.sleep(3)
             logger.info("Login realizado com sucesso")
             
         except PlaywrightTimeoutError as e:
@@ -226,8 +224,6 @@ class ProtheusScraper(Utils):
     def run(self):
         """
         Executa o fluxo completo de automação do Protheus.
-        Returns:
-            list: Lista de resultados de todas as etapas executadas
         """
         results = []
         try:
@@ -241,57 +237,34 @@ class ProtheusScraper(Utils):
                 'error_code': None
             })
 
-            # 1. Executar 
+            # 1. Executar BackOffice
             try:
-                movbancaria = MovBancaria(self.page)
-                resultado_movbancaria = movbancaria.execucao()
-                resultado_movbancaria['etapa'] = 'movbancaria'
-                results.append(resultado_movbancaria)
-
-                # Executar conciliação após movimentações
-                from scraper.conciliacao import Conciliacao
-                conciliacao = Conciliacao()
-                resultado_conciliacao = conciliacao.execucao(resultado_movbancaria.get("bancos", []))
-                resultado_conciliacao["etapa"] = "conciliacao"
-                results.append(resultado_conciliacao)
+                logger.info("Iniciando módulo BackOffice...")
+                backoffice = BackOffice(self.page)
+                resultado_backoffice = backoffice.execucao()
+                resultado_backoffice['etapa'] = 'backoffice'
+                results.append(resultado_backoffice)
+                logger.info(f"Resultado BackOffice: {resultado_backoffice}")
 
             except Exception as e:
+                error_msg = f'Falha no BackOffice: {str(e)}'
+                logger.error(error_msg)
                 results.append({
                     'status': 'error',
-                    'message': f'Falha no Financeiro: {str(e)}',
-                    'etapa': 'financeiro',
-                    'error_code': getattr(e, 'code', 'FE4') if hasattr(e, 'code') else 'FE3'
+                    'message': error_msg,
+                    'etapa': 'backoffice',
+                    'error_code': 'BE1'
                 })
 
-            # try:
-            #     # backoffice = BackOffice(self.page)
-            #     # resultado_backoffice = backoffice.execucao()
-            #     # resultado_backoffice['etapa'] = 'backoffice'
-            #     # results.append(resultado_backoffice)
+            return results
 
-            #     # Executar conciliação após movimentações
-            #     # from scraper.conciliacao import Conciliacao
-            #     # conciliacao = Conciliacao()
-            #     # resultado_conciliacao = conciliacao.execucao(resultado_movbancaria.get("bancos", []))
-            #     # resultado_conciliacao["etapa"] = "conciliacao"
-            #     # results.append(resultado_conciliacao)
-
-            # except Exception as e:
-            #     results.append({
-            #         'status': 'error',
-            #         'message': f'Falha no Financeiro: {str(e)}',
-            #         'etapa': 'financeiro',
-            #         'error_code': getattr(e, 'code', 'FE4') if hasattr(e, 'code') else 'FE3'
-            #     })
         except Exception as e:
-            # Erro crítico não tratado no processo principal
             error_msg = f"Erro crítico não tratado: {str(e)}"
             logger.error(error_msg)
             results.append({
                 'status': 'critical_error',
                 'message': error_msg,
                 'etapa': 'processo_principal',
-                'error_code': getattr(e, 'code', 'FE3') if hasattr(e, 'code') else 'FE3'
+                'error_code': 'CE1'
             })
-
             return results

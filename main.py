@@ -250,38 +250,7 @@ def send_success_email(completion_time, processed_count, error_count, report_pat
     # Enviar email de sucesso
     send_email(subject, body, summary, attachments, "success")
 
-def send_error_email(error_time, error_description, affected_count=None, 
-                    error_records=None, suggested_action=None):
-    # Configurar assunto do email
-    subject = "[FALHA] BOT - Conciliação de Fornecedores Itaminas"
-    
-    # Corpo principal do email (com placeholders {1} e {2})
-    body = "Falha na execução do processo de conciliação de fornecedores.\nVerifique os logs em anexo para mais detalhes."
-    
-    # Criar resumo do erro
-    summary = [
-        f"Status: Falha na execução",
-        f"Data/Hora da ocorrência: {error_time}",
-        f"Tipo de erro: {error_description}",
-    ]
-    
-    # Adicionar informações sobre registros afetados se disponível
-    if affected_count is not None:
-        summary.append(f"Quantidade de registros afetados: {affected_count}")
-    
-    # Adicionar identificação de registros com erro se disponível
-    if error_records:
-        records_str = ", ".join(str(record) for record in error_records[:10])  # Limitar a 10 registros
-        if len(error_records) > 10:
-            records_str += f"... (e mais {len(error_records) - 10})"
-        summary.append(f"Identificação de registros com erro: {records_str}")
-    
-    # Adicionar ação sugerida se disponível
-    if suggested_action:
-        summary.append(f"Ação sugerida para correção: {suggested_action}")
-    
-    # Enviar email de erro
-    send_email(subject, body, summary, None, "error")
+# Duplicate send_error_email removed; authoritative implementation is defined below.
 
 
 def send_error_email(error_time, error_description, affected_count=None, 
@@ -455,14 +424,21 @@ def main():
     """
     # Configurar logger
     logger = configure_logger()
+    logger.info("=== INICIANDO PROCESSO DE CONCILIAÇÃO ===")
 
     custom_settings = Settings()
-    custom_settings.HEADLESS = False
+    setattr(custom_settings, "HEADLESS", False)
     
     try:
         # Executar o scraper do Protheus
+        logger.info("Iniciando ProtheusScraper...")
         with ProtheusScraper(settings=custom_settings) as scraper:
             results = scraper.run() or []  
+            logger.info(f"Processo concluído. Resultados: {len(results)} etapas")
+            
+            # Log detalhado dos resultados
+            for i, result in enumerate(results):
+                logger.info(f"Etapa {i+1}: {result.get('etapa', 'N/A')} - Status: {result.get('status', 'N/A')}")
             
             # Encontrar resultado da conciliação
             resultado_conciliacao = next((r for r in results if r.get('etapa') == 'conciliacao'), {})
