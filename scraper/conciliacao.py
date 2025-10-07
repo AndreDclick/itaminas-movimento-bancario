@@ -175,8 +175,8 @@ class Conciliacao:
                     WHEN status = 'invalido' THEN 'Banco Inválido'
                     WHEN status = 'conciliar' THEN 'Conciliar'
                     WHEN status = 'diferenca' THEN 'Diferença'
-                    WHEN status = 'erro_extracao' THEN 'Erro Extração'
-                    WHEN status = 'erro_processamento' THEN 'Erro Processamento'
+                    WHEN status = 'erro_extracao' THEN 'Banco Inválido'
+                    WHEN status = 'erro_processamento' THEN 'Banco Inválido'
                     WHEN status = 'sem_arquivo' THEN 'Sem Arquivo'
                     ELSE status 
                 END as status,

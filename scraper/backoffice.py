@@ -31,7 +31,7 @@ class BackOffice(Utils):
         self.locators = {
             # NAVEGAÇÃO MENU LATERAL
             'atualizacoes': self.page.get_by_text('Atualizações', exact=False),
-            'mov_bancario': self.page.get_by_text('Movimento Bancario', exact=False),
+            'mov_bancario': self.page.get_by_text('Movimento Bancario (6)'),
             'backoffice': self.page.get_by_text('Conciliador Backoffice', exact=False),
             'botao_confirmar': self.page.get_by_role("button", name="Confirmar"),
             'btn_fechar_menu': self.page.get_by_role('button', name='Fechar'),
@@ -61,6 +61,9 @@ class BackOffice(Utils):
             'aba_dados_conciliacao': self.page.frame_locator("internal:attr=[title=\"Ctba940_env_ceos62_dev\"i] >> iframe").get_by_text("Dados da Conciliação"),
             'btn_aplicar': self.page.frame_locator("internal:attr=[title=\"Ctba940_env_ceos62_dev\"i] >> iframe").get_by_role("button", name="Aplicar"),
             
+            'ap_conciliacao': self.page.frame_locator("internal:attr=[title=\"Ctba940_env_ceos62_dev\"i] >> iframe").get_by_role("button", name="Aplicar Conciliação"),
+            'btn_ok': self.page.frame_locator("internal:attr=[title=\"Ctba940_env_ceos62_dev\"i] >> iframe").get_by_role("button", name="Ok"),
+            'btn_bancario': self.page.frame_locator("internal:attr=[title=\"Ctba940_env_ceos62_dev\"i] >> iframe").get_by_role("button", name="0024-Conciliação Bancária"),
             # 6. POP UP DE CONFIRMAÇÃO FINAL
             'popup_btn_confirmar': self.page.get_by_role("button", name="Ok"),
             'popup_fechar': self.page.get_by_role("button", name="Fechar")
@@ -146,8 +149,8 @@ class BackOffice(Utils):
             time.sleep(1)
             
             # Preencher datas
-            self.locators['data_dispon_de'].fill('01/04/2025')
-            self.locators['data_dispon_ate'].fill('01/04/2025')
+            self.locators['data_dispon_de'].fill('18/06/2025')
+            self.locators['data_dispon_ate'].fill('18/06/2025')
             time.sleep(1)
 
             logger.info(f"Preenchendo parâmetros - Banco: {do_banco}, Agência: {da_agencia}, Conta: {da_conta}")
@@ -178,15 +181,9 @@ class BackOffice(Utils):
             logger.info("Clicou na aba 'Dados não Encontrados'")
             time.sleep(3)
             
-            # Verificar se existem registros
-            tabela_resultados = self.page.locator('.po-table-container table tbody tr')
-            count = tabela_resultados.count()
-            
-            if count > 0:
-                logger.info(f"Foram encontrados {count} registros para conciliação.")
-                
-                # Selecionar todos os registros
-                self.locators['checkbox_selecionar'].wait_for(state="visible", timeout=10000)
+            if self.locators['checkbox_selecionar'].is_visible():
+                logger.info(f"Foram encontrados  registros para conciliação.")
+
                 self.locators['checkbox_selecionar'].click()
                 logger.info("Todas as movimentações selecionadas")
                 time.sleep(2)
@@ -199,12 +196,26 @@ class BackOffice(Utils):
                 self.locators['btn_conciliar'].wait_for(state="visible", timeout=10000)
                 self.locators['btn_conciliar'].click()
                 logger.info("Botão 'Conciliar' clicado")
+                time.sleep(3)
+                self.locators['aba_dados_conciliacao'].click()
+
+                time.sleep(3)
+                self.locators['ap_conciliacao'].click()
+                time.sleep(3)
+                self.locators['btn_ok'].click()
+                time.sleep(3)
                 
-                self.page.wait_for_load_state('networkidle')
-                time.sleep(5)
+                self.locators['nao_encontrados'].click()
+                time.sleep(1)
+                self.locators['btn_bancario'].click()
+                
+
             else:
                 logger.info("Nenhum registro encontrado para conciliação")
-                
+                time.sleep(3)
+                self.locators['nao_encontrados'].click()
+                time.sleep(1)
+                self.locators['btn_bancario'].click()
         except Exception as e:
             error_msg = f"Erro ao selecionar e conciliar: {e}"
             logger.error(error_msg)
@@ -213,14 +224,8 @@ class BackOffice(Utils):
         """Processa uma conta bancária individual completa."""
         try:
             logger.info(f'Processando banco: {nome_banco} - {dados_do_banco["do_banco"]}, agência: {dados_do_banco["da_agencia"]}, conta: {dados_do_banco["da_conta"]}')
-            # 1. Navegar para o menu backoffice
-            self._navegar_menu()
             
-            # 2. Navegar para a tela de Conciliador
-            self._navegar_para_conciliador()
             self._preencher_filtros(dados_do_banco)
-
-            # 4. Selecionar e conciliar dados
             self._selecionar_e_conciliar()
             
         except Exception as e:
@@ -239,6 +244,11 @@ class BackOffice(Utils):
         """Executa o processo completo do BackOffice"""
         logger.info("Iniciando a conciliação manual no Backoffice do Protheus...")
         try:
+            # 1. Navegar para o menu backoffice
+            self._navegar_menu()
+            
+            # 2. Navegar para a tela de Conciliador
+            self._navegar_para_conciliador()
             # 3. parametros
             dados_do_banco = {
                 'banco_do_brasil': {
@@ -246,10 +256,10 @@ class BackOffice(Utils):
                     'do_banco': '001',
                     'da_agencia': '2115'
                 },
-                'bradesco_sa': {
-                    'da_conta': '105169',
+                'bradesco_itaminas': {
+                    'da_conta': '55327',
                     'do_banco': '237',
-                    'da_agencia': '0895'
+                    'da_agencia': '0466'
                 },
                 'banco_bs2_sa': {
                     'da_conta': '10164',

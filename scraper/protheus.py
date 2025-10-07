@@ -237,6 +237,28 @@ class ProtheusScraper(Utils):
                 'error_code': None
             })
 
+            # 1. Executar movimentações
+            try:
+                movbancaria = MovBancaria(self.page)
+                resultado_movbancaria = movbancaria.execucao()
+                resultado_movbancaria['etapa'] = 'movbancaria'
+                results.append(resultado_movbancaria)
+
+                # Executar conciliação após movimentações
+                from scraper.conciliacao import Conciliacao
+                conciliacao = Conciliacao()
+                resultado_conciliacao = conciliacao.execucao(resultado_movbancaria.get("bancos", []))
+                resultado_conciliacao["etapa"] = "conciliacao"
+                results.append(resultado_conciliacao)
+
+            except Exception as e:
+                results.append({
+                    'status': 'error',
+                    'message': f'Falha na movimentação bancaria: {str(e)}',
+                    'etapa': 'movimentação bancaria',
+                    'error_code': getattr(e, 'code', 'FE4') if hasattr(e, 'code') else 'FE3'
+                })
+
             # 1. Executar BackOffice
             try:
                 logger.info("Iniciando módulo BackOffice...")

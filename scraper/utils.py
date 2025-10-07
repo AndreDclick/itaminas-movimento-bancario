@@ -243,7 +243,8 @@ class Utils:
             JSONDecodeError: Se o arquivo JSON estiver mal formatado
         """
         try:
-            caminho_arquivo = Path(_file_).parent.parent / 'config' / arquivo_json
+            settings = Settings()
+            caminho_arquivo = settings.PARAMETERS_DIR / arquivo_json
             
             with open(caminho_arquivo, 'r', encoding='utf-8') as file:
                 dados = json.load(file)

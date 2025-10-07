@@ -330,6 +330,7 @@ class MovBancaria(Utils):
         
     def execucao(self):
         """Fluxo principal de extração dos pdf."""
+        settings = Settings()
         try:
             # Definir os bancos
             bancos = {
