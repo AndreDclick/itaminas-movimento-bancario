@@ -348,6 +348,86 @@ class MovBancaria(Utils):
                     'da_conta': '10164',
                     'do_banco': '218',
                     'da_agencia': '0001'
+                },
+                'banco_santander_brasil_sa': {
+                    'da_conta': '13002314',
+                    'do_banco': '033',
+                    'da_agencia': '4177'
+                },
+                'banco_xp_investimentos': {
+                    'da_conta': '1668210',
+                    'do_banco': '102',
+                    'da_agencia': '0001'
+                },
+                'banco_btg_pactual': {
+                    'da_conta': '00842887',
+                    'do_banco': '208',
+                    'da_agencia': '0001'
+                },
+                'banco_fibra_facil_sa': {
+                    'da_conta': '000671803',
+                    'do_banco': '224',
+                    'da_agencia': '00001'
+                },
+                'bradesco_itaminas_principal': {
+                    'da_conta': '55327',
+                    'do_banco': '237',
+                    'da_agencia': '0466'
+                },
+                'banco_master': {
+                    'da_conta': '00109673',
+                    'do_banco': '243',
+                    'da_agencia': '0001'
+                },
+                'banco_bmg': {
+                    'da_conta': '17003248',
+                    'do_banco': '318',
+                    'da_agencia': '0005'
+                },
+                'banco_xp_cc': {
+                    'da_conta': '1668210',
+                    'do_banco': '348',
+                    'da_agencia': '0001'
+                },
+                'banco_safra_cc': {
+                    'da_conta': '586982',
+                    'do_banco': '422',
+                    'da_agencia': '0023'
+                },
+                'banco_sofisa_cc': {
+                    'da_conta': '12986',
+                    'do_banco': '637',
+                    'da_agencia': '0004'
+                },
+                'banco_citibank_sa': {
+                    'da_conta': '09003958',
+                    'do_banco': '745',
+                    'da_agencia': '009'
+                },
+                'sicoob_itaminas': {
+                    'da_conta': '31413',
+                    'do_banco': '756',
+                    'da_agencia': '4101'
+                },
+                'banco_deutsche_leasing': {
+                    'da_conta': '0001',
+                    'do_banco': '999',
+                    'da_agencia': '0001'
+                },
+                'caixa_geral_da_loja': {
+                    'da_conta': '0000000001',
+                    'do_banco': 'C01',
+                    'da_agencia': '00001'
+                },
+                'deposito_nao_identificado': {
+                    'da_conta': '0000000002',
+                    'do_banco': 'C02',
+                    'da_agencia': '00002'
+                },
+                'caixa_geral': {
+                    'da_conta': '0000000001',
+                    'do_banco': 'CX1',
+                    'da_agencia': '00001'
                 }
             }
             

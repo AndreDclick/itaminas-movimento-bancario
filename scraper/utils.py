@@ -73,6 +73,7 @@ class Utils:
             time.sleep(5) 
             self.locators['botao_confirmar'].click()
             logger.info("Operação confirmada")
+            time.sleep(5) 
             self._fechar_popup_se_existir()  
         except Exception as e:
             error_msg = "Falha na confirmação da operação"

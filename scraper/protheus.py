@@ -259,7 +259,7 @@ class ProtheusScraper(Utils):
                     'error_code': getattr(e, 'code', 'FE4') if hasattr(e, 'code') else 'FE3'
                 })
 
-            # 1. Executar BackOffice
+            # 2. Executar BackOffice
             try:
                 logger.info("Iniciando módulo BackOffice...")
                 backoffice = BackOffice(self.page)
