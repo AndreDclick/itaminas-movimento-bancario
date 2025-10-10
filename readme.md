@@ -1,12 +1,12 @@
 Sistema de Conciliação de Fornecedores Itaminas
 
-Automação profissional para conciliação contábil-financeira entre módulos do sistema Protheus, implementada com Python e Playwright.
+Automação profissional para conciliação da movimentação bancária entre módulos do sistema Protheus, implementada com Python e Playwright.
 
 
 FUNCIONALIDADES
 
 Automação completa do sistema Protheus
-Extração de relatórios financeiros e contábeis
+Extração de relatórios da movimentação bancária
 Processamento de dados com SQLite
 Geração de planilha consolidada com diferenças priorizadas
 Sistema de logging estruturado em terminal e arquivo
@@ -100,3 +100,11 @@ Processamento e cruzamento de dados
 Geração de planilha consolidada
 
 Envio de e-mail com resultados
+
+GERANDO EXE.
+
+build.bat
+
+EXECUTANDO DIST 
+cd C:\Users\dev\OneDrive\Documentos\Repositórios\itaminas-movimento-bancario\dist
+itaminas-movimentacao-bancaria.exe
