@@ -1,4 +1,4 @@
-Sistema de Conciliação de Fornecedores Itaminas
+Sistema de Movimentação Bancária Itaminas
 
 Automação profissional para conciliação da movimentação bancária entre módulos do sistema Protheus, implementada com Python e Playwright.
 

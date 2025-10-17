@@ -122,7 +122,8 @@ class ProtheusScraper(Utils):
                 'campo_grupo': self.page.frame_locator("iframe").get_by_label("Grupo"),
                 'campo_filial': self.page.frame_locator("iframe").get_by_label("Filial"),
                 'campo_ambiente': self.page.frame_locator("iframe").get_by_label("Ambiente"),
-                'popup_fechar': self.page.get_by_role("button", name="Fechar")
+                'popup_fechar': self.page.get_by_role("button", name="Fechar"),
+                'menu_relatorios': self.page.get_by_text("Relatorios (13)")
             }
         except Exception as e:
             error_msg = "Falha ao definir locators"
@@ -134,7 +135,6 @@ class ProtheusScraper(Utils):
         return self
 
     def __exit__(self, exc_type, exc_val, exc_tb):
-        
         self._fechar_recursos()
         logger.info("Navegador fechado")
 
@@ -160,7 +160,8 @@ class ProtheusScraper(Utils):
         try:
             logger.info(f"Navegando para: Protheus")
             self.page.goto(self.settings.BASE_URL)
-            self.page.get_by_role("group", name="Ambiente no servidor").get_by_role("combobox").select_option("CEOS62_DEV")
+            self.page.get_by_role("group", name="Ambiente no servidor").get_by_role("combobox").select_option("CEOS62_PROD")
+            time.sleep(1)
             # Clica no botão OK se estiver visível
             if self.locators['botao_ok'].is_visible():
                 self.locators['botao_ok'].click()
@@ -207,7 +208,6 @@ class ProtheusScraper(Utils):
             time.sleep(1)
             self.locators['botao_entrar'].click()            
             # Fecha popups se existirem
-            time.sleep(1)
             self._fechar_popup_se_existir()
             logger.info("Login realizado com sucesso")
             
@@ -230,6 +230,9 @@ class ProtheusScraper(Utils):
             # 0. Inicialização e login
             self.start_scraper()
             self.login()
+            time.sleep(3)
+            if self.locators['menu_relatorios'].is_visible:
+                self.locators['menu_relatorios'].click()
             results.append({
                 'status': 'success',
                 'message': 'Login realizado com sucesso',

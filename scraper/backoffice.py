@@ -16,6 +16,7 @@ class BackOffice(Utils):
         super().__init__(page)
         self.page = page
         self.settings = Settings()
+        self.parametros_json = 'MovBancaria' 
         self._definir_locators()
 
     def _definir_locators(self):
@@ -37,33 +38,33 @@ class BackOffice(Utils):
             'btn_fechar_menu': self.page.get_by_role('button', name='Fechar'),
 
             # 1. TELA CONCILIADOR BACKOFFICE
-            'menu_conciliador': self.page.frame_locator("internal:attr=[title=\"Ctba940_env_ceos62_dev\"i] >> iframe").get_by_role("menuitem", name="Conciliador"),
-            'config_conciliacao_dropdown': self.page.frame_locator("internal:attr=[title=\"Ctba940_env_ceos62_dev\"i] >> iframe").get_by_placeholder("Selecione uma configuração de"),
+            'menu_conciliador': self.page.frame_locator("internal:attr=[title=\"Ctba940_env_ceos62_prod\"i] >> iframe").get_by_role("menuitem", name="Conciliador"),
+            'config_conciliacao_dropdown': self.page.frame_locator("internal:attr=[title=\"Ctba940_env_ceos62_prod\"i] >> iframe").get_by_placeholder("Selecione uma configuração de"),
 
             # 2. CONFIGURAÇÃO DE CONCILIAÇÃO
-            'select_conciliacao_manual': self.page.frame_locator("internal:attr=[title=\"Ctba940_env_ceos62_dev\"i] >> iframe").locator(".po-field-container-content"),
-            'label_conciliacao': self.page.frame_locator("internal:attr=[title=\"Ctba940_env_ceos62_dev\"i] >> iframe").get_by_label("-Conciliação Bancária Manual"),
-            'btn_ver_filtros': self.page.frame_locator("internal:attr=[title=\"Ctba940_env_ceos62_dev\"i] >> iframe").get_by_role("button", name="Ver Filtros"),
+            'select_conciliacao_manual': self.page.frame_locator("internal:attr=[title=\"Ctba940_env_ceos62_prod\"i] >> iframe").locator(".po-field-container-content"),
+            'label_conciliacao': self.page.frame_locator("internal:attr=[title=\"Ctba940_env_ceos62_prod\"i] >> iframe").get_by_label("-Conciliação Bancária Manual"),
+            'btn_ver_filtros': self.page.frame_locator("internal:attr=[title=\"Ctba940_env_ceos62_prod\"i] >> iframe").get_by_role("button", name="Ver Filtros"),
             
             # 3. FILTROS
-            'data_dispon_de': self.page.frame_locator("internal:attr=[title=\"Ctba940_env_ceos62_dev\"i] >> iframe").get_by_label("Data Dispon. de"),
-            'data_dispon_ate': self.page.frame_locator("internal:attr=[title=\"Ctba940_env_ceos62_dev\"i] >> iframe").get_by_label("Data Dispon. até"),
-            'banco': self.page.frame_locator("internal:attr=[title=\"Ctba940_env_ceos62_dev\"i] >> iframe").get_by_label("Banco igual a", exact=True),
-            'agencia': self.page.frame_locator("internal:attr=[title=\"Ctba940_env_ceos62_dev\"i] >> iframe").get_by_label("Agencia igual a"),
-            'conta': self.page.frame_locator("internal:attr=[title=\"Ctba940_env_ceos62_dev\"i] >> iframe").get_by_label("Conta Banco igual a"),
+            'data_dispon_de': self.page.frame_locator("internal:attr=[title=\"Ctba940_env_ceos62_prod\"i] >> iframe").get_by_label("Data Dispon. de"),
+            'data_dispon_ate': self.page.frame_locator("internal:attr=[title=\"Ctba940_env_ceos62_prod\"i] >> iframe").get_by_label("Data Dispon. até"),
+            'banco': self.page.frame_locator("internal:attr=[title=\"Ctba940_env_ceos62_prod\"i] >> iframe").get_by_label("Banco igual a", exact=True),
+            'agencia': self.page.frame_locator("internal:attr=[title=\"Ctba940_env_ceos62_prod\"i] >> iframe").get_by_label("Agencia igual a"),
+            'conta': self.page.frame_locator("internal:attr=[title=\"Ctba940_env_ceos62_prod\"i] >> iframe").get_by_label("Conta Banco igual a"),
             # 4. CONCILIAÇÃO
-            'nao_encontrados': self.page.frame_locator("internal:attr=[title=\"Ctba940_env_ceos62_dev\"i] >> iframe").get_by_text("Dados não Encontrados"),
-            'checkbox_selecionar': self.page.frame_locator("internal:attr=[title=\"Ctba940_env_ceos62_dev\"i] >> iframe").get_by_role("row", name="Filial Orig. Data Dispon.").get_by_role("checkbox"),
-            'btn_acoes': self.page.frame_locator("internal:attr=[title=\"Ctba940_env_ceos62_dev\"i] >> iframe").get_by_text("Ações", exact=True),
-            'btn_conciliar': self.page.frame_locator("internal:attr=[title=\"Ctba940_env_ceos62_dev\"i] >> iframe").get_by_text("Conciliar"),
+            'nao_encontrados': self.page.frame_locator("internal:attr=[title=\"Ctba940_env_ceos62_prod\"i] >> iframe").get_by_text("Dados não Encontrados"),
+            'checkbox_selecionar': self.page.frame_locator("internal:attr=[title=\"Ctba940_env_ceos62_prod\"i] >> iframe").get_by_role("row", name="Filial Orig. Data Dispon.").get_by_role("checkbox"),
+            'btn_acoes': self.page.frame_locator("internal:attr=[title=\"Ctba940_env_ceos62_prod\"i] >> iframe").get_by_text("Ações", exact=True),
+            'btn_conciliar': self.page.frame_locator("internal:attr=[title=\"Ctba940_env_ceos62_prod\"i] >> iframe").get_by_text("Conciliar"),
             
             # 5. APLICAÇÃO
-            'aba_dados_conciliacao': self.page.frame_locator("internal:attr=[title=\"Ctba940_env_ceos62_dev\"i] >> iframe").get_by_text("Dados da Conciliação"),
-            'btn_aplicar': self.page.frame_locator("internal:attr=[title=\"Ctba940_env_ceos62_dev\"i] >> iframe").get_by_role("button", name="Aplicar"),
+            'aba_dados_conciliacao': self.page.frame_locator("internal:attr=[title=\"Ctba940_env_ceos62_prod\"i] >> iframe").get_by_text("Dados da Conciliação"),
+            'btn_aplicar': self.page.frame_locator("internal:attr=[title=\"Ctba940_env_ceos62_prod\"i] >> iframe").get_by_role("button", name="Aplicar"),
             
-            'ap_conciliacao': self.page.frame_locator("internal:attr=[title=\"Ctba940_env_ceos62_dev\"i] >> iframe").get_by_role("button", name="Aplicar Conciliação"),
-            'btn_ok': self.page.frame_locator("internal:attr=[title=\"Ctba940_env_ceos62_dev\"i] >> iframe").get_by_role("button", name="Ok"),
-            'btn_bancario': self.page.frame_locator("internal:attr=[title=\"Ctba940_env_ceos62_dev\"i] >> iframe").get_by_role("button", name="0024-Conciliação Bancária"),
+            'ap_conciliacao': self.page.frame_locator("internal:attr=[title=\"Ctba940_env_ceos62_prod\"i] >> iframe").get_by_role("button", name="Aplicar Conciliação"),
+            'btn_ok': self.page.frame_locator("internal:attr=[title=\"Ctba940_env_ceos62_prod\"i] >> iframe").get_by_role("button", name="Ok"),
+            'btn_bancario': self.page.frame_locator("internal:attr=[title=\"Ctba940_env_ceos62_prod\"i] >> iframe").get_by_role("button", name="0024-Conciliação Bancária"),
             # 6. POP UP DE CONFIRMAÇÃO FINAL
             'popup_btn_confirmar': self.page.get_by_role("button", name="Ok"),
             'popup_fechar': self.page.get_by_role("button", name="Fechar")
@@ -96,6 +97,8 @@ class BackOffice(Utils):
             # Fechar popups novamente
             time.sleep(1)
             self._fechar_popup_se_existir()
+            time.sleep(1)
+            self._fechar_popup_se_existir()
             
         except Exception as e:
             error_msg = f"Erro na navegação do menu: {e}"
@@ -119,8 +122,12 @@ class BackOffice(Utils):
             time.sleep(1)
             # Selecionar conciliação manual
             self.locators['select_conciliacao_manual'].wait_for(state="visible", timeout=30000)
-            
-            time.sleep(2)
+            # self.locators['select_conciliacao_manual'].click()
+            # time.sleep(2)
+
+            # self.locators['btn_bancario'].wait_for(state="visible", timeout=30000)
+            # self.locators['btn_bancario'].click()
+            # time.sleep(2)
             self.locators['label_conciliacao'].click()
             logger.info("Selecionou Conciliação Manual")
             
@@ -139,8 +146,9 @@ class BackOffice(Utils):
         do_banco = dados_banco.get('do_banco')
         da_agencia = dados_banco.get('da_agencia')
         da_conta = dados_banco.get('da_conta')
-        data_ontem = self.obter_data_dia_anterior()
-        
+        input_da_data = self.parametros.get('da_data')
+        input_ate_a_data = self.parametros.get('ate_a_data')
+        logger.info(f"Usando chave JSON: {self.parametros_json}")
         try:
             # Expandir filtros 
             self.locators['btn_ver_filtros'].wait_for(state="visible", timeout=30000)
@@ -149,8 +157,8 @@ class BackOffice(Utils):
             time.sleep(1)
             
             # Preencher datas
-            self.locators['data_dispon_de'].fill('18/06/2025')
-            self.locators['data_dispon_ate'].fill('18/06/2025')
+            self.locators['data_dispon_de'].fill(input_da_data)
+            self.locators['data_dispon_ate'].fill(input_ate_a_data)
             time.sleep(1)
 
             logger.info(f"Preenchendo parâmetros - Banco: {do_banco}, Agência: {da_agencia}, Conta: {da_conta}")
@@ -179,7 +187,7 @@ class BackOffice(Utils):
             self.locators['nao_encontrados'].wait_for(state="visible", timeout=15000)
             self.locators['nao_encontrados'].click()
             logger.info("Clicou na aba 'Dados não Encontrados'")
-            time.sleep(3)
+            time.sleep(7)
             
             if self.locators['checkbox_selecionar'].is_visible():
                 logger.info(f"Foram encontrados  registros para conciliação.")
@@ -244,6 +252,8 @@ class BackOffice(Utils):
         """Executa o processo completo do BackOffice"""
         logger.info("Iniciando a conciliação manual no Backoffice do Protheus...")
         try:
+            parameters_path = self.settings.PARAMETERS_DIR
+            self._carregar_parametros(parameters_path, self.parametros_json)
             # 1. Navegar para o menu backoffice
             self._navegar_menu()
             
@@ -251,20 +261,240 @@ class BackOffice(Utils):
             self._navegar_para_conciliador()
             # 3. parametros
             dados_do_banco = {
-                'banco_do_brasil': {
-                    'da_conta': '118091',
-                    'do_banco': '001',
-                    'da_agencia': '2115'
-                },
-                'bradesco_itaminas': {
-                    'da_conta': '55327',
-                    'do_banco': '237',
-                    'da_agencia': '0466'
-                },
-                'banco_bs2_sa': {
-                    'da_conta': '10164',
-                    'do_banco': '218',
-                    'da_agencia': '0001'
+                # 'banco_do_brasil': {
+                #     'da_conta': '118091',
+                #     'do_banco': '001',
+                #     'da_agencia': '2115'
+                # },
+                # 'banco_santander_brasil_sa': {
+                #     'da_conta': '13002314',
+                #     'do_banco': '033',
+                #     'da_agencia': '4177'
+                # },
+                # 'banco_santander_aplicacao': {
+                #     'da_conta': '13002314A',
+                #     'do_banco': '033',
+                #     'da_agencia': '4177'
+                # },
+                # 'banco_santander_aplicacao_cdb': {
+                #     'da_conta': '13002314B',
+                #     'do_banco': '033',
+                #     'da_agencia': '4177'
+                # },
+                # 'banco_xp_investimentos': {
+                #     'da_conta': '1668210',
+                #     'do_banco': '102',
+                #     'da_agencia': '0001'
+                # },
+                # 'banco_xp_investimentos_aplicacao': {
+                #     'da_conta': '1668210A',
+                #     'do_banco': '102',
+                #     'da_agencia': '0001'
+                # },
+                # 'banco_xp': {
+                #     'da_conta': '1856184',
+                #     'do_banco': '102',
+                #     'da_agencia': '0001'
+                # },
+                # 'banco_xp_aplicacao': {
+                #     'da_conta': '18561846',
+                #     'do_banco': '102',
+                #     'da_agencia': '0001'
+                # },
+                # 'banco_xp_internacional': {
+                #     'da_conta': 'QRX401225',
+                #     'do_banco': '102',
+                #     'da_agencia': '0001'
+                # },
+                # 'banco_xp_internacional_apl': {
+                #     'da_conta': 'QRX401225A',
+                #     'do_banco': '102',
+                #     'da_agencia': '0001'
+                # },
+                # 'banco_btg_pactual': {
+                #     'da_conta': '00842887',
+                #     'do_banco': '208',
+                #     'da_agencia': '0001'
+                # },
+                # 'banco_btg_pactual_aplicacao': {
+                #     'da_conta': '00842887A',
+                #     'do_banco': '208',
+                #     'da_agencia': '0001'
+                # },
+                # 'banco_bs2_sa': {
+                #     'da_conta': '10164',
+                #     'do_banco': '218',
+                #     'da_agencia': '0001'
+                # },
+                # 'banco_bs2_aplicacao': {
+                #     'da_conta': '10164A',
+                #     'do_banco': '218',
+                #     'da_agencia': '0001'
+                # },
+                # 'banco_bs2_s_a_vinculada': {
+                #     'da_conta': '1125020',
+                #     'do_banco': '218',
+                #     'da_agencia': '0001'
+                # },
+                # 'banco_bs2_vinculada_aplicacao': {
+                #     'da_conta': '1125020A',
+                #     'do_banco': '218',
+                #     'da_agencia': '0001'
+                # },
+                # 'banco_bs2_internacional': {
+                #     'da_conta': 'KY18752824',
+                #     'do_banco': '218',
+                #     'da_agencia': 'BBONK'
+                # },
+                # 'banco_fibra_facil_sa': {
+                #     'da_conta': '000671803',
+                #     'do_banco': '224',
+                #     'da_agencia': '00001'
+                # },
+                # 'banco_fibra_vinculada_duplicatas': {
+                #     'da_conta': '000671804',
+                #     'do_banco': '224',
+                #     'da_agencia': '00001'
+                # },
+                # 'bradesco_itaminas_principal': {
+                #     'da_conta': '55327',
+                #     'do_banco': '237',
+                #     'da_agencia': '0466'
+                # },
+                # 'bradesco_cdb_aplicacao': {
+                #     'da_conta': '55327A',
+                #     'do_banco': '237',
+                #     'da_agencia': '0466'
+                # },
+                # 'bradesco_duplicata_descontada': {
+                #     'da_conta': '55327DP',
+                #     'do_banco': '237',
+                #     'da_agencia': '0466'
+                # },
+                # 'bradesco_sa': {
+                #     'da_conta': '105169',
+                #     'do_banco': '237',
+                #     'da_agencia': '0895'
+                # },
+                # 'bradesco_tac': {
+                #     'da_conta': '4780',
+                #     'do_banco': '237',
+                #     'da_agencia': '3484'
+                # },
+                # 'bradesco_tac_aplicacao': {
+                #     'da_conta': '4780A',
+                #     'do_banco': '237',
+                #     'da_agencia': '3484'
+                # },
+                # 'banco_bradesco': {
+                #     'da_conta': '31145',
+                #     'do_banco': '237',
+                #     'da_agencia': '4113'
+                # },
+                # 'banco_master_apl': {
+                #     'da_conta': '0000200280',
+                #     'do_banco': '243',
+                #     'da_agencia': '0001'
+                # },
+                # 'banco_master': {
+                #     'da_conta': '00109673',
+                #     'do_banco': '243',
+                #     'da_agencia': '0001'
+                # },
+                # 'banco_bmg': {
+                #     'da_conta': '17003248',
+                #     'do_banco': '318',
+                #     'da_agencia': '0005'
+                # },
+                # 'banco_bmg_vinculada': {
+                #     'da_conta': '17003252',
+                #     'do_banco': '318',
+                #     'da_agencia': '0005'
+                # },
+                # 'banco_xp_c_c': {
+                #     'da_conta': '1668210',
+                #     'do_banco': '348',
+                #     'da_agencia': '0001'
+                # },
+                # 'safra_national_bank_of_new_york': {
+                #     'da_conta': '700004181',
+                #     'do_banco': '422',
+                #     'da_agencia': '000'
+                # },
+                # 'banco_safra_c_c': {
+                #     'da_conta': '586982',
+                #     'do_banco': '422',
+                #     'da_agencia': '0023'
+                # },
+                # 'banco_safra_aplicacao': {
+                #     'da_conta': '586982A',
+                #     'do_banco': '422',
+                #     'da_agencia': '0023'
+                # },
+                # 'banco_sofisa_vinculada': {
+                #     'da_conta': '000012987',
+                #     'do_banco': '637',
+                #     'da_agencia': '0004'
+                # },
+                # 'banco_sofisa_c_c': {
+                #     'da_conta': '12986',
+                #     'do_banco': '637',
+                #     'da_agencia': '0004'
+                # },
+                # 'banco_sofisa_vinculada_apl': {
+                #     'da_conta': '000012987A',
+                #     'do_banco': '637',
+                #     'da_agencia': '00043'
+                # },
+                # 'banco_citibank_sa': {
+                #     'da_conta': '09003958',
+                #     'do_banco': '745',
+                #     'da_agencia': '009'
+                # },
+                # 'sicoob_itaminas': {
+                #     'da_conta': '31413',
+                #     'do_banco': '756',
+                #     'da_agencia': '4101'
+                # },
+                # 'sicoob_itaminas_aplicacao': {
+                #     'da_conta': '31413A',
+                #     'do_banco': '756',
+                #     'da_agencia': '4101'
+                # },
+                # 'sicoob_tac_mpmg': {
+                #     'da_conta': '31722',
+                #     'do_banco': '756',
+                #     'da_agencia': '4101'
+                # },
+                # 'banco_sicoob_novo_tac': {
+                #     'da_conta': '32014',
+                #     'do_banco': '756',
+                #     'da_agencia': '4101'
+                # },
+                # 'banco_sicoob_conta_aplicacao': {
+                #     'da_conta': '32014A',
+                #     'do_banco': '756',
+                #     'da_agencia': '4101'
+                # },
+                # 'banco_deutsche_leasing': {
+                #     'da_conta': '0001',
+                #     'do_banco': '999',
+                #     'da_agencia': '0001'
+                # },
+                # 'caixa_geral_da_loja': {
+                #     'da_conta': '0000000001',
+                #     'do_banco': 'C01',
+                #     'da_agencia': '00001'
+                # },
+                # 'deposito_nao_identificado': {
+                #     'da_conta': '0000000002',
+                #     'do_banco': 'C02',
+                #     'da_agencia': '00002'
+                # },
+                'caixa_geral': {
+                    'da_conta': '0000000001',
+                    'do_banco': 'CX1',
+                    'da_agencia': '00001'
                 }
             }
             arquivos_gerados = []

@@ -1,45 +1,7 @@
 {
 "MovBancaria": {
 
-    "da_data": "15/09/2025",
-    "_comment_ate_a_emissao": "Para usar o parâmetro dinâmico, use: {{data_futura}}",
-
-    "ate_a_data": "15/09/2025"
-},
-
-"Modelo_1": {
-    "data_inicial": "{{primeiro_e_ultimo_dia.inicial}}",
-    "_comment_data_inicial": "Para usar o parâmetro dinâmico, use: {{primeiro_e_ultimo_dia.inicial}}",
-
-    "data_final": "{{primeiro_e_ultimo_dia.final}}",
-    "_comment_data_final": "Para usar o parâmetro dinâmico, use: {{primeiro_e_ultimo_dia.final}}",
-
-    "conta_inicial": "",
-    "conta_final": "ZZZZZZZZZZZZZZZZZZZZ",
-    "data_lucros_perdas": "",
-    "grupos_receitas_despesas": "3456",
-
-    "data_sid_art": "{{obter_ultimo_dia_ano_passado}}",
-    "_comment_data_lucros_perdas": "Para usar o parâmetro dinâmico, use: {{obter_ultimo_dia_ano_passado}}",
-
-    "num_linha_balancete": "99",
-    "desc_moeda": "01"
-},
-
-"Contas_X_Itens": {
-    "data_inicial": "{{primeiro_e_ultimo_dia.inicial}}",
-    "_comment_data_inicial": "Para usar o parâmetro dinâmico, use: {{primeiro_e_ultimo_dia.inicial}}",
-
-    "data_final": "{{primeiro_e_ultimo_dia.final}}",
-    "_comment_data_final": "Para usar o parâmetro dinâmico, use: {{primeiro_e_ultimo_dia.final}}",
-
-    "contabil_inicial": "",
-    "contabil_final": "ZZZZZZZZZZZZZZZZZZZZ",
-    "folha_inicial": "2",
-    "desc_moeda": "01",
-    "imprime_saldo": "1",
-
-    "data_lucros": "{{obter_ultimo_dia_ano_passado}}",
-    "_comment_data_lucros": "Para usar o parâmetro dinâmico, use: {{obter_ultimo_dia_ano_passado}}"
+    "da_data": "{{obter_data_dia_anterior}}",
+    "ate_a_data": "{{obter_data_dia_anterior}}"
 }
 }

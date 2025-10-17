@@ -1,5 +1,5 @@
 """
-Sistema de Conciliação de Fornecedores Itaminas
+Sistema de Movimentação Bancária Itaminas
 Módulo de envio de emails e configurações do sistema
 Desenvolvido por DCLICK
 """
@@ -123,9 +123,9 @@ def send_success_email(completion_time, processed_count, error_count, report_pat
     """
     settings = Settings()
 
-    subject = "[SUCESSO] BOT - Conciliação de Fornecedores Itaminas"
+    subject = "[SUCESSO] BOT - Movimentação Bancária Itaminas"
     body = (
-        "O processo de conciliação de fornecedores foi realizado com sucesso.\n"
+        "O processo de Movimentação Bancária foi realizado com sucesso.\n"
         "Todos os detalhes do processamento estão no log em anexo."
     )
 
@@ -208,7 +208,7 @@ def send_success_email(completion_time, processed_count, error_count, report_pat
 
 def send_email(subject, body, summary, attachments=None, email_type="success"):
     """
-    Envia email seguindo o padrão da empresa para o processo de Conciliação de Fornecedores
+    Envia email seguindo o padrão da empresa para o processo de Movimentação Bancária
     
     Args:
         subject (str): Assunto do email
@@ -272,7 +272,7 @@ def send_email(subject, body, summary, attachments=None, email_type="success"):
             <p>{part1}</p>
             <p>{part2}</p>
             <pre>{chr(10).join(summary)}</pre>
-            <p>Esta mensagem foi gerada automaticamente pelo sistema de Conciliação de Fornecedores Itaminas.</p>
+            <p>Esta mensagem foi gerada automaticamente pelo sistema de Movimentação Bancária Itaminas.</p>
             <p>Desenvolvido por DCLICK.</p>
         </body>
         </html>
@@ -313,10 +313,10 @@ def send_error_email(error_time, error_description, affected_count=None,
         suggested_action (str, optional): Ação sugerida para correção
     """
     # Configurar assunto do email
-    subject = "[FALHA] BOT - Conciliação de Fornecedores Itaminas"
+    subject = "[FALHA] BOT - Movimentação Bancária Itaminas"
     
     # Corpo principal do email
-    body = "Falha na execução do processo de conciliação de fornecedores. Verifique os logs em anexo para mais detalhes."
+    body = "Falha na execução do processo de Movimentação Bancária. Verifique os logs em anexo para mais detalhes."
     
     # Criar resumo do erro
     summary = [
@@ -394,80 +394,13 @@ def handle_specific_exceptions(e, logger):
     return error_description, affected_count, suggested_action
 
 
-def excluir_arquivos_pasta(CAMINHO_PLS):
-    """
-    Exclui todos os arquivos de uma pasta específica.
-    """
-    try:
-        pasta = Path(CAMINHO_PLS)
-        
-        arquivos_excluidos = []
-        quantidade_excluida = 0
-        
-        for item in pasta.iterdir():
-            if item.is_file():
-                try:
-                    item.unlink()
-                    arquivos_excluidos.append(item.name)
-                    quantidade_excluida += 1
-                    logging.info(f"Arquivo excluído: {item.name}")  
-                except Exception as e:
-                    logging.error(f"Erro ao excluir {item.name}: {e}")
-        
-        logging.info(f"Total de arquivos excluídos: {quantidade_excluida}")
-        return quantidade_excluida, arquivos_excluidos
-        
-    except Exception as e:
-        logging.error(f"Erro ao excluir arquivos da pasta {CAMINHO_PLS}: {e}")
-        return 0, []
-        
-
-
-def fechar_web_agent():
-    logger = configure_logger()
-    
-    # Fechar o Microsoft Edge
-    processo_nome = "msedge.exe"
-    
-    processos_fechados = 0
-    
-    for processo in psutil.process_iter(['pid', 'name']):
-        if processo.info['name'].lower() == processo_nome.lower():
-            try:
-                processo.terminate()
-                processo.wait(timeout=3)
-                logger.info(f"Microsoft Edge fechado (PID: {processo.info['pid']})")
-                processos_fechados += 1
-            except psutil.NoSuchProcess:
-                logger.warning("Processo do Edge já foi fechado")
-            except psutil.TimeoutExpired:
-                processo.kill()
-                logger.info(f"Microsoft Edge forçado a fechar (PID: {processo.info['pid']})")
-                processos_fechados += 1
-    
-    if processos_fechados > 0:
-        logger.info(f"Total de processos do Edge fechados: {processos_fechados}")
-        return True
-    else:
-        logger.warning("Microsoft Edge não encontrado em execução")
-        return False
-    
-def get_latest_file(folder: Path, prefix="CONCILIACAO_", extension=".xlsx"):
-    """
-    Retorna o caminho do arquivo mais recente na pasta `folder`
-    que começa com `prefix` e termina com `extension`.
-    """
-    files = [f for f in folder.glob(f"{prefix}*{extension}") if f.is_file()]
-    if not files:
-        return None
-    return max(files, key=lambda f: f.stat().st_mtime)
 # =============================================================================
 # FUNÇÃO PRINCIPAL E EXECUÇÃO DO SCRIPT
 # =============================================================================
 
 def main():
     """
-    Função principal do script de conciliação de fornecedores
+    Função principal do script de Movimentação Bancária
     """
     # Configurar logger
     logger = configure_logger()
