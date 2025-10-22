@@ -96,7 +96,7 @@ class MovBancaria(Utils):
             time.sleep(1)
             
             self._confirmar_operacao()
-            
+            time.sleep(2)
             self._fechar_popup_se_existir()
             time.sleep(3)
             if not self.locators['menu_pdf'].is_visible():
@@ -116,25 +116,25 @@ class MovBancaria(Utils):
 
     def _gerar_arquivo(self):
         try:
-            self.locators['menu_pdf'].wait_for(state="visible", timeout=120000)
+            self.locators['menu_pdf'].wait_for(state="visible", timeout=240000)
             logger.info("Botão 'PDF' visível")
 
             self.locators['menu_pdf'].click()
             logger.info("Botão 'PDF' clicado")
-            time.sleep(0.5)
+            time.sleep(1.5)
             self.locators['menu_pdf'].click()
 
-            time.sleep(0.5)
+            time.sleep(1.5)
             self.locators['text_paisagem'].click()
-            time.sleep(0.5)
+            time.sleep(1.5)
             self.locators['text_paisagem'].click()
             logger.info("Botão paisagem clicado")
-            time.sleep(0.5)
+            time.sleep(1.5)
             self.locators['opcao_novo'].click()
             self.locators['opcao_novo'].select_option("1")
-            time.sleep(0.5)
+            time.sleep(1.5)
             self.locators['outras_acoes'].click()
-            time.sleep(0.5)
+            time.sleep(1.5)
             self.locators['parametros_menu'].click()
 
         except PlaywrightTimeoutError:
@@ -330,243 +330,147 @@ class MovBancaria(Utils):
         try:
             # Definir os bancos
             bancos = {
-        
-        'banco_do_brasil': {
-            'da_conta': '118091',
-            'do_banco': '001',
-            'da_agencia': '2115'
-        },
-        'banco_santander_brasil_sa': {
-            'da_conta': '13002314',
-            'do_banco': '033',
-            'da_agencia': '4177'
-        },
-        'banco_santander_aplicacao': {
-            'da_conta': '13002314A',
-            'do_banco': '033',
-            'da_agencia': '4177'
-        },
-        'banco_santander_aplicacao_cdb': {
-            'da_conta': '13002314B',
-            'do_banco': '033',
-            'da_agencia': '4177'
-        },
-        'banco_xp_investimentos': {
-            'da_conta': '1668210',
-            'do_banco': '102',
-            'da_agencia': '0001'
-        },
-        'banco_xp_investimentos_aplicacao': {
-            'da_conta': '1668210A',
-            'do_banco': '102',
-            'da_agencia': '0001'
-        },
-        'banco_xp': {
-            'da_conta': '1856184',
-            'do_banco': '102',
-            'da_agencia': '0001'
-        },
-        'banco_xp_aplicacao': {
-            'da_conta': '18561846',
-            'do_banco': '102',
-            'da_agencia': '0001'
-        },
-        'banco_xp_internacional': {
-            'da_conta': 'QRX401225',
-            'do_banco': '102',
-            'da_agencia': '0001'
-        },
-        'banco_xp_internacional_apl': {
-            'da_conta': 'QRX401225A',
-            'do_banco': '102',
-            'da_agencia': '0001'
-        },
-        'banco_btg_pactual': {
-            'da_conta': '00842887',
-            'do_banco': '208',
-            'da_agencia': '0001'
-        },
-        'banco_btg_pactual_aplicacao': {
-            'da_conta': '00842887A',
-            'do_banco': '208',
-            'da_agencia': '0001'
-        },
-        'banco_bs2_sa': {
-            'da_conta': '10164',
-            'do_banco': '218',
-            'da_agencia': '0001'
-        },
-        'banco_bs2_aplicacao': {
-            'da_conta': '10164A',
-            'do_banco': '218',
-            'da_agencia': '0001'
-        },
-        'banco_bs2_s_a_vinculada': {
-            'da_conta': '1125020',
-            'do_banco': '218',
-            'da_agencia': '0001'
-        },
-        'banco_bs2_vinculada_aplicacao': {
-            'da_conta': '1125020A',
-            'do_banco': '218',
-            'da_agencia': '0001'
-        },
-        'banco_bs2_internacional': {
-            'da_conta': 'KY18752824',
-            'do_banco': '218',
-            'da_agencia': 'BBONK'
-        },
-        'banco_fibra_facil_sa': {
-            'da_conta': '000671803',
-            'do_banco': '224',
-            'da_agencia': '00001'
-        },
-        'banco_fibra_vinculada_duplicatas': {
-            'da_conta': '000671804',
-            'do_banco': '224',
-            'da_agencia': '00001'
-        },
-        'bradesco_itaminas_principal': {
-            'da_conta': '55327',
-            'do_banco': '237',
-            'da_agencia': '0466'
-        },
-        'bradesco_cdb_aplicacao': {
-            'da_conta': '55327A',
-            'do_banco': '237',
-            'da_agencia': '0466'
-        },
-        'bradesco_duplicata_descontada': {
-            'da_conta': '55327DP',
-            'do_banco': '237',
-            'da_agencia': '0466'
-        },
-        'bradesco_sa': {
-            'da_conta': '105169',
-            'do_banco': '237',
-            'da_agencia': '0895'
-        },
-        'bradesco_tac': {
-            'da_conta': '4780',
-            'do_banco': '237',
-            'da_agencia': '3484'
-        },
-        'bradesco_tac_aplicacao': {
-            'da_conta': '4780A',
-            'do_banco': '237',
-            'da_agencia': '3484'
-        },
-        'banco_bradesco': {
-            'da_conta': '31145',
-            'do_banco': '237',
-            'da_agencia': '4113'
-        },
-        'banco_master_apl': {
-            'da_conta': '0000200280',
-            'do_banco': '243',
-            'da_agencia': '0001'
-        },
-        'banco_master': {
-            'da_conta': '00109673',
-            'do_banco': '243',
-            'da_agencia': '0001'
-        },
-        'banco_bmg': {
-            'da_conta': '17003248',
-            'do_banco': '318',
-            'da_agencia': '0005'
-        },
-        'banco_bmg_vinculada': {
-            'da_conta': '17003252',
-            'do_banco': '318',
-            'da_agencia': '0005'
-        },
-        'banco_xp_c_c': {
-            'da_conta': '1668210',
-            'do_banco': '348',
-            'da_agencia': '0001'
-        },
-        'safra_national_bank_of_new_york': {
-            'da_conta': '700004181',
-            'do_banco': '422',
-            'da_agencia': '000'
-        },
-        'banco_safra_c_c': {
-            'da_conta': '586982',
-            'do_banco': '422',
-            'da_agencia': '0023'
-        },
-        'banco_safra_aplicacao': {
-            'da_conta': '586982A',
-            'do_banco': '422',
-            'da_agencia': '0023'
-        },
-        'banco_sofisa_vinculada': {
-            'da_conta': '000012987',
-            'do_banco': '637',
-            'da_agencia': '0004'
-        },
-        'banco_sofisa_c_c': {
-            'da_conta': '12986',
-            'do_banco': '637',
-            'da_agencia': '0004'
-        },
-        'banco_sofisa_vinculada_apl': {
-            'da_conta': '000012987A',
-            'do_banco': '637',
-            'da_agencia': '00043'
-        },
-        'banco_citibank_sa': {
-            'da_conta': '09003958',
-            'do_banco': '745',
-            'da_agencia': '009'
-        },
-        'sicoob_itaminas': {
-            'da_conta': '31413',
-            'do_banco': '756',
-            'da_agencia': '4101'
-        },
-        'sicoob_itaminas_aplicacao': {
-            'da_conta': '31413A',
-            'do_banco': '756',
-            'da_agencia': '4101'
-        },
-        'sicoob_tac_mpmg': {
-            'da_conta': '31722',
-            'do_banco': '756',
-            'da_agencia': '4101'
-        },
-        'banco_sicoob_novo_tac': {
-            'da_conta': '32014',
-            'do_banco': '756',
-            'da_agencia': '4101'
-        },
-        'banco_sicoob_conta_aplicacao': {
-            'da_conta': '32014A',
-            'do_banco': '756',
-            'da_agencia': '4101'
-        },
-        'banco_deutsche_leasing': {
-            'da_conta': '0001',
-            'do_banco': '999',
-            'da_agencia': '0001'
-        },
-        'caixa_geral_da_loja': {
-            'da_conta': '0000000001',
-            'do_banco': 'C01',
-            'da_agencia': '00001'
-        },
-        'deposito_nao_identificado': {
-            'da_conta': '0000000002',
-            'do_banco': 'C02',
-            'da_agencia': '00002'
-        },
-        'caixa_geral': {
-            'da_conta': '0000000001',
-            'do_banco': 'CX1',
-            'da_agencia': '00001'
-        }
-    }
+                'banco_do_brasil': {
+                    'da_conta': '118091',
+                    'do_banco': '001',
+                    'da_agencia': '2115'
+                },
+                'banco_santander_brasil_sa': {
+                    'da_conta': '13002314',
+                    'do_banco': '033',
+                    'da_agencia': '4177'
+                },
+                'banco_santander_aplicacao': {
+                    'da_conta': '13002314A',
+                    'do_banco': '033',
+                    'da_agencia': '4177'
+                },
+                'banco_santander_aplicacao_cdb': {
+                    'da_conta': '13002314B',
+                    'do_banco': '033',
+                    'da_agencia': '4177'
+                },
+                'banco_xp_investimentos': {
+                    'da_conta': '1668210',
+                    'do_banco': '102',
+                    'da_agencia': '0001'
+                },
+                'banco_xp_investimentos_aplicacao': {
+                    'da_conta': '1668210A',
+                    'do_banco': '102',
+                    'da_agencia': '0001'
+                },
+                'banco_xp': {
+                    'da_conta': '1856184',
+                    'do_banco': '102',
+                    'da_agencia': '0001'
+                },
+                'banco_xp_aplicacao': {
+                    'da_conta': '18561846',
+                    'do_banco': '102',
+                    'da_agencia': '0001'
+                },
+                'banco_xp_internacional': {
+                    'da_conta': 'QRX401225',
+                    'do_banco': '102',
+                    'da_agencia': '0001'
+                },
+                'banco_xp_internacional_apl': {
+                    'da_conta': 'QRX401225A',
+                    'do_banco': '102',
+                    'da_agencia': '0001'
+                },
+                'banco_btg_pactual': {
+                    'da_conta': '00842887',
+                    'do_banco': '208',
+                    'da_agencia': '0001'
+                },
+                'banco_btg_pactual_aplicacao': {
+                    'da_conta': '00842887A',
+                    'do_banco': '208',
+                    'da_agencia': '0001'
+                },
+                'banco_bs2_sa': {
+                    'da_conta': '10164',
+                    'do_banco': '218',
+                    'da_agencia': '0001'
+                },
+                'banco_bs2_aplicacao': {
+                    'da_conta': '10164A',
+                    'do_banco': '218',
+                    'da_agencia': '0001'
+                },
+                'banco_bs2_s_a_vinculada': {
+                    'da_conta': '1125020',
+                    'do_banco': '218',
+                    'da_agencia': '0001'
+                },
+                'banco_bs2_vinculada_aplicacao': {
+                    'da_conta': '1125020A',
+                    'do_banco': '218',
+                    'da_agencia': '0001'
+                },
+                'banco_bs2_internacional': {
+                    'da_conta': 'KY18752824',
+                    'do_banco': '218',
+                    'da_agencia': 'BBONK'
+                },
+                'banco_fibra_facil_sa': {
+                    'da_conta': '000671803',
+                    'do_banco': '224',
+                    'da_agencia': '00001'
+                },
+                'banco_fibra_vinculada_duplicatas': {
+                    'da_conta': '000671804',
+                    'do_banco': '224',
+                    'da_agencia': '00001'
+                },
+                'bradesco_itaminas_principal': {
+                    'da_conta': '55327',
+                    'do_banco': '237',
+                    'da_agencia': '0466'
+                },
+                'bradesco_cdb_aplicacao': {
+                    'da_conta': '55327A',
+                    'do_banco': '237',
+                    'da_agencia': '0466'
+                },
+                'bradesco_duplicata_descontada': {
+                    'da_conta': '55327DP',
+                    'do_banco': '237',
+                    'da_agencia': '0466'
+                },
+                'bradesco_sa': {
+                    'da_conta': '105169',
+                    'do_banco': '237',
+                    'da_agencia': '0895'
+                },
+                'bradesco_tac': {
+                    'da_conta': '4780',
+                    'do_banco': '237',
+                    'da_agencia': '3484'
+                },
+                'bradesco_tac_aplicacao': {
+                    'da_conta': '4780A',
+                    'do_banco': '237',
+                    'da_agencia': '3484'
+                },
+                'banco_bradesco': {
+                    'da_conta': '31145',
+                    'do_banco': '237',
+                    'da_agencia': '4113'
+                },
+                'banco_master_apl': {
+                    'da_conta': '0000200280',
+                    'do_banco': '243',
+                    'da_agencia': '0001'
+                },
+                'banco_master': {
+                    'da_conta': '00109673',
+                    'do_banco': '243',
+                    'da_agencia': '0001'
+                }
+            }
             
             # Carregar os parâmetros do JSON
             parameters_path = self.settings.PARAMETERS_DIR
