@@ -96,9 +96,9 @@ class MovBancaria(Utils):
             time.sleep(1)
             
             self._confirmar_operacao()
-            time.sleep(2)
+            time.sleep(1)
             self._fechar_popup_se_existir()
-            time.sleep(3)
+            time.sleep(5)
             if not self.locators['menu_pdf'].is_visible():
                 self._fechar_popup_se_existir()
             
