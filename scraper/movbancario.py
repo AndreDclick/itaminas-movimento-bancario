@@ -298,7 +298,7 @@ class MovBancaria(Utils):
             caminho_arquivo = self._imprimir_e_baixar(banco, nome_banco)
             
             if caminho_arquivo:  # Só processa se não for banco inválido (caminho_arquivo não é None)
-                logger.info(f"✅ Banco {nome_banco} processado com sucesso - Arquivo: {caminho_arquivo.name}")
+                logger.info(f" Banco {nome_banco} processado com sucesso - Arquivo: {caminho_arquivo.name}")
                 status, si, sa, dif = self.conciliacao._processar_pdf(
                     Path(caminho_arquivo),
                     nome_banco, 
@@ -309,7 +309,7 @@ class MovBancaria(Utils):
                 logger.info(f"Conciliação [{nome_banco}] - Status: {status}, Inicial: {si}, Atual: {sa}, Diferença: {dif}")
                 return caminho_arquivo
             else:
-                logger.warning(f"⚠️ Banco {nome_banco} identificado como inválido")
+                logger.warning(f" Banco {nome_banco} identificado como inválido")
                 return None  # Banco inválido, não retorna arquivo
                     
         except Exception as e:
@@ -491,7 +491,7 @@ class MovBancaria(Utils):
             }
             
         except Exception as e:
-            error_msg = f"❌ Falha na execução: {str(e)}"
+            error_msg = f" Falha na execução: {str(e)}"
             logger.error(error_msg)
             return {
                 'status': 'error', 
